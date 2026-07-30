@@ -1,0 +1,72 @@
+[package]
+name = "alartic-api"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "ALARTIC — back-end Axum (comptes, SAV, back-office)"
+license = "UNLICENSED"
+
+[dependencies]
+# HTTP framework
+axum = { version = "0.8", features = ["multipart"] }
+# Runtime async
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
+# Middleware (tracing, CORS, etc.)
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "limit"] }
+# Observabilité
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+# Sérialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Postgres — rustls (pas d'OpenSSL natif), macros pour queries vérifiées à la
+# compilation, migrate pour appliquer les migrations au démarrage en dev.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+# Charger le `.env` en dev. En prod (J5) les vars sont fournies par le
+# gestionnaire de secrets Infomaniak ; dotenvy n'écrasera rien si elles sont
+# déjà présentes dans l'environnement.
+dotenvy = "0.15"
+# Erreurs / utilitaires.
+anyhow = "1"
+thiserror = "2"
+# Crypto — uniquement les crates whitelistées par le CDC (§5).
+aes-gcm = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+rand = "0.8"
+base64 = "0.22"
+hex = "0.4"
+# SMTP (Mailpit en dev, Infomaniak Mail en prod).
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-rustls-tls", "builder"] }
+# Validation d'entrées (formats email, etc.).
+validator = { version = "0.20", features = ["derive"] }
+# Client HTTP pour appels Payplug / PayPal. rustls (cohérent avec sqlx tls-rustls).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Parsing frontmatter YAML des .md catalogue (apps/web/content/products/*.md)
+# au démarrage de l'API. Le catalogue reste la source Decap, on lit seulement
+# au boot (et plus tard via endpoint /admin/products/reload en J4 back-office).
+gray_matter = "0.2"
+# Génération facture PDF (CDC §9.6, CGI art. 242 nonies A). default-features
+# off → on n'embarque ni js-sys ni image, on dessine du texte vectoriel avec
+# polices PDF built-in (Helvetica) — pas de fichier .ttf à charger.
+printpdf = { version = "0.7", default-features = false }
+
+[dev-dependencies]
+http-body-util = "0.1"
+ctor = "0.2"
+
+[profile.release]
+# Optimisations pour binaire de prod déployé en image distroless (CDC §3.3).
+strip = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+[profile.dev]
+# Réactivité du hot reload via cargo-watch.
+opt-level = 0
+debug = 1

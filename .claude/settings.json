@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(npm run dev:web:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run build:web:*)",
+      "Bash(npm run preview:*)",
+      "Bash(npm run preview:web:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(astro:*)",
+      "Bash(vite:*)"
+    ]
+  }
+}

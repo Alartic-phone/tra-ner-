@@ -1,0 +1,93 @@
+---
+/**
+ * FaqList — liste de Q&R en accordéon natif (<details>/<summary>).
+ * Pas de JS — accessibilité et progressive enhancement gratuits.
+ */
+
+interface Item {
+  question: string;
+  answer: string;
+}
+
+interface Props {
+  items: Item[];
+}
+
+const { items } = Astro.props;
+---
+
+<div class="faq">
+  {items.map((item, i) => (
+    <details class="faq__item" open={i === 0}>
+      <summary class="faq__question">
+        <span>{item.question}</span>
+        <svg class="faq__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </summary>
+      <div class="faq__answer">
+        <p>{item.answer}</p>
+      </div>
+    </details>
+  ))}
+</div>
+
+<style>
+  .faq {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .faq__item {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .faq__question {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-5) 0;
+    cursor: pointer;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--color-text);
+    letter-spacing: var(--tracking-tight);
+    gap: var(--space-4);
+    list-style: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .faq__question::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq__question:hover {
+    color: var(--color-brand);
+  }
+
+  .faq__chevron {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+
+  .faq__item[open] .faq__chevron {
+    transform: rotate(180deg);
+    color: var(--color-brand);
+  }
+
+  .faq__answer {
+    padding-bottom: var(--space-5);
+    padding-right: var(--space-7);
+  }
+
+  .faq__answer p {
+    color: var(--color-text-secondary);
+    font-size: var(--fs-md);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+    max-width: 65ch;
+  }
+</style>

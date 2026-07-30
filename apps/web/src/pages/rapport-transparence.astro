@@ -1,0 +1,247 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+import Stats from "../components/molecules/Stats.astro";
+
+const stats = [
+  { value: "0", label: "Réquisition judiciaire reçue à ce jour." },
+  { value: "0", label: "Incident de sécurité avéré à ce jour." },
+  { value: "0", label: "Donnée transmise à un tiers à des fins publicitaires." },
+  { value: "0", label: "Audit externe payant déclenché — seuils non atteints." },
+];
+---
+
+<Base
+  title="Rapport de transparence"
+  description="Données chiffrées sur les réquisitions, incidents de sécurité et engagements ALARTIC."
+>
+  <Header slot="header" />
+
+  <section class="hero">
+    <Container size="lg">
+      <div data-anim="hero-stagger">
+        <h1 class="hero__title">Rapport de transparence.</h1>
+        <p class="hero__lead">
+          Publication annuelle, chiffrée. Première édition complète prévue en
+          <strong>janvier 2027</strong>, couvrant l'année 2026. Cette page sert d'engagement
+          public préalable et de référentiel pour les futures publications.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="xl">
+      <header class="section__header">
+        <p class="eyebrow">État au 12 mai 2026</p>
+        <h2 class="section__title">Le compteur, avant le lancement.</h2>
+      </header>
+      <Stats stats={stats} />
+    </Container>
+  </section>
+
+  <section class="section section--surface">
+    <Container size="md">
+      <h2 class="section__title section__title--sm">Ce que le rapport contiendra.</h2>
+      <p class="prose">
+        À partir de janvier 2027 (puis chaque janvier), un rapport public détaillera :
+      </p>
+      <Card variant="outlined" padding="lg" class="report-card">
+        <ul class="report-list">
+          <li>
+            <strong>Réquisitions judiciaires</strong> reçues, nombre, autorité émettrice
+            (anonymisée si nécessaire), nombre de comptes affectés, type de données
+            communiquées, conformité à la procédure.
+          </li>
+          <li>
+            <strong>Incidents de sécurité</strong> survenus, nature, impact, mesures
+            correctives, délai de notification aux utilisateurs concernés.
+          </li>
+          <li>
+            <strong>Demandes RGPD</strong> reçues (accès, rectification, effacement,
+            portabilité), volume, délai moyen de traitement.
+          </li>
+          <li>
+            <strong>Sous-traitants</strong> actifs, périmètre des données traitées, juridiction.
+          </li>
+          <li>
+            <strong>Métriques techniques</strong> publiques : SSL Labs, Mozilla Observatory,
+            Lighthouse, Blacklight.
+          </li>
+          <li>
+            <strong>Évolution des CGV et de la Politique de confidentialité</strong> au cours
+            de l'année.
+          </li>
+        </ul>
+      </Card>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="md">
+      <h2 class="section__title section__title--sm">Engagements en cours de gestion.</h2>
+      <dl class="commitments">
+        <div>
+          <dt>Tenue d'un registre des réquisitions</dt>
+          <dd>Le back-office admin (CDC §12) intègre dès le lancement un registre dédié.
+            Toute réquisition reçue y est consignée avec date, autorité, périmètre, suite donnée.</dd>
+        </div>
+        <div>
+          <dt>Notification aux utilisateurs concernés</dt>
+          <dd>En cas de réquisition concernant un utilisateur précis, celui-ci est notifié
+            <strong>dès que légalement possible</strong> (i.e. dès la fin d'une éventuelle
+            interdiction de notification émise par l'autorité).</dd>
+        </div>
+        <div>
+          <dt>Notification d'incident de sécurité</dt>
+          <dd>En cas de violation de données affectant des utilisateurs, notification CNIL
+            sous 72 h (art. 33 RGPD) et information directe des personnes concernées sous
+            le même délai si le risque est élevé (art. 34 RGPD).</dd>
+        </div>
+        <div>
+          <dt>Audit externe payant — déclencheurs</dt>
+          <dd>200 commandes annuelles, incident avéré, changement de juridiction, médiatisation,
+            évolution vers données plus sensibles. Cf. <a href="/securite">Politique de sécurité</a>.</dd>
+        </div>
+      </dl>
+    </Container>
+  </section>
+
+  <section class="section section--surface">
+    <Container size="md">
+      <h2 class="section__title section__title--sm">Avant-propos méthodologique.</h2>
+      <p class="prose">
+        Ce rapport est rédigé par Thomas BEHAGUE, en sa qualité de dirigeant d'ALARTIC.
+        Il est <strong>signé numériquement avec la clé PGP</strong> publiée sur la
+        <a href="/securite">Politique de sécurité</a>. Toute personne peut vérifier
+        l'intégrité du document publié.
+      </p>
+      <p class="prose">
+        Les chiffres sont issus du <strong>registre interne tenu en continu</strong>
+        (commandes, réquisitions, incidents, demandes RGPD). En cas d'incohérence détectée
+        a posteriori, une <strong>erratum</strong> est publié dans les 7 jours suivant la
+        détection.
+      </p>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../scripts/animations";
+</script>
+
+<style>
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+  .hero__title {
+    font-size: var(--fs-4xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: var(--space-4) 0 var(--space-4);
+  }
+  .hero__lead {
+    font-size: var(--fs-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 60ch;
+  }
+  .hero__lead strong {
+    color: var(--color-text);
+    font-weight: var(--fw-semibold);
+  }
+
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+  }
+
+  .section__header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+  }
+  .section__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+  }
+  .section__title--sm {
+    font-size: var(--fs-2xl);
+    margin-bottom: var(--space-4);
+  }
+  .eyebrow {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    margin: 0;
+  }
+
+  .prose {
+    font-size: var(--fs-md);
+    color: var(--color-text);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin-bottom: var(--space-4);
+  }
+
+  .report-card {
+    margin-top: var(--space-3);
+  }
+  .report-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .report-list li {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+  }
+  .report-list li:first-child { padding-top: 0; }
+  .report-list li:last-child { padding-bottom: 0; border-bottom: none; }
+  .report-list strong {
+    color: var(--color-text);
+    font-weight: var(--fw-semibold);
+  }
+
+  .commitments {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+    margin: 0;
+  }
+  .commitments > div {
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .commitments > div:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .commitments dt {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    margin-bottom: var(--space-2);
+  }
+  .commitments dd {
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+  }
+</style>

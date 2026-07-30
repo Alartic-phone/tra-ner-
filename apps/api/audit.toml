@@ -1,0 +1,21 @@
+# Configuration cargo-audit — apps/api.
+#
+# Les advisories listées ci-dessous sont ignorées en CI, avec justification.
+# Revoir trimestriellement.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin Attack: potential key recovery through
+    # timing sidechannels (crate `rsa 0.9.10`, severity 5.9 medium).
+    #
+    # `rsa` est tirée TRANSITIVEMENT par `sqlx-mysql` via `sqlx-macros-core`,
+    # bug connu sqlx : les macros pull all backends à la compile, peu importe
+    # les feature flags utilisateur. On configure sqlx avec features =
+    # ["postgres"] seulement, donc `sqlx-mysql` n'est jamais utilisée à
+    # runtime — aucune exposition au Marvin Attack côté ALARTIC.
+    #
+    # Aucun fix amont disponible (pas de release `rsa` patchée publiée).
+    # À relever quand RUSTSEC-2023-0071 sera marqué résolu ou quand
+    # sqlx-macros-core découplera ses backends.
+    "RUSTSEC-2023-0071",
+]

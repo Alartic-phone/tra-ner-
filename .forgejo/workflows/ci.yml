@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    name: Front Astro
+    runs-on: codeberg-small
+    container:
+      image: node:20-bookworm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+
+      - name: Secrets scan
+        run: gitleaks detect --source=. --redact -v
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Audit (critique uniquement)
+        run: npm audit --audit-level=critical
+
+      - name: Typecheck
+        run: npm run typecheck:web
+
+      - name: Build
+        run: npm run build:web
+
+  api:
+    name: Back-end Axum
+    runs-on: codeberg-medium
+    container:
+      image: rust:1.88-bookworm
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: alartic
+          POSTGRES_PASSWORD: dev_only_change_me
+          POSTGRES_DB: alartic_dev_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Les tests sqlx::test créent leurs propres bases sur ce serveur — il
+      # leur faut juste pouvoir se connecter au superuser.
+      DATABASE_URL: postgres://alartic:dev_only_change_me@postgres:5432/alartic_dev_test
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Install Node (requis par actions/checkout et actions/cache)
+        working-directory: /
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends nodejs
+          node --version
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain info + clippy
+        run: |
+          rustc --version
+          cargo --version
+          rustup component add clippy
+          cargo clippy --version
+
+      # On ne cache que ~/.cargo (registry + git deps, qq dizaines de Mo).
+      # `apps/api/target` ferait sortir le tar + gzip du post-step au-delà
+      # du runtime max codeberg-medium (cf. job 5564357 cancelled).
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/api/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Clippy (warnings → erreurs)
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --locked
+
+      - name: cargo audit
+        # RUSTSEC-2023-0071 (Marvin Attack sur `rsa 0.9.10`) ignorée :
+        # tirée transitivement par sqlx-mysql via sqlx-macros-core (bug
+        # connu sqlx, les macros pull all backends). On utilise uniquement
+        # sqlx-postgres au runtime → aucune exposition. Cf. apps/api/audit.toml
+        # pour la justification détaillée. À relever quand un fix amont sort.
+        run: |
+          cargo install --locked cargo-audit || true
+          cargo audit --ignore RUSTSEC-2023-0071

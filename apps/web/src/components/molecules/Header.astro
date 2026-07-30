@@ -1,0 +1,734 @@
+---
+import Container from "../atoms/Container.astro";
+
+interface NavItem {
+  label: string;
+  href: string;
+  megamenu?: "modeles";
+}
+
+const navItems: NavItem[] = [
+  { label: "Modèles",        href: "/modeles", megamenu: "modeles" },
+  { label: "Manifeste",      href: "/manifeste" },
+  { label: "Sécurité",       href: "/securite" },
+  { label: "Compatibilité",  href: "/compatibilite" },
+  { label: "FAQ",            href: "/faq" },
+  { label: "À propos",       href: "/a-propos" },
+];
+
+interface FeaturedProduct {
+  slug: string;
+  name: string;
+  tagline: string;
+  priceFrom: number;
+  image: string;
+}
+
+const featuredModeles: FeaturedProduct[] = [
+  {
+    slug: "pixel-10-pro-xl",
+    name: "Pixel 10 Pro XL",
+    tagline: "Grand format. 6,8\".",
+    priceFrom: 1299,
+    image: "/products/pixel-10-pro-xl-obsidian-rear.svg",
+  },
+  {
+    slug: "pixel-10-pro",
+    name: "Pixel 10 Pro",
+    tagline: "Tensor G5. Zoom 5×.",
+    priceFrom: 1099,
+    image: "/products/pixel-10-pro-obsidian-rear.svg",
+  },
+  {
+    slug: "pixel-10",
+    name: "Pixel 10",
+    tagline: "Privacy native.",
+    priceFrom: 899,
+    image: "/products/pixel-10-indigo-rear.svg",
+  },
+  {
+    slug: "pixel-9-pro-xl",
+    name: "Pixel 9 Pro XL",
+    tagline: "Grand écran. Sans compromis.",
+    priceFrom: 1299,
+    image: "/products/pixel-9-pro-xl-obsidian-rear.svg",
+  },
+];
+
+const fmtPrice = (n: number) =>
+  new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+const currentPath = Astro.url.pathname;
+---
+
+<header class="header">
+  <Container size="xl">
+    <nav class="island" aria-label="Navigation principale">
+      <a href="/" class="island__brand" aria-label="ALARTIC — Accueil">
+        <img src="/logo.png" alt="ALARTIC" width="120" height="28" />
+      </a>
+
+      <ul class="island__menu">
+        {navItems.map((item) => (
+          <li class="island__item">
+            {item.megamenu ? (
+              <a
+                href={item.href}
+                class:list={["island__link", currentPath.startsWith(item.href) && "is-active"]}
+                aria-current={currentPath.startsWith(item.href) ? "page" : undefined}
+                aria-expanded="false"
+                aria-controls={`megamenu-${item.megamenu}`}
+                aria-haspopup="true"
+                data-megamenu-trigger={item.megamenu}
+              >
+                <span>{item.label}</span>
+                <svg class="island__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </a>
+            ) : (
+              <a
+                href={item.href}
+                class:list={["island__link", currentPath.startsWith(item.href) && "is-active"]}
+                aria-current={currentPath.startsWith(item.href) ? "page" : undefined}
+              >
+                {item.label}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <div class="island__actions">
+        <a
+          href="/connexion"
+          class="island__icon-btn"
+          aria-label="Connexion à mon compte"
+          data-account-link
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </a>
+        <a
+          href="/panier"
+          class="island__icon-btn island__icon-btn--cart"
+          aria-label="Voir le panier"
+          data-cart-link
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span class="island__icon-badge" data-cart-count hidden>0</span>
+        </a>
+      </div>
+
+      <button
+        type="button"
+        class="island__burger"
+        aria-label="Ouvrir le menu"
+        aria-expanded="false"
+        data-mobile-toggle
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="3" y1="7" x2="21" y2="7"></line>
+          <line x1="3" y1="17" x2="21" y2="17"></line>
+        </svg>
+      </button>
+    </nav>
+
+    <!-- Mega menu : Modèles -->
+    <div
+      class="megamenu"
+      id="megamenu-modeles"
+      data-megamenu-panel="modeles"
+      role="region"
+      aria-label="Aperçu des modèles"
+    >
+      <div class="megamenu__header">
+        <p class="megamenu__eyebrow">Notre gamme</p>
+        <h2 class="megamenu__title">Choisissez votre Pixel.</h2>
+      </div>
+      <div class="megamenu__grid">
+        {featuredModeles.map((p) => (
+          <a
+            href={`/modeles/${p.slug}`}
+            class:list={["megamenu__card", p.slug.endsWith("-xl") && "megamenu__card--xl"]}
+          >
+            <div class="megamenu__card-media">
+              <img src={p.image} alt={p.name} loading="lazy" decoding="async" />
+            </div>
+            <div class="megamenu__card-body">
+              <p class="megamenu__card-name">{p.name}</p>
+              <p class="megamenu__card-tagline">{p.tagline}</p>
+              <p class="megamenu__card-price">À partir de <strong>{fmtPrice(p.priceFrom)}</strong></p>
+            </div>
+          </a>
+        ))}
+      </div>
+      <div class="megamenu__footer">
+        <a href="/modeles" class="megamenu__cta">
+          Comparer tous les modèles
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </Container>
+</header>
+
+<!-- Backdrop dimming l'arrière-plan quand le mega menu est ouvert -->
+<div class="header-backdrop" data-megamenu-backdrop aria-hidden="true"></div>
+
+<script>
+  /* ───────── Mega menu controller ─────────
+   * Click / hover desktop pour ouvrir, ESC ou click hors menu pour fermer.
+   *
+   * Pattern compatible Astro ClientRouter :
+   *   - AbortController par init → tous les listeners se nettoient au
+   *     prochain swap (évite l'accumulation et les listeners orphelins
+   *     pointant vers des DOM nodes remplacés).
+   *   - astro:page-load → re-bind sur le nouveau DOM à chaque navigation,
+   *     y compris bfcache restore.
+   */
+  let controller: AbortController | null = null;
+
+  function setup(): void {
+    /* Nettoyage des listeners précédents (cas bfcache ou re-init) */
+    controller?.abort();
+    controller = new AbortController();
+    const { signal } = controller;
+
+    const triggers = document.querySelectorAll<HTMLAnchorElement>("[data-megamenu-trigger]");
+    const panels = document.querySelectorAll<HTMLElement>("[data-megamenu-panel]");
+    const backdrop = document.querySelector<HTMLElement>("[data-megamenu-backdrop]");
+    const island = document.querySelector<HTMLElement>(".island");
+    if (triggers.length === 0) return;
+
+    let openId: string | null = null;
+    let hoverTimeout: number | null = null;
+
+    function close() {
+      triggers.forEach((t) => t.setAttribute("aria-expanded", "false"));
+      panels.forEach((p) => p.removeAttribute("data-open"));
+      backdrop?.removeAttribute("data-open");
+      openId = null;
+    }
+
+    function open(id: string) {
+      triggers.forEach((t) => {
+        const isThis = t.getAttribute("data-megamenu-trigger") === id;
+        t.setAttribute("aria-expanded", String(isThis));
+      });
+      panels.forEach((p) => {
+        const isThis = p.getAttribute("data-megamenu-panel") === id;
+        if (isThis) p.setAttribute("data-open", "true");
+        else p.removeAttribute("data-open");
+      });
+      backdrop?.setAttribute("data-open", "true");
+      openId = id;
+    }
+
+    triggers.forEach((trigger) => {
+      /* Hover desktop : auto-open avec petit délai. */
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        trigger.addEventListener(
+          "mouseenter",
+          () => {
+            if (hoverTimeout) clearTimeout(hoverTimeout);
+            const id = trigger.getAttribute("data-megamenu-trigger");
+            if (!id) return;
+            hoverTimeout = window.setTimeout(() => open(id), 120);
+          },
+          { signal },
+        );
+      }
+    });
+
+    function onMouseLeaveZone() {
+      if (hoverTimeout) clearTimeout(hoverTimeout);
+      hoverTimeout = window.setTimeout(() => {
+        if (openId) close();
+      }, 200);
+    }
+    function onMouseEnterZone() {
+      if (hoverTimeout) clearTimeout(hoverTimeout);
+    }
+    island?.addEventListener("mouseleave", onMouseLeaveZone, { signal });
+    island?.addEventListener("mouseenter", onMouseEnterZone, { signal });
+    panels.forEach((p) => {
+      p.addEventListener("mouseleave", onMouseLeaveZone, { signal });
+      p.addEventListener("mouseenter", onMouseEnterZone, { signal });
+    });
+
+    /* ESC ferme */
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape" && openId) {
+          close();
+          const t = document.querySelector<HTMLAnchorElement>(
+            `[data-megamenu-trigger="${openId}"]`,
+          );
+          t?.focus();
+        }
+      },
+      { signal },
+    );
+
+    /* Click hors menu ferme */
+    document.addEventListener(
+      "click",
+      (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest(".island") && !target.closest(".megamenu")) {
+          if (openId) close();
+        }
+      },
+      { signal },
+    );
+
+    /* Mobile burger : toggle qui ouvre Modèles (J1, refactor J2) */
+    const burger = document.querySelector<HTMLButtonElement>("[data-mobile-toggle]");
+    burger?.addEventListener(
+      "click",
+      () => {
+        const isOpen = burger.getAttribute("aria-expanded") === "true";
+        if (isOpen) close();
+        else open("modeles");
+        burger.setAttribute("aria-expanded", String(!isOpen));
+      },
+      { signal },
+    );
+  }
+
+  /* Auto-attachement aux events Astro ClientRouter — couvre premier load,
+   * navigation client-side et bfcache restore. */
+  document.addEventListener("astro:before-swap", () => controller?.abort());
+  document.addEventListener("astro:page-load", setup);
+</script>
+
+<script>
+  import { cart } from "../../scripts/cart";
+
+  function refreshCartBadge() {
+    const badge = document.querySelector<HTMLElement>("[data-cart-count]");
+    if (!badge) return;
+    const n = cart.count();
+    if (n <= 0) {
+      badge.hidden = true;
+    } else {
+      badge.hidden = false;
+      badge.textContent = n > 99 ? "99+" : String(n);
+    }
+  }
+
+  document.addEventListener("astro:page-load", refreshCartBadge);
+  cart.onChange(refreshCartBadge);
+</script>
+
+<script>
+  // Bascule l'icône user vers /compte si la session cookie est présente.
+  // Pas de fetch — on lit juste le cookie (non-HttpOnly côté CSRF) en parallèle
+  // pour décider. Si la session a expiré, le clic redirigera vers /connexion
+  // via l'auth gate côté /compte.
+  function refreshAccountLink() {
+    const link = document.querySelector<HTMLAnchorElement>("[data-account-link]");
+    if (!link) return;
+    const hasCsrf = document.cookie
+      .split("; ")
+      .some((c) => c.startsWith("alartic_csrf="));
+    if (hasCsrf) {
+      link.href = "/compte";
+      link.setAttribute("aria-label", "Mon compte");
+    } else {
+      link.href = "/connexion";
+      link.setAttribute("aria-label", "Connexion à mon compte");
+    }
+  }
+  document.addEventListener("astro:page-load", refreshAccountLink);
+  // Si l'utilisateur fait son consume dans un autre onglet, ce cookie n'est
+  // pas re-évalué par défaut. On rafraîchit dès que l'onglet redevient actif.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshAccountLink();
+  });
+  window.addEventListener("focus", refreshAccountLink);
+</script>
+
+<style>
+  /* ───────── Header sticky wrapper ───────── */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    padding-block: var(--space-3);
+    pointer-events: none; /* l'air autour du pill laisse passer */
+  }
+
+  /* ───────── Island (pill) ───────── */
+  .island {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    padding: 6px 6px 6px var(--space-5);
+    box-shadow: var(--shadow-island);
+    pointer-events: auto;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    transition:
+      box-shadow var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out);
+  }
+
+  .island:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .island__brand {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding-right: var(--space-3);
+    border-right: 1px solid var(--color-border);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .island__brand img {
+    height: 28px;
+    width: auto;
+    display: block;
+  }
+  .island__brand:hover {
+    opacity: 0.7;
+  }
+
+  /* ───────── Menu central ───────── */
+  .island__menu {
+    display: none;
+    list-style: none;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+  }
+  @media (min-width: 980px) {
+    .island__menu {
+      display: flex;
+    }
+  }
+
+  .island__link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .island__link:hover,
+  .island__link[aria-expanded="true"] {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text);
+  }
+
+  .island__link.is-active {
+    color: var(--color-brand);
+  }
+
+  .island__chevron {
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+  .island__link[aria-expanded="true"] .island__chevron {
+    transform: rotate(180deg);
+  }
+
+  /* ───────── Actions droite ───────── */
+  .island__actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--color-border);
+  }
+  @media (min-width: 980px) {
+    .island__actions {
+      display: flex;
+    }
+  }
+
+  .island__icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    color: var(--color-text);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+  .island__icon-btn:hover {
+    background-color: var(--color-bg-subtle);
+  }
+  .island__icon-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-brand);
+    color: var(--color-text-on-inverse);
+    font-size: 10px;
+    font-weight: var(--fw-bold);
+    line-height: 18px;
+    text-align: center;
+  }
+  .island__icon-badge[hidden] {
+    display: none;
+  }
+
+  /* ───────── Burger mobile ───────── */
+  .island__burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    border-radius: var(--radius-full);
+    color: var(--color-text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .island__burger:hover {
+    background-color: var(--color-bg-subtle);
+  }
+  @media (min-width: 980px) {
+    .island__burger {
+      display: none;
+    }
+  }
+
+  /* ───────── Mega menu panel ───────── */
+  .megamenu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: var(--space-5);
+    right: var(--space-5);
+    max-width: var(--container-lg);
+    margin-inline: auto;
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-megamenu);
+    z-index: var(--z-megamenu);
+
+    /* Pré-promotion du compositor layer pour anim fluide */
+    will-change: opacity, transform;
+
+    /* hidden state */
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out),
+      visibility 0s linear var(--duration-base);
+  }
+
+  .megamenu[data-open="true"] {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out);
+  }
+
+  .megamenu__header {
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .megamenu__eyebrow {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    margin: 0 0 var(--space-2) 0;
+  }
+
+  .megamenu__title {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+    color: var(--color-text);
+  }
+
+  .megamenu__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  @media (min-width: 768px) {
+    .megamenu__grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .megamenu__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .megamenu__card:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text);
+    transform: translateY(-2px);
+  }
+
+  .megamenu__card-media {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    max-width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, var(--color-bg-accent) 0%, var(--color-bg-subtle) 100%);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+  }
+  .megamenu__card-media img {
+    max-height: 100%;
+    width: auto;
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+
+  /* Modèles XL : écran 6,8" → +8%. Pas de transform-origin: bottom ici
+   * pour ne pas casser l'alignement vertical des vignettes du mega menu
+   * — le scale se fait depuis le centre, l'image reste centrée. */
+  .megamenu__card--xl .megamenu__card-media img {
+    transform: scale(1.08);
+  }
+
+  .megamenu__card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .megamenu__card-name {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    margin: 0;
+  }
+  .megamenu__card-tagline {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+  .megamenu__card-price {
+    font-size: var(--fs-xs);
+    color: var(--color-text-secondary);
+    margin: var(--space-1) 0 0;
+  }
+  .megamenu__card-price strong {
+    color: var(--color-text);
+    font-weight: var(--fw-semibold);
+  }
+
+  .megamenu__footer {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: center;
+  }
+  .megamenu__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-brand);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+  .megamenu__cta:hover {
+    color: var(--color-brand-hover);
+    gap: var(--space-3);
+  }
+
+  /* ───────── Backdrop ─────────
+   * Pas de backdrop-filter (blur sur fullscreen = trop coûteux,
+   * re-rastérisation de tout l'arrière-plan à chaque frame → lag).
+   * Un simple voile rgba suffit à dim l'arrière-plan.
+   */
+  .header-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(10, 10, 10, 0.20);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: calc(var(--z-megamenu) - 1);
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      visibility 0s linear var(--duration-base);
+  }
+  .header-backdrop[data-open="true"] {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      opacity var(--duration-base) var(--ease-out);
+  }
+</style>

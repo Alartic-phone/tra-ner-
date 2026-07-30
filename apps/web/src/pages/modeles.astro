@@ -1,0 +1,286 @@
+---
+import { getCollection } from "astro:content";
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+import ProductCardLarge from "../components/molecules/ProductCardLarge.astro";
+import CtaBanner from "../components/molecules/CtaBanner.astro";
+
+const all = (await getCollection("products")).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+
+const available = all.filter((p) => p.data.available);
+const unavailable = all.filter((p) => !p.data.available).reverse();
+
+function minPriceOf(storages: { price: number }[]) {
+  return Math.min(...storages.map((s) => s.price));
+}
+
+/* Groupe par série */
+const seriesOrder: Record<string, number> = { "pixel-10": 1, "pixel-9": 2, tablet: 3 };
+const seriesLabel: Record<string, string> = {
+  "pixel-10": "Génération 10",
+  "pixel-9": "Génération 9",
+  tablet: "Tablette",
+};
+const groupedAvailable = Object.entries(
+  available.reduce<Record<string, typeof available>>((acc, p) => {
+    const key = p.data.series;
+    acc[key] = acc[key] ?? [];
+    acc[key].push(p);
+    return acc;
+  }, {}),
+).sort(([a], [b]) => (seriesOrder[a] ?? 99) - (seriesOrder[b] ?? 99));
+---
+
+<Base
+  title="Modèles"
+  description="Tous les Pixel ALARTIC — durcis sous GrapheneOS, scellés, expédiés depuis l'Europe."
+>
+  <Header slot="header" />
+
+  <!-- ─────────── Hero ─────────── -->
+  <section class="hero">
+    <Container size="lg">
+      <div data-anim="hero-stagger">
+        <h1 class="hero__title">Tous les Pixel durcis.</h1>
+        <p class="hero__lead">
+          Sélection limitée, modèles strictement supportés par <strong>GrapheneOS</strong>.
+          Chaque téléphone est configuré, scellé, et accompagné d'un onboarding visioconférence.
+        </p>
+        <ul class="hero__signals">
+          <li><strong>{available.length}</strong> modèles disponibles</li>
+          <li><strong>0</strong> tracker, <strong>0</strong> cookie</li>
+          <li><strong>SAV humain</strong> sous 24 h</li>
+        </ul>
+      </div>
+    </Container>
+  </section>
+
+  <!-- ─────────── Sections par série ─────────── -->
+  {groupedAvailable.map(([key, products]) => (
+    <section class="section">
+      <Container size="xl">
+        <div data-anim="stagger-children">
+          <header class="section__header">
+            <p class="eyebrow">{seriesLabel[key] ?? key}</p>
+            <h2 class="section__title">
+              {key === "tablet" ? "Le format tablette." : key === "pixel-10" ? "Les Pixel 10." : "Les Pixel 9."}
+            </h2>
+          </header>
+          <div class="product-grid">
+            {products.map((p) => (
+              <ProductCardLarge
+                slug={p.id}
+                name={p.data.name}
+                tagline={p.data.shortDescription}
+                priceFrom={minPriceOf(p.data.storages)}
+                image={p.data.colors[0].rearImage ?? p.data.colors[0].frontImage}
+                imageAlt={`${p.data.name} ${p.data.colors[0].name}`}
+                isNew={p.data.series === "pixel-10"}
+                variantColors={p.data.colors.map((c) => c.hex)}
+              />
+            ))}
+          </div>
+        </div>
+      </Container>
+    </section>
+  ))}
+
+  <!-- ─────────── Modèles indisponibles ─────────── -->
+  {unavailable.length > 0 && (
+    <section class="section section--surface">
+      <Container size="xl">
+        <header class="section__header">
+          <p class="eyebrow">À venir / sur réservation</p>
+          <h2 class="section__title">Modèles non disponibles actuellement.</h2>
+          <p class="section__lead">
+            Sur demande uniquement (devis pro ou réservation). Contactez-nous pour
+            le délai et la mise en liste d'attente.
+          </p>
+        </header>
+        <ul class="unavailable">
+          {unavailable.map((p) => (
+            <li class="unavailable__item">
+              <span class="unavailable__name">{p.data.name}</span>
+              <span class="unavailable__from">
+                À partir de {new Intl.NumberFormat("fr-FR", {
+                  style: "currency",
+                  currency: "EUR",
+                  maximumFractionDigits: 0,
+                }).format(minPriceOf(p.data.storages))}
+              </span>
+              <a href="/contact" class="unavailable__cta">Nous contacter →</a>
+            </li>
+          ))}
+        </ul>
+      </Container>
+    </section>
+  )}
+
+  <!-- ─────────── CTA final ─────────── -->
+  <section class="section">
+    <Container size="xl">
+      <CtaBanner
+        variant="sky"
+        eyebrow="Vous achetez en équipe ?"
+        title="Tarification pro à partir de 5 unités."
+        description="Devis personnalisé, facture pro, onboarding groupé. Réponse sous 48 h ouvrées."
+        primaryLabel="Demander un devis pro"
+        primaryHref="/devis-pro"
+        secondaryLabel="Voir le manifeste"
+        secondaryHref="/manifeste"
+      />
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../scripts/animations";
+</script>
+
+<style>
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+  .hero__title {
+    font-size: var(--fs-5xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: var(--space-4) 0 var(--space-4);
+    max-width: 18ch;
+  }
+  .hero__lead {
+    font-size: var(--fs-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 56ch;
+    margin-bottom: var(--space-5);
+  }
+  .hero__lead strong {
+    color: var(--color-text);
+    font-weight: var(--fw-medium);
+  }
+  .hero__signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+  }
+  .hero__signals strong {
+    color: var(--color-text);
+    font-weight: var(--fw-semibold);
+  }
+
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+  }
+
+  .section__header {
+    margin-bottom: var(--space-7);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .section__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+  }
+  .section__lead {
+    font-size: var(--fs-md);
+    color: var(--color-text-secondary);
+    max-width: 56ch;
+    margin: var(--space-2) 0 0;
+  }
+  .eyebrow {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    margin: 0;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+  @media (min-width: 640px) {
+    .product-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1024px) {
+    .product-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  @media (min-width: 1280px) {
+    .product-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* ───────── Indisponibles ───────── */
+  .unavailable {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--color-border);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .unavailable__item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  @media (min-width: 640px) {
+    .unavailable__item {
+      grid-template-columns: 1fr auto auto;
+    }
+  }
+  .unavailable__name {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .unavailable__from {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .unavailable__from {
+      display: inline;
+    }
+  }
+  .unavailable__cta {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-brand);
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+  .unavailable__cta:hover {
+    color: var(--color-brand-hover);
+  }
+</style>

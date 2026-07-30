@@ -1,0 +1,33 @@
+---
+/**
+ * Decap CMS — page admin.
+ *
+ * Le bundle JS de decap-cms-app est importé via npm (pas via CDN tiers),
+ * Astro/Vite le bundlent et le servent depuis /_astro/ — conforme CDC §5.4
+ * "aucune ressource tierce".
+ *
+ * La config est lue depuis /admin/config.yml (statique dans public/admin/).
+ *
+ * Backend OAuth Forgejo à finaliser en J5 (création de l'OAuth app côté
+ * Codeberg). Pour le dev local : `npx decap-server` en parallèle de
+ * `npm run dev:web` + local_backend: true dans la config.
+ */
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>ALARTIC — Admin Decap CMS</title>
+  </head>
+  <body>
+    <script>
+      // Charge le bundle Decap (auto-hébergé via npm, bundlé par Vite)
+      import("decap-cms-app").then(({ default: CMS }) => {
+        CMS.init();
+      });
+    </script>
+  </body>
+</html>

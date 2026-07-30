@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="800" viewBox="0 0 400 800" role="img" aria-label="Pixel 10 Pro a — visuel à venir">
+  <rect x="40" y="40" width="320" height="720" rx="56" ry="56" fill="#f1ede5" stroke="#cfc8b8" stroke-width="2"/>
+  <rect x="60" y="60" width="280" height="680" rx="44" ry="44" fill="#ffffff"/>
+  <circle cx="200" cy="120" r="6" fill="#cfc8b8"/>
+  <text x="200" y="410" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#7a7468" font-weight="500">Visuel à venir</text>
+  <text x="200" y="445" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#a39c8d">Pixel 10 Pro a</text>
+</svg>

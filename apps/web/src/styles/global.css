@@ -1,0 +1,393 @@
+/* ALARTIC — Styles globaux
+ *
+ * Reset minimal + base typography + utilitaires accessibilité.
+ * Variables : voir tokens.css (importé en premier).
+ *
+ * Polices auto-hébergées (CDC §5.4 — aucune ressource tierce) :
+ * - Geist Variable (sans-serif, Vercel, OFL)
+ * - Geist Mono Variable (monospace, Vercel, OFL)
+ * - Fraunces Variable (serif éditorial, Undercase Type, OFL)
+ * Packages npm Fontsource : les .woff2 sont bundlés par Vite/Astro
+ * et servis depuis /_astro/ sur le même domaine.
+ */
+
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/fraunces";
+@import "./tokens.css";
+
+/* ───────── Reset minimal ───────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+a:hover {
+  color: var(--color-brand);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ───────── Typographie de base ───────── */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--fs-4xl);
+  font-weight: var(--fw-bold);
+}
+
+h2 {
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-semibold);
+}
+
+h3 {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+}
+
+h4 {
+  font-size: var(--fs-xl);
+}
+
+h5 {
+  font-size: var(--fs-lg);
+}
+
+h6 {
+  font-size: var(--fs-md);
+}
+
+p {
+  text-wrap: pretty;
+  max-width: 65ch;
+}
+
+p + p {
+  margin-top: var(--space-4);
+}
+
+strong {
+  font-weight: var(--fw-semibold);
+}
+
+small {
+  font-size: var(--fs-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Sélection */
+::selection {
+  background-color: var(--color-brand);
+  color: var(--color-text-on-brand);
+}
+
+/* ───────── Utilitaires accessibilité ───────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: var(--space-4);
+  z-index: var(--z-modal);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-text);
+  color: var(--color-text-on-inverse);
+  border-radius: var(--radius-sm);
+  transition: top var(--duration-fast) var(--ease-out);
+}
+
+.skip-link:focus {
+  top: var(--space-4);
+}
+
+/* ───────── États pré-animation (GSAP) ─────────
+ * Cache les éléments avant que GSAP ne prenne la main pour éviter le flash.
+ * `prefers-reduced-motion` : tout reste visible (GSAP ne touche pas non plus).
+ */
+@media not (prefers-reduced-motion: reduce) {
+  [data-anim="hero-stagger"] > * {
+    opacity: 0;
+  }
+  [data-anim="reveal"] {
+    opacity: 0;
+  }
+  [data-anim="stagger-children"] > * {
+    opacity: 0;
+  }
+  [data-anim="mask-reveal"] {
+    clip-path: inset(0 0 100% 0);
+  }
+  [data-anim="blur-reveal"] {
+    opacity: 0;
+    filter: blur(14px);
+  }
+  [data-anim="scale-in"] {
+    opacity: 0;
+    transform: scale(0.94) translateY(16px);
+  }
+  [data-anim="typewriter"] {
+    opacity: 0;
+  }
+  [data-anim="hero-devices"] {
+    visibility: hidden;
+  }
+}
+
+/* Les spans créés par le typewriter doivent être inline-block pour permettre
+ * la translation Y (sinon elle est ignorée sur inline). */
+.typewriter-word {
+  display: inline-block;
+  will-change: opacity, transform;
+}
+
+/* ───────── Styles d'impression / export PDF ─────────
+ * Utilisé notamment par les pages légales via window.print().
+ * Masque le chrome (header, footer, boutons, mega menu)
+ * et étend la zone d'impression à pleine largeur.
+ */
+@media print {
+  /* Cache tout sauf le contenu principal */
+  .header,
+  .header-backdrop,
+  .footer,
+  .skip-link,
+  [data-print-hide],
+  button {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  a {
+    color: black !important;
+    text-decoration: underline;
+  }
+
+  /* Affiche l'URL des liens externes après le texte */
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+  }
+
+  /* Évite les coupures inopportunes */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  p, blockquote, ul, ol, dl, table {
+    page-break-inside: avoid;
+  }
+
+  /* Containers : pleine largeur */
+  .container,
+  [class*="container--"] {
+    max-width: none !important;
+    padding-inline: 0 !important;
+  }
+
+  section,
+  [class*="section--"] {
+    background: white !important;
+    padding-block: 1cm !important;
+  }
+}
+
+
+/* ─────────── Dialogs custom (alartic-dialogs) ───────────
+ * Modal légère pour remplacer alert/confirm/prompt natifs.
+ * <dialog>.ad — voir apps/web/src/scripts/dialogs.ts
+ */
+dialog.ad {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  width: calc(100% - 2rem);
+  max-width: 420px;
+  max-height: calc(100vh - 2rem);
+  background-color: var(--color-bg);
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.25));
+  color: var(--color-text);
+}
+dialog.ad::backdrop {
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+.ad__body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ad__title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+.ad__text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--lh-relaxed);
+  font-size: var(--fs-sm);
+}
+.ad__input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+.ad__input:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+.ad__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+.ad__actions--end {
+  justify-content: flex-end;
+}
+.ad__btn {
+  padding: var(--space-2) var(--space-4);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+.ad__btn:hover:not(:disabled) {
+  border-color: var(--color-text);
+}
+.ad__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ad__btn--primary {
+  background-color: var(--color-text);
+  color: var(--color-text-on-inverse);
+  border-color: var(--color-text);
+}
+.ad__btn--primary:hover:not(:disabled) {
+  opacity: 0.85;
+  border-color: var(--color-text);
+}
+.ad__btn--danger {
+  background-color: #b91c1c;
+  color: white;
+  border-color: #b91c1c;
+}
+.ad__btn--danger:hover:not(:disabled) {
+  background-color: #991b1b;
+  border-color: #991b1b;
+}

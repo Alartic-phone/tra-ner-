@@ -1,0 +1,134 @@
+---
+interface Props {
+  variant?: "primary" | "secondary" | "ghost" | "link";
+  size?: "sm" | "md" | "lg";
+  href?: string;
+  type?: "button" | "submit" | "reset";
+  disabled?: boolean;
+  class?: string;
+  ariaLabel?: string;
+}
+
+const {
+  variant = "primary",
+  size = "md",
+  href,
+  type = "button",
+  disabled = false,
+  class: className = "",
+  ariaLabel,
+} = Astro.props;
+
+const isLink = !!href;
+const Tag = isLink ? "a" : "button";
+---
+
+<Tag
+  class:list={["btn", `btn--${variant}`, `btn--${size}`, className]}
+  href={href}
+  type={!isLink ? type : undefined}
+  disabled={!isLink ? disabled : undefined}
+  aria-label={ariaLabel}
+  aria-disabled={disabled || undefined}
+>
+  <slot />
+  {variant === "link" && <span aria-hidden="true" class="btn__arrow">&rsaquo;</span>}
+</Tag>
+
+<style>
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: inherit;
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--tracking-normal);
+    line-height: 1;
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .btn:active:not([aria-disabled="true"]) {
+    transform: scale(0.97);
+  }
+
+  .btn[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ─── Variants ─── */
+
+  .btn--primary {
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+  }
+  .btn--primary:hover:not([aria-disabled="true"]) {
+    opacity: 0.85;
+    color: var(--color-text-on-inverse);
+  }
+
+  .btn--secondary {
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+  .btn--secondary:hover:not([aria-disabled="true"]) {
+    border-color: var(--color-text);
+    background-color: var(--color-bg-accent);
+  }
+
+  .btn--ghost {
+    background-color: transparent;
+    color: var(--color-text);
+  }
+  .btn--ghost:hover:not([aria-disabled="true"]) {
+    background-color: var(--color-bg-accent);
+  }
+
+  .btn--link {
+    background-color: transparent;
+    color: var(--color-brand);
+    padding: 0;
+    border-radius: 0;
+    border: none;
+  }
+  .btn--link:hover:not([aria-disabled="true"]) {
+    color: var(--color-brand-hover);
+  }
+  .btn--link .btn__arrow {
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+  .btn--link:hover .btn__arrow {
+    transform: translateX(3px);
+  }
+
+  /* ─── Sizes ─── */
+
+  .btn--sm {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--fs-sm);
+  }
+  .btn--md {
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--fs-base);
+  }
+  .btn--lg {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--fs-md);
+  }
+
+  /* Link variant overrides size paddings */
+  .btn--link {
+    padding: 0 !important;
+  }
+</style>

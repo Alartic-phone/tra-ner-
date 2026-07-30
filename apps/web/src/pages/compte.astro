@@ -1,0 +1,1181 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+
+// Espace client : protégé côté API par la session cookie. Au boot, on tente
+// `/me/profile` ; si 401, on redirige vers /connexion.
+// API_BASE est défini côté <script type="module"> (import.meta.env.DEV).
+---
+
+<Base
+  title="Mon compte"
+  description="Espace client ALARTIC — profil, tickets SAV, gestion RGPD."
+  noindex
+>
+  <Header slot="header" />
+
+  <section class="account">
+    <Container>
+      <header class="account__head">
+        <h1 class="account__title">Mon compte.</h1>
+        <button type="button" id="btn-logout" class="account__logout">
+          Déconnexion
+        </button>
+      </header>
+
+      <p id="status-banner" class="status-banner" hidden></p>
+
+      <div class="account__grid">
+        <Card variant="elevated" padding="lg">
+          <h2 class="account__h2">Profil</h2>
+          <dl id="profile-data" class="profile">
+            <p class="account__muted">Chargement…</p>
+          </dl>
+        </Card>
+
+        <Card variant="elevated" padding="lg">
+          <header class="account__tickets-head">
+            <h2 class="account__h2">Adresse & contact</h2>
+            <button type="button" id="btn-edit-address" class="account__btn">
+              Modifier
+            </button>
+          </header>
+          <div id="address-data">
+            <p class="account__muted">Chargement…</p>
+          </div>
+        </Card>
+
+        <Card variant="elevated" padding="lg">
+          <header class="account__tickets-head">
+            <h2 class="account__h2">Mes commandes</h2>
+            <a href="/modeles" class="account__btn">Nouvelle commande</a>
+          </header>
+          <div id="orders-list">
+            <p class="account__muted">Chargement…</p>
+          </div>
+        </Card>
+
+        <Card variant="elevated" padding="lg">
+          <header class="account__tickets-head">
+            <h2 class="account__h2">Mes tickets SAV</h2>
+            <button type="button" id="btn-new-ticket" class="account__btn">
+              Nouveau ticket
+            </button>
+          </header>
+          <div id="tickets-list">
+            <p class="account__muted">Chargement…</p>
+          </div>
+        </Card>
+
+        <Card variant="elevated" padding="lg">
+          <h2 class="account__h2">Activité récente</h2>
+          <p class="account__muted">
+            Les 50 dernières actions sur votre compte (transparence RGPD).
+          </p>
+          <div id="audit-list">
+            <p class="account__muted">Chargement…</p>
+          </div>
+        </Card>
+
+        <Card variant="outline" padding="lg">
+          <h2 class="account__h2">Données personnelles (RGPD)</h2>
+          <p class="account__muted">
+            Vous gardez le contrôle complet de vos données à tout moment.
+          </p>
+          <div class="account__actions">
+            <button type="button" id="btn-export" class="account__btn">
+              Exporter mes données (JSON)
+            </button>
+            <button type="button" id="btn-suspend" class="account__btn account__btn--warn">
+              Suspendre mon compte
+            </button>
+            <button type="button" id="btn-delete" class="account__btn account__btn--danger">
+              Supprimer mon compte
+            </button>
+          </div>
+        </Card>
+      </div>
+
+      <dialog id="address-modal" class="modal">
+        <form id="address-form" class="modal__form" novalidate>
+          <h2 class="modal__title">Adresse de livraison & contact</h2>
+          <p class="account__muted">
+            Tout est chiffré au repos (AES-256-GCM). Servira au tunnel d'achat.
+          </p>
+          <label class="modal__row">
+            Adresse (ligne 1)
+            <input type="text" name="line1" minlength="1" maxlength="100" required />
+          </label>
+          <label class="modal__row">
+            Complément (ligne 2, optionnel)
+            <input type="text" name="line2" maxlength="100" />
+          </label>
+          <div class="address-grid">
+            <label class="modal__row">
+              Code postal
+              <input type="text" name="postcode" minlength="1" maxlength="20" required />
+            </label>
+            <label class="modal__row">
+              Ville
+              <input type="text" name="city" minlength="1" maxlength="100" required />
+            </label>
+            <label class="modal__row">
+              Pays
+              <input type="text" name="country" minlength="2" maxlength="3" value="FR" required />
+            </label>
+          </div>
+          <label class="modal__row">
+            Téléphone (optionnel)
+            <input type="tel" name="phone" maxlength="30" placeholder="+33 6 00 00 00 00" />
+          </label>
+          <p id="address-error" class="status-banner status-banner--error" hidden></p>
+          <div class="modal__actions">
+            <button type="button" id="btn-cancel-address" class="account__btn">
+              Annuler
+            </button>
+            <button type="submit" class="account__btn account__btn--primary">
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="email-modal" class="modal">
+        <form id="email-form" class="modal__form" novalidate>
+          <h2 class="modal__title">Modifier mon email</h2>
+          <p class="account__muted">
+            Un email de confirmation sera envoyé à la nouvelle adresse. Le
+            changement ne sera effectif qu'après votre clic sur le lien
+            (valable 15 minutes). Votre compte actuel reste actif d'ici là.
+          </p>
+          <label class="modal__row">
+            Nouvel email
+            <input
+              type="email"
+              name="new_email"
+              required
+              autocomplete="email"
+              placeholder="nouveau@exemple.fr"
+            />
+          </label>
+          <p id="email-error" class="status-banner status-banner--error" hidden></p>
+          <div class="modal__actions">
+            <button type="button" id="btn-cancel-email" class="account__btn">
+              Annuler
+            </button>
+            <button type="submit" class="account__btn account__btn--primary">
+              Confirmer
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="ticket-modal" class="modal">
+        <form id="ticket-form" class="modal__form" novalidate>
+          <h2 class="modal__title">Nouveau ticket</h2>
+          <label class="modal__row">
+            Catégorie
+            <select name="category" required>
+              <option value="question">Question</option>
+              <option value="probleme_technique">Problème technique</option>
+              <option value="garantie">Garantie</option>
+              <option value="autre">Autre</option>
+            </select>
+          </label>
+          <label class="modal__row">
+            Sujet
+            <input
+              type="text"
+              name="subject"
+              minlength="3"
+              maxlength="200"
+              required
+              placeholder="Résumez en quelques mots"
+            />
+          </label>
+          <label class="modal__row">
+            Message
+            <textarea
+              name="body"
+              minlength="5"
+              maxlength="10000"
+              rows="6"
+              required
+              placeholder="Décrivez votre demande en détail. Votre message est chiffré au repos."
+            ></textarea>
+          </label>
+          <label class="modal__row">
+            Pièce jointe (optionnel, 5 MB max)
+            <input
+              type="file"
+              name="attachment"
+              accept="image/png,image/jpeg,image/webp,application/pdf,text/plain"
+            />
+            <span class="account__muted modal__hint">
+              Formats acceptés : PNG, JPEG, WebP, PDF, TXT. Stockée chiffrée
+              (AES-256-GCM).
+            </span>
+          </label>
+          <div class="modal__actions">
+            <button type="button" id="btn-cancel-ticket" class="account__btn">
+              Annuler
+            </button>
+            <button type="submit" class="account__btn account__btn--primary">
+              Envoyer
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  // @ts-nocheck — code DOM permissif, à typer dans une future session de polish.
+  import { confirmDialog, promptDialog, alertDialog } from "../scripts/dialogs";
+
+  // API_BASE résolu à la compile (Astro remplace import.meta.env.DEV).
+  const API_BASE = import.meta.env.DEV ? "http://localhost:3000" : "/api";
+
+  let abortCtl: AbortController | undefined;
+  document.addEventListener("astro:page-load", init);
+  document.addEventListener("astro:before-swap", () => abortCtl?.abort());
+
+  async function init() {
+    abortCtl?.abort();
+    abortCtl = new AbortController();
+    const signal = abortCtl.signal;
+
+    // 1) Auth gate
+    const profileRes = await fetch(`${API_BASE}/me/profile`, {
+      credentials: "include",
+    });
+    if (profileRes.status === 401) {
+      window.location.href = "/connexion";
+      return;
+    }
+    if (!profileRes.ok) {
+      showError("Impossible de charger votre profil.");
+      return;
+    }
+    const profile = await profileRes.json();
+    renderProfile(profile);
+
+    // 2) Adresse + téléphone
+    const addrRes = await fetch(`${API_BASE}/me/address`, {
+      credentials: "include",
+    });
+    if (addrRes.ok) {
+      renderAddress(await addrRes.json());
+    }
+
+    // 3) Commandes
+    const ordersRes = await fetch(`${API_BASE}/me/orders`, {
+      credentials: "include",
+    });
+    if (ordersRes.ok) {
+      renderOrders(await ordersRes.json());
+    }
+
+    // 4) Tickets
+    const ticketsRes = await fetch(`${API_BASE}/me/tickets`, {
+      credentials: "include",
+    });
+    if (ticketsRes.ok) {
+      renderTickets(await ticketsRes.json());
+    }
+
+    // 5) Audit log
+    const auditRes = await fetch(`${API_BASE}/me/audit`, {
+      credentials: "include",
+    });
+    if (auditRes.ok) {
+      renderAudit(await auditRes.json());
+    }
+
+    bindActions(signal);
+  }
+
+  function renderAudit(arr) {
+    const el = document.getElementById("audit-list");
+    if (!arr.length) {
+      el.innerHTML = '<p class="account__muted">Aucune action enregistrée.</p>';
+      return;
+    }
+    el.innerHTML = `
+      <ul class="audit-list">
+        ${arr
+          .map(
+            (a) => `
+          <li class="audit-row">
+            <time class="audit-row__date">${formatDateTime(a.created_at)}</time>
+            <span class="audit-row__label">${escapeHtml(labelAction(a.action))}</span>
+          </li>
+        `
+          )
+          .join("")}
+      </ul>
+    `;
+  }
+
+  function formatDateTime(iso) {
+    return new Date(iso).toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function labelAction(a) {
+    const map = {
+      "auth.magic_link.consume": "Connexion via lien magique",
+      "user.suspend": "Suspension du compte",
+      "user.delete": "Suppression du compte",
+      "user.delete.rgpd_inactivity": "Suppression auto (inactivité > 3 ans)",
+      "user.email.change": "Changement d'email confirmé",
+      "user.email.change.request": "Demande de changement d'email",
+      "user.contact.update": "Mise à jour adresse / téléphone",
+      "user.export.rgpd": "Export RGPD téléchargé",
+      "ticket.create": "Création d'un ticket SAV",
+      "ticket.message": "Réponse dans un ticket SAV",
+      "ticket.attachment.upload": "Ajout d'une pièce jointe",
+    };
+    return map[a] || a;
+  }
+
+  function renderAddress(c) {
+    const el = document.getElementById("address-data");
+    if (!c.address && !c.phone) {
+      el.innerHTML =
+        '<p class="account__muted">Aucune adresse renseignée. Vous pourrez la fournir au moment de la commande.</p>';
+      return;
+    }
+    const a = c.address;
+    const lines = [];
+    if (a) {
+      lines.push(escapeHtml(a.line1));
+      if (a.line2) lines.push(escapeHtml(a.line2));
+      lines.push(`${escapeHtml(a.postcode)} ${escapeHtml(a.city)}`);
+      lines.push(escapeHtml(a.country));
+    }
+    const addrBlock = a
+      ? `<address class="address-block">${lines.join("<br>")}</address>`
+      : '<p class="account__muted">Adresse non renseignée.</p>';
+    const phoneBlock = c.phone
+      ? `<p class="address-phone">Téléphone : ${escapeHtml(c.phone)}</p>`
+      : "";
+    el.innerHTML = addrBlock + phoneBlock;
+  }
+
+  function getCsrf() {
+    const m = document.cookie.match(/(?:^|; )alartic_csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function renderProfile(p) {
+    const el = document.getElementById("profile-data");
+    el.innerHTML = `
+      <dt>Email</dt>
+      <dd>
+        ${escapeHtml(p.email)}
+        <button type="button" id="btn-edit-email" class="profile__edit-btn">
+          Modifier
+        </button>
+      </dd>
+      <dt>Type</dt><dd>${
+        p.is_pro ? "Compte professionnel" : "Compte particulier"
+      }</dd>
+      <dt>Inscription</dt><dd>${formatDate(p.created_at)}</dd>
+      <dt>Dernière connexion</dt><dd>${
+        p.last_login_at ? formatDate(p.last_login_at) : "—"
+      }</dd>
+    `;
+  }
+
+  function labelOrderStatus(s) {
+    return ({
+      pending: "Paiement en attente",
+      paid: "Payée",
+      preparing: "En préparation",
+      shipped: "Expédiée",
+      delivered: "Livrée",
+      completed: "Clôturée",
+      cancelled: "Annulée",
+      failed: "Échec paiement",
+      refunded: "Remboursée",
+    })[s] || s;
+  }
+
+  function formatEuros(cents) {
+    const sign = cents < 0 ? "-" : "";
+    const abs = Math.abs(cents);
+    const euros = Math.floor(abs / 100);
+    const c = abs % 100;
+    const grouped = String(euros).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return `${sign}${grouped},${String(c).padStart(2, "0")} €`;
+  }
+
+  function renderOrders(arr) {
+    const el = document.getElementById("orders-list");
+    if (!arr.length) {
+      el.innerHTML =
+        '<p class="account__muted">Aucune commande pour le moment. <a href="/modeles">Voir la gamme</a>.</p>';
+      return;
+    }
+    el.innerHTML = arr
+      .map((o) => {
+        const shortId = String(o.id).slice(0, 8);
+        const items = o.items_count;
+        return `
+          <a href="/compte/commande?id=${escapeAttr(o.id)}" class="ticket-row ticket-row--link">
+            <div class="ticket-row__head">
+              <h3 class="ticket-row__subject">Commande #${escapeHtml(shortId)}</h3>
+              <span class="ticket-row__status status--${escapeAttr(o.status)}">
+                ${labelOrderStatus(o.status)}
+              </span>
+            </div>
+            <p class="ticket-row__meta">
+              ${items} article${items > 1 ? "s" : ""} · ${escapeHtml(formatEuros(o.total_cents))} · Passée ${formatDate(o.created_at)}
+            </p>
+          </a>
+        `;
+      })
+      .join("");
+  }
+
+  function renderTickets(arr) {
+    const el = document.getElementById("tickets-list");
+    if (arr.length === 0) {
+      el.innerHTML =
+        '<p class="account__muted">Vous n\'avez pas encore créé de ticket.</p>';
+      return;
+    }
+    el.innerHTML = arr
+      .map((t) => {
+        const attachBadge =
+          t.attachments_count > 0
+            ? ` · 📎 ${t.attachments_count} pièce${t.attachments_count > 1 ? "s" : ""} jointe${t.attachments_count > 1 ? "s" : ""}`
+            : "";
+        return `
+        <a href="/compte/ticket?id=${escapeAttr(t.id)}" class="ticket-row ticket-row--link">
+          <div class="ticket-row__head">
+            <h3 class="ticket-row__subject">${escapeHtml(t.subject)}</h3>
+            <span class="ticket-row__status status--${escapeAttr(t.status)}">
+              ${labelStatus(t.status)}
+            </span>
+          </div>
+          <p class="ticket-row__meta">
+            ${labelCategory(t.category)} · Créé ${formatDate(t.created_at)} ·
+            Mise à jour ${formatDate(t.updated_at)}${attachBadge}
+          </p>
+        </a>
+      `;
+      })
+      .join("");
+  }
+
+  function bindActions(signal) {
+    const on = (id, ev, fn) =>
+      document.getElementById(id).addEventListener(ev, fn, { signal });
+    on("btn-logout", "click", logout);
+    on("btn-export", "click", exportData);
+    on("btn-suspend", "click", suspendAccount);
+    on("btn-delete", "click", deleteAccount);
+    on("btn-edit-email", "click", openEmailModal);
+    on("btn-cancel-email", "click", closeEmailModal);
+    on("email-form", "submit", changeEmail);
+    on("btn-edit-address", "click", openAddressModal);
+    on("btn-cancel-address", "click", closeAddressModal);
+    on("address-form", "submit", saveAddress);
+    on("btn-new-ticket", "click", openTicketModal);
+    on("btn-cancel-ticket", "click", closeTicketModal);
+    on("ticket-form", "submit", createTicket);
+  }
+
+  async function logout() {
+    const csrf = getCsrf();
+    if (!csrf) {
+      window.location.href = "/";
+      return;
+    }
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRF-Token": csrf },
+    });
+    window.location.href = "/";
+  }
+
+  async function exportData() {
+    try {
+      const r = await fetch(`${API_BASE}/me/export`, {
+        credentials: "include",
+      });
+      if (!r.ok) {
+        showError("Échec de l'export.");
+        return;
+      }
+      const blob = await r.blob();
+      const dispo = r.headers.get("content-disposition") || "";
+      const filename =
+        dispo.match(/filename="?([^";]+)"?/)?.[1] || "alartic_export.json";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError("Erreur réseau pendant l'export.");
+    }
+  }
+
+  async function suspendAccount() {
+    const ok = await confirmDialog({
+      title: "Suspendre votre compte ?",
+      body: "Vos sessions seront immédiatement invalidées. La réactivation passe par un magic link envoyé par notre équipe.",
+      confirmLabel: "Suspendre",
+      danger: true,
+    });
+    if (!ok) return;
+    const csrf = getCsrf();
+    const r = await fetch(`${API_BASE}/me/suspend`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRF-Token": csrf },
+    });
+    if (r.ok) {
+      window.location.href = "/?suspended=1";
+    } else {
+      showError("Échec de la suspension.");
+    }
+  }
+
+  async function deleteAccount() {
+    const ok = await confirmDialog({
+      title: "Supprimer définitivement votre compte ?",
+      body: "Cette action est IRRÉVERSIBLE. Vos commandes seront archivées (10 ans, obligation comptable) mais anonymisées.",
+      confirmLabel: "Continuer",
+      danger: true,
+    });
+    if (!ok) return;
+    const sure = await promptDialog({
+      title: "Confirmation finale",
+      body: 'Tapez SUPPRIMER en majuscules pour confirmer la suppression définitive du compte.',
+      placeholder: "SUPPRIMER",
+      expectedValue: "SUPPRIMER",
+      confirmLabel: "Supprimer définitivement",
+      danger: true,
+    });
+    if (sure !== "SUPPRIMER") return;
+    const csrf = getCsrf();
+    const r = await fetch(`${API_BASE}/me`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "X-CSRF-Token": csrf },
+    });
+    if (r.ok) {
+      window.location.href = "/?deleted=1";
+    } else {
+      showError("Échec de la suppression.");
+    }
+  }
+
+  async function openAddressModal() {
+    // Pré-remplir depuis l'état courant si dispo.
+    const r = await fetch(`${API_BASE}/me/address`, { credentials: "include" });
+    if (r.ok) {
+      const c = await r.json();
+      const form = document.getElementById("address-form");
+      if (c.address) {
+        form.line1.value = c.address.line1 || "";
+        form.line2.value = c.address.line2 || "";
+        form.postcode.value = c.address.postcode || "";
+        form.city.value = c.address.city || "";
+        form.country.value = c.address.country || "FR";
+      }
+      form.phone.value = c.phone || "";
+    }
+    document.getElementById("address-modal").showModal();
+  }
+
+  function closeAddressModal() {
+    document.getElementById("address-modal").close();
+    document.getElementById("address-error").hidden = true;
+  }
+
+  async function saveAddress(e) {
+    e.preventDefault();
+    const form = e.target;
+    const errEl = document.getElementById("address-error");
+    errEl.hidden = true;
+    const csrf = getCsrf();
+    const body = {
+      address: {
+        line1: form.line1.value.trim(),
+        line2: form.line2.value.trim() || undefined,
+        postcode: form.postcode.value.trim(),
+        city: form.city.value.trim(),
+        country: form.country.value.trim().toUpperCase(),
+      },
+      phone: form.phone.value.trim() || "",
+    };
+    const r = await fetch(`${API_BASE}/me/address`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const c = await r.json();
+      renderAddress(c);
+      closeAddressModal();
+    } else if (r.status === 400) {
+      errEl.textContent =
+        "Données invalides. Vérifiez ligne 1, code postal, ville, pays (2-3 lettres).";
+      errEl.hidden = false;
+    } else {
+      errEl.textContent = "Erreur serveur. Réessayez.";
+      errEl.hidden = false;
+    }
+  }
+
+  function openEmailModal() {
+    document.getElementById("email-modal").showModal();
+  }
+
+  function closeEmailModal() {
+    document.getElementById("email-modal").close();
+    document.getElementById("email-error").hidden = true;
+  }
+
+  async function changeEmail(e) {
+    e.preventDefault();
+    const form = e.target;
+    const errEl = document.getElementById("email-error");
+    errEl.hidden = true;
+    const csrf = getCsrf();
+    const newEmail = form.new_email.value.trim();
+    const r = await fetch(`${API_BASE}/me/email`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ new_email: newEmail }),
+    });
+    if (r.ok) {
+      // Double opt-in : pas de changement immédiat, un mail de confirmation
+      // a été envoyé au nouvel email. La session reste valide jusqu'au
+      // clic sur le lien.
+      closeEmailModal();
+      const banner = document.getElementById("status-banner");
+      banner.hidden = false;
+      banner.classList.remove("status-banner--error");
+      banner.textContent = `Un email de confirmation a été envoyé à ${newEmail}. Cliquez sur le lien dans les 15 minutes pour valider le changement. Votre compte actuel reste actif tant que vous n'avez pas confirmé.`;
+    } else if (r.status === 400) {
+      const body = await r.json().catch(() => ({}));
+      const reason = body.error;
+      const msg =
+        reason === "email_already_used"
+          ? "Cet email est déjà utilisé par un autre compte."
+          : reason === "same_email"
+            ? "Vous utilisez déjà cet email."
+            : "Email invalide.";
+      errEl.textContent = msg;
+      errEl.hidden = false;
+    } else if (r.status === 429) {
+      errEl.textContent = "Trop de demandes. Réessayez dans une heure.";
+      errEl.hidden = false;
+    } else {
+      errEl.textContent = "Erreur serveur. Réessayez dans un instant.";
+      errEl.hidden = false;
+    }
+  }
+
+  function openTicketModal() {
+    document.getElementById("ticket-modal").showModal();
+  }
+
+  function closeTicketModal() {
+    document.getElementById("ticket-modal").close();
+  }
+
+  async function createTicket(e) {
+    e.preventDefault();
+    const form = e.target;
+    const csrf = getCsrf();
+    const body = {
+      category: form.category.value,
+      subject: form.subject.value.trim(),
+      body: form.body.value.trim(),
+    };
+    const r = await fetch(`${API_BASE}/me/tickets`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      if (r.status === 400) {
+        await alertDialog({
+          title: "Données invalides",
+          body: "Vérifiez les longueurs : sujet ≥ 3 caractères, message ≥ 5 caractères.",
+          variant: "error",
+        });
+      } else {
+        showError("Échec de la création du ticket.");
+      }
+      return;
+    }
+
+    const created = await r.json();
+    const ticketId = created.id;
+    const messageId = created.message_id;
+
+    // Upload optionnel d'une pièce jointe, rattachée au 1er message du ticket.
+    const file = form.attachment?.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        await alertDialog({
+          title: "Fichier trop volumineux",
+          body: "La pièce jointe dépasse la limite de 5 MB. Réduisez sa taille ou choisissez un autre fichier.",
+          variant: "error",
+        });
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        const upload = await fetch(
+          `${API_BASE}/me/tickets/${ticketId}/attachments?message_id=${encodeURIComponent(messageId)}`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "X-CSRF-Token": csrf },
+            body: fd,
+          }
+        );
+        if (!upload.ok) {
+          await alertDialog({
+            title: "Upload échoué",
+            body: "Le ticket a bien été créé, mais l'upload de la pièce jointe a échoué (format non autorisé ou trop volumineux).",
+            variant: "error",
+          });
+        }
+      }
+    }
+
+    closeTicketModal();
+    form.reset();
+    const ticketsRes = await fetch(`${API_BASE}/me/tickets`, {
+      credentials: "include",
+    });
+    if (ticketsRes.ok) renderTickets(await ticketsRes.json());
+  }
+
+  function showError(text) {
+    const banner = document.getElementById("status-banner");
+    banner.hidden = false;
+    banner.textContent = text;
+    banner.classList.add("status-banner--error");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[c]);
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/[^a-z0-9_-]/gi, "");
+  }
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  function labelCategory(c) {
+    return (
+      {
+        question: "Question",
+        probleme_technique: "Problème technique",
+        garantie: "Garantie",
+        autre: "Autre",
+      }[c] || c
+    );
+  }
+
+  function labelStatus(s) {
+    return (
+      {
+        open: "Ouvert",
+        in_progress: "En cours",
+        waiting_user: "Attente client",
+        resolved: "Résolu",
+        closed: "Clos",
+      }[s] || s
+    );
+  }
+</script>
+
+<style is:global>
+  .account {
+    padding-block: var(--space-9);
+    background-color: var(--color-bg-accent);
+    min-height: 70vh;
+  }
+
+  .account__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-4);
+    margin-bottom: var(--space-7);
+    flex-wrap: wrap;
+  }
+  .account__title {
+    font-size: var(--fs-4xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+  }
+  .account__logout {
+    padding: var(--space-2) var(--space-4);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .account__logout:hover {
+    border-color: var(--color-text);
+    color: var(--color-text);
+  }
+
+  .account__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+  @media (min-width: 960px) {
+    .account__grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .account__grid > :first-child {
+      grid-column: span 1;
+    }
+  }
+
+  .account__h2 {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+    margin: 0 0 var(--space-4);
+  }
+  .account__muted {
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .account__tickets-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+    gap: var(--space-3);
+  }
+  .account__tickets-head .account__h2 {
+    margin: 0;
+  }
+
+  .profile {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+  }
+  .profile dt {
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+  }
+  .profile dd {
+    margin: 0;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .profile__edit-btn {
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: var(--fs-xs);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .profile__edit-btn:hover {
+    border-color: var(--color-text);
+    color: var(--color-text);
+  }
+
+  .ticket-row {
+    display: block;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+    text-decoration: none;
+    color: inherit;
+  }
+  .ticket-row:last-child {
+    border-bottom: none;
+  }
+  .ticket-row--link {
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .ticket-row--link:hover {
+    opacity: 0.7;
+  }
+  .ticket-row__head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    align-items: baseline;
+  }
+  .ticket-row__subject {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .ticket-row__status {
+    font-size: var(--fs-xs);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+  .status--open,
+  .status--in_progress,
+  .status--waiting_user {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+  .status--resolved {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+  .status--closed,
+  .status--completed,
+  .status--cancelled,
+  .status--refunded {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-muted);
+  }
+  /* Statuts commandes */
+  .status--pending {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+  .status--paid,
+  .status--preparing,
+  .status--shipped {
+    background-color: #dbeafe;
+    color: #1e3a8a;
+  }
+  .status--delivered {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+  .status--failed {
+    background-color: #fee2e2;
+    color: #991b1b;
+  }
+  .ticket-row__meta {
+    margin: var(--space-1) 0 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .account__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+  @media (min-width: 540px) {
+    .account__actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+  .account__btn {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .account__btn:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+  .account__btn--primary {
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border-color: var(--color-text);
+  }
+  .account__btn--warn {
+    border-color: #f59e0b;
+    color: #92400e;
+  }
+  .account__btn--danger {
+    border-color: #ef4444;
+    color: #b91c1c;
+  }
+
+  .status-banner {
+    margin: 0 0 var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+  }
+  .status-banner--error {
+    background-color: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+  }
+
+  .modal {
+    /* Le reset global { margin: 0 } casse le centrage par défaut des
+       <dialog> ouverts via showModal(). On force inset+margin:auto. */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 540px;
+    width: calc(100% - 2rem);
+    max-height: calc(100vh - 2rem);
+    background-color: var(--color-bg);
+  }
+  .modal::backdrop {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  .modal__form {
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .modal__title {
+    margin: 0;
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+  }
+  .modal__row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+  }
+  .modal__row input,
+  .modal__row select,
+  .modal__row textarea {
+    margin-top: var(--space-1);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--fs-base);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+  .modal__row textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+  .modal__hint {
+    font-size: var(--fs-xs);
+    line-height: var(--lh-relaxed);
+    margin-top: var(--space-1);
+  }
+  .address-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: var(--space-3);
+  }
+  @media (max-width: 540px) {
+    .address-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .address-block {
+    font-style: normal;
+    line-height: var(--lh-relaxed);
+    color: var(--color-text);
+  }
+  .address-phone {
+    margin: var(--space-3) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--fs-sm);
+  }
+
+  .audit-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-3) 0 0;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .audit-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+  }
+  .audit-row:last-child {
+    border-bottom: none;
+  }
+  .audit-row__date {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .audit-row__label {
+    text-align: right;
+    color: var(--color-text);
+  }
+  .modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+</style>

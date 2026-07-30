@@ -1,0 +1,46 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+.astro/
+build/
+
+# Environnement et secrets
+.env
+.env.local
+.env.*.local
+.env.production
+*.key
+*.pem
+*.age
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.tmp/
+
+# Scripts de debug jetables
+debug/
+
+# Claude Code — uniquement les settings persos (settings.json et hooks restent versionnés)
+.claude/settings.local.json
+
+# Prévisualisation statique (générée par tools/preview)
+.preview-build/
+.preview-report.json
+dist-preview/
+dist-preview-bundle.html

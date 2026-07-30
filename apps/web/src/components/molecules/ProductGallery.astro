@@ -1,0 +1,165 @@
+---
+/**
+ * ProductGallery — affiche le téléphone face avant + face arrière en stack angled.
+ * La couleur active change au changement de variante dans le buybox via CustomEvent.
+ * Si une couleur n'a pas de rearImage, on affiche seulement le front centré.
+ */
+
+interface ColorView {
+  slug: string;
+  name: string;
+  frontImage: string;
+  rearImage?: string;
+}
+
+interface Props {
+  productName: string;
+  colors: ColorView[];
+}
+
+const { productName, colors } = Astro.props;
+---
+
+<div class="gallery" data-gallery>
+  <div class="gallery__main" data-anim="scale-in">
+    {colors.map((c, ci) => (
+      <div
+        class:list={["gallery__view", ci === 0 && "is-active"]}
+        data-gallery-color={c.slug}
+      >
+        <div class:list={["gallery__stack", c.rearImage && "gallery__stack--double"]}>
+          {c.rearImage && (
+            <img
+              class="gallery__device gallery__device--rear"
+              src={c.rearImage}
+              alt={`${productName} — ${c.name}, face arrière`}
+              loading={ci === 0 ? "eager" : "lazy"}
+              decoding="async"
+            />
+          )}
+          <img
+            class="gallery__device gallery__device--front"
+            src={c.frontImage}
+            alt={`${productName} — ${c.name}, face avant`}
+            loading={ci === 0 ? "eager" : "lazy"}
+            decoding="async"
+          />
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+<script>
+  /* Écoute les changements de variante (couleur) émis par le buybox.
+   * Pattern AbortController + astro:page-load pour compat ClientRouter. */
+  let controller: AbortController | null = null;
+
+  function setup(): void {
+    controller?.abort();
+    controller = new AbortController();
+    const { signal } = controller;
+
+    const galleries = document.querySelectorAll<HTMLElement>("[data-gallery]");
+    if (galleries.length === 0) return;
+
+    galleries.forEach((gallery) => {
+      const views = gallery.querySelectorAll<HTMLElement>("[data-gallery-color]");
+
+      function activateColor(slug: string) {
+        let matched = false;
+        views.forEach((v) => {
+          const isMatch = v.dataset.galleryColor === slug;
+          v.classList.toggle("is-active", isMatch);
+          if (isMatch) matched = true;
+        });
+        if (!matched && views[0]) views[0].classList.add("is-active");
+      }
+
+      document.addEventListener(
+        "buybox:change",
+        (e) => {
+          const detail = (e as CustomEvent).detail;
+          if (detail?.color) activateColor(detail.color);
+        },
+        { signal },
+      );
+    });
+  }
+
+  document.addEventListener("astro:before-swap", () => controller?.abort());
+  document.addEventListener("astro:page-load", setup);
+</script>
+
+<style>
+  .gallery {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gallery__main {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    background:
+      radial-gradient(ellipse 70% 55% at center, #ebdcb8 0%, #efe5d0 25%, transparent 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gallery__view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease-out);
+    pointer-events: none;
+  }
+  .gallery__view.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Stack qui contient les 1 ou 2 téléphones — sert de référentiel positionnel. */
+  .gallery__stack {
+    position: relative;
+    width: 80%;
+    height: 80%;
+    max-width: 420px;
+  }
+
+  .gallery__device {
+    position: absolute;
+    width: auto;
+    transition: transform var(--duration-slow) var(--ease-out);
+    filter: drop-shadow(0 24px 48px rgba(20, 20, 20, 0.18));
+  }
+
+  /* Si une seule image (pas de rear), front centré simple. */
+  .gallery__stack:not(.gallery__stack--double) .gallery__device--front {
+    top: 50%;
+    left: 50%;
+    max-height: 92%;
+    max-width: 70%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Si rear + front, on les met en stack angled (style home hero). */
+  .gallery__stack--double .gallery__device {
+    top: 50%;
+    left: 50%;
+    max-height: 88%;
+    max-width: 60%;
+  }
+  .gallery__stack--double .gallery__device--rear {
+    transform: translate(-78%, -50%) rotate(-10deg);
+    z-index: 1;
+    opacity: 0.9;
+  }
+  .gallery__stack--double .gallery__device--front {
+    transform: translate(-22%, -50%) rotate(6deg);
+    z-index: 2;
+  }
+</style>

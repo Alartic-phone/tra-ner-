@@ -1,0 +1,497 @@
+---
+import Base from "../../layouts/Base.astro";
+import Container from "../../components/atoms/Container.astro";
+import Card from "../../components/atoms/Card.astro";
+import Header from "../../components/molecules/Header.astro";
+import Footer from "../../components/molecules/Footer.astro";
+
+// SSG : on lit l'ID en query string côté client (?id=<uuid>) et on fetch
+// GET /me/orders/:id qui filtre par user_id (auth requise).
+---
+
+<Base
+  title="Commande"
+  description="Détail d'une commande ALARTIC."
+  noindex
+>
+  <Header slot="header" />
+
+  <section class="order-page">
+    <Container size="md">
+      <a href="/compte" class="order-page__back">← Retour à mon compte</a>
+
+      <div id="order-content">
+        <p class="order-page__loading">Chargement…</p>
+      </div>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  // @ts-nocheck
+  const API_BASE = import.meta.env.DEV ? "http://localhost:3000" : "/api";
+
+  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  const fmtCents = (cents) => fmt.format(cents / 100);
+
+  function escape(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString("fr-FR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  function labelStatus(s) {
+    return ({
+      pending: "Paiement en attente",
+      paid: "Payée",
+      preparing: "En préparation",
+      shipped: "Expédiée",
+      delivered: "Livrée",
+      completed: "Clôturée",
+      cancelled: "Annulée",
+      failed: "Échec du paiement",
+      refunded: "Remboursée",
+    })[s] || s;
+  }
+
+  function statusClass(s) {
+    if (s === "delivered" || s === "completed") return "ok";
+    if (s === "failed" || s === "cancelled" || s === "refunded") return "danger";
+    if (s === "pending") return "warn";
+    return "info";
+  }
+
+  function renderOrder(o) {
+    const el = document.getElementById("order-content");
+    const shortId = String(o.id).slice(0, 8);
+
+    const items = o.items.map((it) => `
+      <li class="order-item">
+        <div class="order-item__name">
+          ${escape(it.product_name)} — ${escape(it.variant_storage_label)} — ${escape(it.variant_color_name)}
+          ${it.qty > 1 ? `<span class="order-item__qty">× ${it.qty}</span>` : ""}
+        </div>
+        <div class="order-item__price">${escape(fmtCents(it.line_total_cents))}</div>
+      </li>
+    `).join("");
+
+    const html = `
+      <header class="order-page__head">
+        <div>
+          <p class="order-page__eyebrow">Commande</p>
+          <h1 class="order-page__title">#${escape(shortId)}</h1>
+        </div>
+        <span class="order-page__status status--${statusClass(o.status)}">
+          ${escape(labelStatus(o.status))}
+        </span>
+      </header>
+
+      <div class="order-page__cards">
+        <div class="order-page__card">
+          <h2 class="order-page__h2">Articles</h2>
+          <ul class="order-items">${items}</ul>
+          <div class="order-totals">
+            <div class="order-totals__row">
+              <span>Sous-total</span>
+              <span>${escape(fmtCents(o.subtotal_cents))}</span>
+            </div>
+            <div class="order-totals__row">
+              <span>Livraison</span>
+              <span class="order-totals__free">${o.shipping_cents === 0 ? "Offerte" : escape(fmtCents(o.shipping_cents))}</span>
+            </div>
+            <div class="order-totals__row order-totals__row--total">
+              <span>Total TTC</span>
+              <span>${escape(fmtCents(o.total_cents))}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-page__card">
+          <h2 class="order-page__h2">Suivi</h2>
+          <dl class="order-meta">
+            <dt>Commande passée le</dt>
+            <dd>${escape(formatDate(o.created_at))}</dd>
+            ${o.paid_at ? `
+              <dt>Paiement confirmé le</dt>
+              <dd>${escape(formatDate(o.paid_at))}</dd>
+            ` : ""}
+            ${o.invoice_number ? `
+              <dt>Facture</dt>
+              <dd class="order-meta__invoice">
+                <span class="order-meta__invoice-num">${escape(o.invoice_number)}</span>
+                <button type="button" class="order-meta__invoice-btn"
+                        data-invoice-order="${escape(o.id)}"
+                        data-invoice-number="${escape(o.invoice_number)}">
+                  Télécharger (PDF)
+                </button>
+              </dd>
+            ` : ""}
+            <dt>Statut</dt>
+            <dd>${escape(labelStatus(o.status))}</dd>
+          </dl>
+
+          ${o.status === "pending" ? `
+            <p class="order-page__note">
+              Le paiement est en cours de validation. Cette page se mettra à jour
+              automatiquement (ou rechargez dans quelques minutes).
+            </p>
+          ` : ""}
+          ${o.status === "paid" || o.status === "preparing" ? `
+            <p class="order-page__note">
+              Votre appareil est en préparation sous scellé numéroté. Expédition
+              sous 5 à 7 jours ouvrés, vous recevrez un email avec le numéro de suivi.
+            </p>
+          ` : ""}
+          ${o.status === "failed" ? `
+            <p class="order-page__note order-page__note--danger">
+              Le paiement a échoué. <a href="/modeles">Passer une nouvelle commande</a>
+              ou <a href="/contact">contacter le SAV</a>.
+            </p>
+          ` : ""}
+        </div>
+      </div>
+    `;
+    el.innerHTML = html;
+    bindInvoiceButtons(el);
+  }
+
+  async function downloadInvoice(orderId, invoiceNumber, btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Préparation…";
+    try {
+      const r = await fetch(
+        `${API_BASE}/me/orders/${encodeURIComponent(orderId)}/invoice`,
+        { credentials: "include" },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Délai pour que le download démarre avant de révoquer l'URL.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error("invoice download failed", err);
+      btn.textContent = "Échec — réessayer";
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+      return;
+    }
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+
+  function bindInvoiceButtons(root) {
+    root.querySelectorAll("[data-invoice-order]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        downloadInvoice(
+          btn.getAttribute("data-invoice-order"),
+          btn.getAttribute("data-invoice-number"),
+          btn,
+        );
+      });
+    });
+  }
+
+  function showNotFound() {
+    document.getElementById("order-content").innerHTML = `
+      <div class="order-page__error">
+        <p>Commande introuvable, ou vous n'êtes pas autorisé à la consulter.</p>
+        <a href="/compte" class="order-page__cta">Retour à mon compte</a>
+      </div>
+    `;
+  }
+
+  async function load() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (!id) {
+      showNotFound();
+      return;
+    }
+    try {
+      const r = await fetch(`${API_BASE}/me/orders/${encodeURIComponent(id)}`, {
+        credentials: "include",
+      });
+      if (r.status === 401) {
+        window.location.href = "/connexion?next=/compte";
+        return;
+      }
+      if (!r.ok) {
+        showNotFound();
+        return;
+      }
+      const order = await r.json();
+      renderOrder(order);
+
+      // Si pending, on poll quelques fois — le webhook peut arriver après.
+      if (order.status === "pending") {
+        let tries = 0;
+        const max = 5;
+        const interval = setInterval(async () => {
+          tries += 1;
+          try {
+            const r2 = await fetch(`${API_BASE}/me/orders/${encodeURIComponent(id)}`, {
+              credentials: "include",
+            });
+            if (r2.ok) {
+              const o2 = await r2.json();
+              if (o2.status !== "pending" || tries >= max) {
+                clearInterval(interval);
+                renderOrder(o2);
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+          if (tries >= max) clearInterval(interval);
+        }, 3000);
+      }
+    } catch {
+      showNotFound();
+    }
+  }
+
+  document.addEventListener("astro:page-load", load);
+</script>
+
+<style is:global>
+  /* HTML injecté via innerHTML côté JS → le hash de scoping Astro ne s'applique
+   * pas. On désactive le scoping pour que tout matche. */
+
+  .order-page {
+    padding-block: var(--space-7) var(--space-9);
+    background-color: var(--color-bg-accent);
+    min-height: 60vh;
+  }
+  .order-page__back {
+    display: inline-block;
+    margin-bottom: var(--space-5);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    font-size: var(--fs-sm);
+  }
+  .order-page__back:hover { color: var(--color-text); }
+  .order-page__loading {
+    color: var(--color-text-secondary);
+    text-align: center;
+    padding: var(--space-7);
+  }
+
+  .order-page__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+  }
+  .order-page__eyebrow {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin: 0;
+  }
+  .order-page__title {
+    font-family: var(--font-mono);
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: var(--space-1) 0 0;
+  }
+  .order-page__status {
+    font-size: var(--fs-sm);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    margin-top: var(--space-4);
+  }
+  .order-page__status.status--ok {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+  .order-page__status.status--warn {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+  .order-page__status.status--info {
+    background-color: #dbeafe;
+    color: #1e3a8a;
+  }
+  .order-page__status.status--danger {
+    background-color: #fee2e2;
+    color: #991b1b;
+  }
+
+  .order-page__cards {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .order-page__cards {
+      grid-template-columns: 1.5fr 1fr;
+    }
+  }
+  .order-page__card {
+    padding: var(--space-6);
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+  }
+  .order-page__h2 {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    margin: 0 0 var(--space-4);
+  }
+  .order-items {
+    list-style: none;
+    margin: 0 0 var(--space-4);
+    padding: 0 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .order-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--fs-sm);
+  }
+  .order-item__qty {
+    color: var(--color-text-muted);
+    margin-left: var(--space-1);
+  }
+  .order-item__price {
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+  }
+  .order-totals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .order-totals__row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--fs-sm);
+  }
+  .order-totals__free {
+    color: var(--color-success);
+    font-weight: var(--fw-medium);
+  }
+  .order-totals__row--total {
+    padding-top: var(--space-3);
+    margin-top: var(--space-1);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .order-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+    font-size: var(--fs-sm);
+  }
+  .order-meta dt {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin-top: var(--space-2);
+  }
+  .order-meta dt:first-child { margin-top: 0; }
+  .order-meta dd {
+    margin: 0;
+    color: var(--color-text);
+  }
+  .order-meta__invoice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .order-meta__invoice-num {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--color-text-secondary);
+  }
+  .order-meta__invoice-btn {
+    background: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .order-meta__invoice-btn:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+  .order-meta__invoice-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+  .order-page__note {
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+  }
+  .order-page__note--danger {
+    background-color: color-mix(in srgb, var(--color-danger) 8%, transparent);
+    color: var(--color-text);
+  }
+  .order-page__note a {
+    color: var(--color-text);
+    text-decoration: underline;
+  }
+  .order-page__error {
+    text-align: center;
+    padding: var(--space-7);
+    background-color: var(--color-bg-elevated);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+  }
+  .order-page__cta {
+    display: inline-block;
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--fw-semibold);
+  }
+</style>

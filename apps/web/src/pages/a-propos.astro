@@ -1,0 +1,246 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+import CtaBanner from "../components/molecules/CtaBanner.astro";
+---
+
+<Base
+  title="À propos"
+  description="Qui est derrière ALARTIC, comment c'est financé, comment c'est structuré juridiquement."
+>
+  <Header slot="header" />
+
+  <section class="hero">
+    <Container size="lg">
+      <div data-anim="hero-stagger">
+        <h1 class="hero__title">Une seule personne. Une seule responsabilité.</h1>
+        <p class="hero__lead">
+          ALARTIC est porté par un développeur, en France, en micro-entreprise. Pas de board,
+          pas d'investisseurs, pas de croissance forcée. Ce qui rentre paie le travail, les
+          marges sont raisonnables, le SAV est humain parce qu'il y a une humanité derrière.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="md">
+      <h2 class="section__title">Pourquoi ce projet existe.</h2>
+      <p class="lead">
+        Il existe des entreprises qui vendent du Pixel sous GrapheneOS depuis longtemps,
+        principalement hors de France. Mais le marché francophone manquait d'une offre alignée
+        sur la <strong>juridiction française</strong>, avec <strong>SAV en français</strong>,
+        <strong>tarification claire en euros</strong>, et un <strong>positionnement éditorial
+        explicite</strong> (un manifeste, une politique de transparence, un engagement écrit).
+      </p>
+      <p class="lead">
+        ALARTIC s'adresse à ces personnes : journalistes, avocats, militants, profession
+        médicale, conseils juridiques, dirigeants exposés, technophiles soucieux de leur vie
+        privée — qui veulent un téléphone à eux et seulement à eux, sans pour autant devoir
+        flasher GrapheneOS eux-mêmes ni naviguer entre clés Yubico et configurations
+        Termux.
+      </p>
+    </Container>
+  </section>
+
+  <section class="section section--surface">
+    <Container size="lg">
+      <h2 class="section__title">Le modèle économique, transparent.</h2>
+      <div class="model-grid">
+        <Card variant="outlined" padding="lg">
+          <h3>D'où vient l'argent</h3>
+          <p>
+            Une seule source : la <strong>marge sur la vente</strong> des téléphones et accessoires.
+            Pas de revenu publicitaire, pas de partenariat affilié, pas de revente de données
+            (par construction, on n'en a pas à revendre), pas de service tiers monétisé.
+          </p>
+        </Card>
+        <Card variant="outlined" padding="lg">
+          <h3>Où ça va</h3>
+          <p>
+            Achat des téléphones aux circuits commerciaux classiques, accessoires, hébergement
+            Infomaniak (~50 €/mois), comptable, RC pro, frais de plateforme Payplug, et le
+            reste rémunère le travail. Pas de levée, pas de dette.
+          </p>
+        </Card>
+        <Card variant="outlined" padding="lg">
+          <h3>Ce que ça implique</h3>
+          <p>
+            Marges raisonnables, pas de prix flash, pas de promo aléatoire. Le prix affiché est
+            le prix réel. Si la base de coûts augmente (matières premières, change), le prix
+            est révisé. Pas de dumping artificiel.
+          </p>
+        </Card>
+      </div>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="md">
+      <h2 class="section__title">Structure juridique.</h2>
+      <dl class="legal-details">
+        <div>
+          <dt>Forme</dt>
+          <dd>Micro-entreprise (régime simplifié, franchise de TVA art. 293 B du CGI).</dd>
+        </div>
+        <div>
+          <dt>Dirigeant</dt>
+          <dd>Thomas BEHAGUE.</dd>
+        </div>
+        <div>
+          <dt>SIRET</dt>
+          <dd><em>[à compléter à l'immatriculation]</em></dd>
+        </div>
+        <div>
+          <dt>Domiciliation</dt>
+          <dd><em>[à compléter — domiciliation commerciale]</em></dd>
+        </div>
+        <div>
+          <dt>RC pro</dt>
+          <dd>Souscrite avant la mise en ligne — couvre la prestation logicielle.</dd>
+        </div>
+        <div>
+          <dt>Médiateur consommation</dt>
+          <dd>Adhésion CNPM ou MEDICYS (en cours).</dd>
+        </div>
+        <div>
+          <dt>Hébergement</dt>
+          <dd>VPS Cloud Infomaniak, Suisse (juridiction LPD, hors Cloud Act US).</dd>
+        </div>
+      </dl>
+    </Container>
+  </section>
+
+  <section class="section section--surface">
+    <Container size="md">
+      <h2 class="section__title">Indépendance technique.</h2>
+      <p class="lead">
+        Tout le code de ce site est <strong>écrit à la main</strong>. Pas de framework lourd
+        chargé côté visiteur. Le front est en Astro (statique au build), le back en Rust
+        (Axum), la base est PostgreSQL chiffrée au repos. Le serveur web est Caddy (auto-TLS).
+        Aucun service tiers n'est intégré au site, à l'exception de Payplug et PayPal pour le
+        paiement (uniquement à l'étape paiement — vos données ne quittent jamais notre
+        infrastructure ailleurs).
+      </p>
+      <p class="lead">
+        Le code source de l'<strong>infrastructure de déploiement</strong> et certains
+        composants critiques (magic link custom, par exemple) pourront être ouverts à un audit
+        externe à la demande, sous NDA. Le code applicatif e-commerce reste privé.
+      </p>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="xl">
+      <CtaBanner
+        variant="sky"
+        eyebrow="Une question ?"
+        title="Posez-la directement."
+        description="Pas de chatbot. Pas de service client externalisé. Vous écrivez, on répond."
+        primaryLabel="Contact"
+        primaryHref="/contact"
+        secondaryLabel="Voir la politique de sécurité"
+        secondaryHref="/securite"
+      />
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../scripts/animations";
+</script>
+
+<style>
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+  .hero__title {
+    font-size: var(--fs-5xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: var(--space-4) 0 var(--space-4);
+    max-width: 22ch;
+  }
+  .hero__lead {
+    font-size: var(--fs-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 60ch;
+  }
+
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+  }
+
+  .section__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-5);
+  }
+
+  .lead {
+    font-size: var(--fs-md);
+    color: var(--color-text);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin-bottom: var(--space-4);
+  }
+  .lead:last-child {
+    margin-bottom: 0;
+  }
+
+  .model-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+  @media (min-width: 900px) {
+    .model-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .model-grid h3 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    margin-bottom: var(--space-3);
+  }
+  .model-grid p {
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+  }
+
+  .legal-details {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  @media (min-width: 640px) {
+    .legal-details {
+      grid-template-columns: max-content 1fr;
+      gap: var(--space-3) var(--space-6);
+    }
+  }
+  .legal-details > div {
+    display: contents;
+  }
+  .legal-details dt {
+    font-weight: var(--fw-semibold);
+    color: var(--color-text);
+  }
+  .legal-details dd {
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+</style>

@@ -1,0 +1,240 @@
+---
+/**
+ * Legal — layout minimaliste pour les pages légales.
+ * Inclut un bouton "Télécharger la version PDF" qui déclenche window.print().
+ * Le navigateur propose alors "Enregistrer au format PDF" dans la dialog
+ * d'impression standard — pas de génération côté serveur, zéro dépendance.
+ *
+ * Pour J2 : contenu placeholder via slot — Thomas remplira via Decap après
+ * livraison (cf. CDC §3.5 + ADR Decap 2026-05-08).
+ */
+
+import Base from "./Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  lastUpdate: string; /* format ISO : "2026-05-12" */
+}
+
+const { title, description, lastUpdate } = Astro.props;
+
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+const formattedDate = dateFormatter.format(new Date(lastUpdate));
+---
+
+<Base title={title} description={description}>
+  <Header slot="header" />
+
+  <section class="legal-hero">
+    <Container size="md">
+      <nav class="breadcrumb" aria-label="Fil d'Ariane">
+        <a href="/">Accueil</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">{title}</span>
+      </nav>
+
+      <div class="legal-hero__head">
+        <div class="legal-hero__head-text">
+          <h1 class="legal-hero__title">{title}</h1>
+          <p class="legal-hero__date">
+            Dernière mise à jour : <time datetime={lastUpdate}>{formattedDate}</time>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="legal-hero__pdf"
+          data-print-trigger
+          aria-label={`Télécharger ${title} au format PDF`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Télécharger la version PDF
+        </button>
+      </div>
+    </Container>
+  </section>
+
+  <section class="legal-body">
+    <Container size="md">
+      <article class="prose">
+        <slot />
+      </article>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-print-trigger]").forEach((btn) => {
+    btn.addEventListener("click", () => window.print());
+  });
+</script>
+
+<style>
+  .legal-hero {
+    padding-block: var(--space-7) var(--space-6);
+    background-color: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-5);
+    flex-wrap: wrap;
+  }
+  .breadcrumb a:hover {
+    color: var(--color-brand);
+  }
+  .breadcrumb [aria-current="page"] {
+    color: var(--color-text);
+    font-weight: var(--fw-medium);
+  }
+
+  .legal-hero__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    align-items: flex-start;
+  }
+  @media (min-width: 720px) {
+    .legal-hero__head {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-5);
+    }
+  }
+
+  .legal-hero__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: 0 0 var(--space-2);
+  }
+
+  .legal-hero__date {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  .legal-hero__pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out);
+    flex-shrink: 0;
+  }
+  .legal-hero__pdf:hover {
+    border-color: var(--color-text);
+    background-color: var(--color-bg-subtle);
+  }
+
+  .legal-body {
+    padding-block: var(--space-7) var(--space-9);
+  }
+
+  /* ───────── Prose styling pour le contenu légal ───────── */
+  .prose {
+    color: var(--color-text);
+    font-size: var(--fs-base);
+    line-height: var(--lh-relaxed);
+  }
+
+  .prose :global(h2) {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin-top: var(--space-7);
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+  }
+  .prose :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .prose :global(h3) {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    margin-top: var(--space-5);
+    margin-bottom: var(--space-2);
+  }
+  .prose :global(p),
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin-bottom: var(--space-4);
+    max-width: 65ch;
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    padding-left: var(--space-5);
+  }
+  .prose :global(li) {
+    margin-bottom: var(--space-2);
+  }
+  .prose :global(strong) {
+    font-weight: var(--fw-semibold);
+  }
+  .prose :global(a) {
+    color: var(--color-brand);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .prose :global(a:hover) {
+    color: var(--color-brand-hover);
+  }
+  .prose :global(dl) {
+    margin-bottom: var(--space-4);
+  }
+  .prose :global(dt) {
+    font-weight: var(--fw-semibold);
+    margin-top: var(--space-3);
+  }
+  .prose :global(dd) {
+    margin-left: 0;
+    color: var(--color-text-secondary);
+  }
+  .prose :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--space-4);
+    font-size: var(--fs-sm);
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    border: 1px solid var(--color-border);
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+  }
+  .prose :global(th) {
+    background-color: var(--color-bg-subtle);
+    font-weight: var(--fw-semibold);
+  }
+</style>

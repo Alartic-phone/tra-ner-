@@ -1,0 +1,364 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Badge from "../components/atoms/Badge.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+import CtaBanner from "../components/molecules/CtaBanner.astro";
+
+type Status = "native" | "sandbox" | "limited" | "broken";
+
+interface AppEntry {
+  name: string;
+  status: Status;
+  note?: string;
+}
+
+interface AppCategory {
+  title: string;
+  intro: string;
+  apps: AppEntry[];
+}
+
+const categories: AppCategory[] = [
+  {
+    title: "Communication chiffrée",
+    intro: "Le cœur d'un usage privacy : messageries, email, voix.",
+    apps: [
+      { name: "Signal", status: "native" },
+      { name: "Element (Matrix)", status: "native" },
+      { name: "Threema", status: "native" },
+      { name: "ProtonMail", status: "native" },
+      { name: "Tutanota", status: "native" },
+      { name: "Briar", status: "native" },
+      { name: "Session", status: "native" },
+    ],
+  },
+  {
+    title: "Banque",
+    intro: "Les applications bancaires utilisent souvent SafetyNet/Play Integrity. Sous GrapheneOS, la plupart fonctionnent via Sandbox Play Services.",
+    apps: [
+      { name: "Crédit Mutuel", status: "sandbox" },
+      { name: "BoursoBank", status: "sandbox" },
+      { name: "BNP Paribas", status: "sandbox" },
+      { name: "Société Générale", status: "sandbox" },
+      { name: "Crédit Agricole", status: "sandbox" },
+      { name: "Revolut", status: "sandbox" },
+      { name: "N26", status: "sandbox" },
+      { name: "Qonto", status: "sandbox" },
+      { name: "Lydia", status: "sandbox", note: "Profil utilisateur séparé recommandé" },
+    ],
+  },
+  {
+    title: "Bureautique & productivité",
+    intro: "Suites bureautiques, prise de notes, agenda.",
+    apps: [
+      { name: "OnlyOffice", status: "native" },
+      { name: "Collabora Office", status: "native" },
+      { name: "Joplin", status: "native" },
+      { name: "Obsidian", status: "native" },
+      { name: "Standard Notes", status: "native" },
+      { name: "Nextcloud", status: "native" },
+      { name: "Etar (agenda)", status: "native" },
+    ],
+  },
+  {
+    title: "Navigateurs",
+    intro: "Le navigateur Vanadium fourni par GrapheneOS est fortement renforcé. Alternatives possibles via F-Droid.",
+    apps: [
+      { name: "Vanadium (par défaut)", status: "native" },
+      { name: "Brave", status: "native" },
+      { name: "Firefox / Mull", status: "native" },
+      { name: "Tor Browser", status: "native" },
+    ],
+  },
+  {
+    title: "Transports & mobilité",
+    intro: "Applis transport et navigation.",
+    apps: [
+      { name: "SNCF Connect", status: "sandbox" },
+      { name: "RATP", status: "sandbox" },
+      { name: "Uber", status: "sandbox" },
+      { name: "OsmAnd", status: "native" },
+      { name: "Magic Earth", status: "native" },
+      { name: "Google Maps", status: "sandbox", note: "Compte non requis" },
+      { name: "Android Auto", status: "broken", note: "Non supporté par GrapheneOS" },
+    ],
+  },
+  {
+    title: "Médias & loisirs",
+    intro: "Streaming, lecture, photo.",
+    apps: [
+      { name: "VLC", status: "native" },
+      { name: "NewPipe (YouTube alternatif)", status: "native" },
+      { name: "Spotify", status: "sandbox" },
+      { name: "Netflix", status: "limited", note: "Widevine L3 — qualité SD/HD uniquement" },
+      { name: "Disney+", status: "limited", note: "Widevine L3" },
+      { name: "ARTE", status: "sandbox" },
+    ],
+  },
+  {
+    title: "Administration & santé",
+    intro: "Applis administratives et santé. Certaines exigent attestation Play Integrity stricte.",
+    apps: [
+      { name: "France Identité", status: "sandbox" },
+      { name: "FranceConnect", status: "native", note: "Via navigateur web" },
+      { name: "Doctolib", status: "sandbox" },
+      { name: "Carte Vitale", status: "broken", note: "Play Integrity strict, non supporté" },
+      { name: "TousAntiCovid", status: "sandbox" },
+    ],
+  },
+];
+
+const statusLabel: Record<Status, string> = {
+  native: "Fonctionne nativement",
+  sandbox: "Via Sandbox Play Services",
+  limited: "Fonctionne avec limitations",
+  broken: "Ne fonctionne pas",
+};
+
+const statusBadge: Record<Status, "success" | "brand" | "accent" | "danger"> = {
+  native: "success",
+  sandbox: "brand",
+  limited: "accent",
+  broken: "danger",
+};
+---
+
+<Base
+  title="Compatibilité applicative"
+  description="Quelles applications fonctionnent sous GrapheneOS. Liste tenue à jour."
+>
+  <Header slot="header" />
+
+  <section class="hero">
+    <Container size="lg">
+      <div data-anim="hero-stagger">
+        <h1 class="hero__title">Vos applis tournent. La plupart, en tout cas.</h1>
+        <p class="hero__lead">
+          GrapheneOS est compatible avec la <strong>quasi-totalité des applications Android</strong>
+          grâce à son <strong>Sandbox Play Services</strong>. Quelques cas marginaux nécessitent
+          une configuration spécifique ou ne sont pas supportés.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <section class="section section--tight">
+    <Container size="lg">
+      <div class="legend">
+        <div class="legend__item">
+          <Badge variant="success" size="sm">Natif</Badge>
+          <span>Fonctionne sans dépendance Google.</span>
+        </div>
+        <div class="legend__item">
+          <Badge variant="brand" size="sm">Sandbox</Badge>
+          <span>Nécessite Sandbox Play Services (installé en 2 clics, isolé du système).</span>
+        </div>
+        <div class="legend__item">
+          <Badge variant="accent" size="sm">Limité</Badge>
+          <span>Fonctionne avec restrictions (qualité, fonctionnalités).</span>
+        </div>
+        <div class="legend__item">
+          <Badge variant="danger" size="sm">Non supporté</Badge>
+          <span>Exige Play Integrity strict, incompatible avec GrapheneOS.</span>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  {categories.map((cat) => (
+    <section class="section">
+      <Container size="lg">
+        <header class="category__header">
+          <h2 class="category__title">{cat.title}</h2>
+          <p class="category__intro">{cat.intro}</p>
+        </header>
+        <Card variant="outlined" padding="none">
+          <ul class="app-list">
+            {cat.apps.map((app) => (
+              <li class="app-list__item">
+                <div class="app-list__main">
+                  <span class="app-list__name">{app.name}</span>
+                  {app.note && <span class="app-list__note">{app.note}</span>}
+                </div>
+                <Badge variant={statusBadge[app.status]} size="sm">{statusLabel[app.status]}</Badge>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </Container>
+    </section>
+  ))}
+
+  <section class="section section--surface">
+    <Container size="md">
+      <h2 class="info__title">Une appli pas listée ?</h2>
+      <p class="info__body">
+        Si vous avez besoin d'une appli spécifique non listée ici, contactez-nous
+        <strong>avant d'acheter</strong>. Nous testons et confirmons par retour de mail si elle
+        fonctionne sous GrapheneOS. Cette validation préventive est <strong>gratuite</strong>
+        et fait partie de notre engagement de transparence.
+      </p>
+      <p class="info__meta">
+        Cette liste est mise à jour à chaque session d'onboarding et au gré des évolutions
+        techniques. Dernière revue : <time datetime="2026-05-12">12 mai 2026</time>.
+      </p>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="xl">
+      <CtaBanner
+        variant="sky"
+        eyebrow="Toujours hésitant ?"
+        title="On valide votre cas avant l'achat."
+        description="Listez-nous vos applications critiques. On vous dit si tout passe sous GrapheneOS, par retour de mail, gratuitement."
+        primaryLabel="Nous écrire"
+        primaryHref="/contact"
+        secondaryLabel="Voir la gamme"
+        secondaryHref="/modeles"
+      />
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../scripts/animations";
+</script>
+
+<style>
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+  .hero__title {
+    font-size: var(--fs-4xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: var(--space-4) 0 var(--space-4);
+    max-width: 22ch;
+  }
+  .hero__lead {
+    font-size: var(--fs-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 60ch;
+  }
+  .hero__lead strong {
+    color: var(--color-text);
+    font-weight: var(--fw-semibold);
+  }
+
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--tight {
+    padding-block: var(--space-7);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+    padding-block: var(--space-8);
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  @media (min-width: 720px) {
+    .legend {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1024px) {
+    .legend {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .legend__item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .legend__item span {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-snug);
+  }
+
+  .category__header {
+    margin-bottom: var(--space-4);
+  }
+  .category__title {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-2);
+  }
+  .category__intro {
+    color: var(--color-text-secondary);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin: 0;
+  }
+
+  .app-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .app-list__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .app-list__item:last-child {
+    border-bottom: none;
+  }
+  .app-list__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .app-list__name {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text);
+  }
+  .app-list__note {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .info__title {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    margin: 0 0 var(--space-4);
+  }
+  .info__body {
+    font-size: var(--fs-md);
+    color: var(--color-text);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin-bottom: var(--space-4);
+  }
+  .info__body strong {
+    font-weight: var(--fw-semibold);
+  }
+  .info__meta {
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+</style>

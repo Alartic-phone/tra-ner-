@@ -1,0 +1,103 @@
+---
+/**
+ * HowItWorks — parcours en 4 étapes numérotées.
+ * Style timeline horizontale sur desktop, verticale sur mobile.
+ */
+
+interface Step {
+  number: string;
+  title: string;
+  description: string;
+}
+
+interface Props {
+  steps: Step[];
+}
+
+const { steps } = Astro.props;
+---
+
+<ol class="steps" role="list">
+  {steps.map((step) => (
+    <li class="step">
+      <div class="step__num">{step.number}</div>
+      <h3 class="step__title">{step.title}</h3>
+      <p class="step__desc">{step.description}</p>
+    </li>
+  ))}
+</ol>
+
+<style>
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: step;
+  }
+
+  @media (min-width: 768px) {
+    .steps {
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-5);
+      position: relative;
+    }
+
+    /* ligne horizontale fine reliant les étapes */
+    .steps::before {
+      content: "";
+      position: absolute;
+      top: 22px;
+      left: calc(100% / 8);
+      right: calc(100% / 8);
+      height: 1px;
+      background: repeating-linear-gradient(
+        to right,
+        var(--color-border-strong) 0,
+        var(--color-border-strong) 4px,
+        transparent 4px,
+        transparent 10px
+      );
+      z-index: 0;
+    }
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    position: relative;
+    z-index: 1;
+  }
+
+  .step__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-elevated);
+    border: 2px solid var(--color-brand);
+    color: var(--color-brand);
+    font-weight: var(--fw-bold);
+    font-size: var(--fs-md);
+    letter-spacing: 0;
+  }
+
+  .step__title {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--color-text);
+    margin: 0;
+  }
+
+  .step__desc {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+  }
+</style>

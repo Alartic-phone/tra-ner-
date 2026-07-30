@@ -1,0 +1,172 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ALARTIC — prévisualisation</title>
+
+<style id="shared-css"></style>
+<style id="page-css"></style>
+
+<style>
+  /* Bandeau de prévisualisation — n'existe pas sur le site réel. */
+  #preview-note {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 9999;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font: 500 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+    color: #f5f5f4;
+    background: #16161a;
+    border-top: 1px solid #2a2a30;
+  }
+  #preview-note button {
+    font: inherit;
+    color: #16161a;
+    background: #f5f5f4;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    cursor: pointer;
+  }
+  #preview-note[hidden] { display: none; }
+  #boot {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    font: 400 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+    color: #6b6b70;
+  }
+</style>
+
+<div id="boot">Chargement de la prévisualisation…</div>
+<div id="app"></div>
+
+<div id="preview-note">
+  <span>Prévisualisation statique — le back-end (comptes, paiement, CMS) n'est pas déployé.</span>
+  <button type="button" onclick="this.parentElement.hidden = true">Masquer</button>
+</div>
+
+<script id="payload" type="application/gzip-base64">__PAYLOAD__</script>
+
+<script>
+  (async () => {
+    /* ───────── Chargement du contenu compressé ───────── */
+    const b64 = document.getElementById("payload").textContent.trim();
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const site = JSON.parse(await new Response(stream).text());
+
+    /* ───────── Assets ─────────
+     * Les images voyagent une fois dans `site.assets` et sont réinjectées à
+     * l'affichage, avant insertion dans le DOM : le JS du site lit ensuite ces
+     * URLs depuis les attributs `data-*` (vignette du panier, par exemple). */
+    const assetUrls = Object.keys(site.assets).sort((a, b) => b.length - a.length);
+    const substituted = new Map();
+
+    function withAssets(html) {
+      if (substituted.has(html)) return substituted.get(html);
+      let out = html;
+      for (const url of assetUrls) {
+        if (out.includes(url)) out = out.split(url).join(site.assets[url]);
+      }
+      substituted.set(html, out);
+      return out;
+    }
+
+    document.getElementById("shared-css").textContent = withAssets(site.sharedCss);
+    document.getElementById("boot").remove();
+
+    const app = document.getElementById("app");
+    const pageCss = document.getElementById("page-css");
+
+    /* ───────── Registre de modules ─────────
+     * Les modules partagés (panier, dialogues, animations) sont exécutés via
+     * des balises <script> injectées : pas d'`eval`, compatible CSP stricte. */
+    const registry = Object.create(null);
+    const cache = Object.create(null);
+
+    window.__alarticDefine = (name, factory) => { registry[name] = factory; };
+
+    function requireModule(spec) {
+      const name = spec.replace(/^.*\//, "").replace(/\.(js|ts)$/, "");
+      if (cache[name]) return cache[name].exports;
+      const factory = registry[name];
+      if (!factory) return {};
+      const module = { exports: {} };
+      cache[name] = module;
+      factory(module.exports, requireModule, module);
+      return module.exports;
+    }
+    window.__alarticRequire = requireModule;
+
+    function runScript(code, wrap) {
+      const el = document.createElement("script");
+      el.textContent = wrap
+        ? `(function(exports, require, module){\n${code}\n})({}, window.__alarticRequire, { exports: {} });`
+        : code;
+      document.body.appendChild(el);
+      el.remove();
+    }
+
+    for (const [name, code] of Object.entries(site.modules)) {
+      runScript(
+        `window.__alarticDefine(${JSON.stringify(name)}, function(exports, require, module){\n${code}\n});`,
+        false,
+      );
+    }
+
+    /* ───────── Routeur ───────── */
+
+    const normalize = (p) => {
+      let route = (p || "/").split("?")[0].split("#")[0];
+      if (route.length > 1 && route.endsWith("/")) route = route.slice(0, -1);
+      return route || "/";
+    };
+
+    function render(rawPath, { scroll = true } = {}) {
+      const route = normalize(rawPath);
+      const page = site.routes[route] || site.routes["/404"];
+      if (!page) return;
+
+      document.dispatchEvent(new Event("astro:before-swap"));
+
+      document.title = page.title;
+      pageCss.textContent = withAssets(page.styles.map((i) => site.styleBlocks[i]).join("\n"));
+      app.innerHTML = withAssets(page.body);
+
+      for (const script of page.scripts) {
+        if (typeof script === "number") runScript(site.scriptBlocks[script], true);
+        else requireModule(script.module);
+      }
+
+      /* Les composants du site s'initialisent sur cet événement. */
+      document.dispatchEvent(new Event("astro:page-load"));
+
+      if (scroll) window.scrollTo(0, 0);
+    }
+
+    /* Navigation interne : on garde les URLs du site dans le hash pour rester
+     * fonctionnel sur un hébergement statique quelconque. */
+    document.addEventListener("click", (event) => {
+      const link = event.target.closest?.("a[href]");
+      if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey || event.button !== 0) return;
+
+      const href = link.getAttribute("href");
+      if (!href || href.startsWith("http") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+
+      if (href.startsWith("#")) return; /* ancre interne */
+
+      event.preventDefault();
+      const route = normalize(href);
+      if (normalize(location.hash.slice(1)) === route) return;
+      location.hash = route;
+    });
+
+    window.addEventListener("hashchange", () => render(location.hash.slice(1)));
+
+    render(location.hash.slice(1) || "/", { scroll: false });
+  })();
+</script>

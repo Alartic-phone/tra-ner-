@@ -1,0 +1,440 @@
+---
+import { getCollection, render } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import Container from "../../components/atoms/Container.astro";
+import Badge from "../../components/atoms/Badge.astro";
+import Card from "../../components/atoms/Card.astro";
+import Button from "../../components/atoms/Button.astro";
+import Header from "../../components/molecules/Header.astro";
+import Footer from "../../components/molecules/Footer.astro";
+import ProductGallery from "../../components/molecules/ProductGallery.astro";
+import ProductBuyBox from "../../components/molecules/ProductBuyBox.astro";
+import PackAlartic from "../../components/molecules/PackAlartic.astro";
+import CtaBanner from "../../components/molecules/CtaBanner.astro";
+
+export async function getStaticPaths() {
+  const products = await getCollection("products");
+  return products.map((product) => ({
+    params: { slug: product.id },
+    props: { product },
+  }));
+}
+
+const { product } = Astro.props;
+const data = product.data;
+const { Content } = await render(product);
+
+/* Pack ALARTIC dérivé de la liste `included` du frontmatter — on enrichit
+ * avec des icônes selon des mots-clés simples pour rester DRY. */
+function iconFor(line: string) {
+  const l = line.toLowerCase();
+  if (l.includes("téléphone") || l.includes("tablette")) return "phone";
+  if (l.includes("verre") || l.includes("anti-espion")) return "shield";
+  if (l.includes("coque")) return "package";
+  if (l.includes("chargeur") || l.includes("câble")) return "battery";
+  if (l.includes("scellé")) return "seal";
+  if (l.includes("certificat")) return "certificate";
+  if (l.includes("onboarding") || l.includes("visioconférence")) return "video";
+  if (l.includes("sav")) return "headphones";
+  return "package";
+}
+
+const packItems = data.included.map((line) => {
+  /* Découpe sur la première virgule ou parenthèse pour avoir titre / desc */
+  const sepIdx = line.indexOf(",") >= 0 ? line.indexOf(",") : line.indexOf("(");
+  const title = sepIdx > 0 ? line.slice(0, sepIdx).trim() : line.trim();
+  const description = sepIdx > 0 ? line.slice(sepIdx + 1).replace(")", "").trim() : "";
+  return {
+    icon: iconFor(line) as
+      | "phone" | "shield" | "package" | "battery"
+      | "seal" | "certificate" | "video" | "headphones",
+    title,
+    description: description || "Inclus dans chaque envoi.",
+  };
+});
+---
+
+<Base title={data.name} description={data.shortDescription}>
+  <Header slot="header" />
+
+  <section class="hero">
+    <Container size="xl">
+      <nav class="breadcrumb" aria-label="Fil d'Ariane">
+        <a href="/">Accueil</a>
+        <span aria-hidden="true">›</span>
+        <a href="/modeles">Modèles</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">{data.name}</span>
+      </nav>
+
+      <div class="product-layout">
+        <div class="product-layout__gallery">
+          <ProductGallery productName={data.name} colors={data.colors} />
+        </div>
+
+        <div class="product-layout__details" data-anim="hero-stagger">
+          {data.format === "fold" && <Badge variant="accent" size="sm">Pliable</Badge>}
+          {data.format === "tablet" && <Badge variant="accent" size="sm">Tablette</Badge>}
+          {data.series === "pixel-10" && <Badge variant="brand" size="sm">Génération 10</Badge>}
+
+          <h1 class="product-layout__title">{data.name}</h1>
+          <p class="product-layout__tagline">{data.shortDescription}</p>
+
+          <ul class="product-layout__quickspecs">
+            {data.specs.slice(0, 3).map((s) => (
+              <li>
+                <span class="quickspec__label">{s.label}</span>
+                <span class="quickspec__value">{s.value}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div id="commander" class="buybox-anchor">
+            <ProductBuyBox
+              productSlug={product.id}
+              productName={data.name}
+              colors={data.colors}
+              storages={data.storages}
+              stock={data.stock}
+              available={data.available}
+            />
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <!-- ─────────── ENCART L217-3 ─────────── -->
+  <section class="section section--surface section--tight">
+    <Container size="lg">
+      <Card variant="outlined" padding="lg" class="l217-card">
+        <div class="l217">
+          <div class="l217__icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+          </div>
+          <div class="l217__content">
+            <p class="l217__eyebrow">Article L217-3 du Code de la consommation</p>
+            <h2 class="l217__title">Garantie légale de conformité 24 mois.</h2>
+            <p class="l217__body">{data.warranty}</p>
+          </div>
+        </div>
+      </Card>
+    </Container>
+  </section>
+
+  <!-- ─────────── PACK ALARTIC ─────────── -->
+  <section class="section">
+    <Container size="lg">
+      <header class="section__header">
+        <p class="eyebrow">Inclus dans cet envoi</p>
+        <h2 class="section__title">Le Pack {data.name}.</h2>
+        <p class="section__lead">
+          Tout ce dont vous avez besoin pour démarrer. Aucun supplément caché.
+        </p>
+      </header>
+      <PackAlartic items={packItems} />
+    </Container>
+  </section>
+
+  <!-- ─────────── SPECS DÉTAILLÉES ─────────── -->
+  <section class="section section--surface">
+    <Container size="md">
+      <header class="section__header">
+        <p class="eyebrow">Caractéristiques</p>
+        <h2 class="section__title">Spécifications techniques.</h2>
+      </header>
+      <Card variant="outlined" padding="none">
+        <dl class="specs">
+          {data.specs.map((s) => (
+            <div class="specs__row">
+              <dt class="specs__label">{s.label}</dt>
+              <dd class="specs__value">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+    </Container>
+  </section>
+
+  <!-- ─────────── DESCRIPTION LONGUE (markdown body) ─────────── -->
+  <section class="section">
+    <Container size="md">
+      <article class="prose">
+        <Content />
+      </article>
+    </Container>
+  </section>
+
+  <!-- ─────────── CTA ─────────── -->
+  <section class="section">
+    <Container size="xl">
+      <CtaBanner
+        variant="sky"
+        eyebrow="Une question avant d'acheter ?"
+        title="On vous répond sous 24 h, sans chatbot."
+        description="SAV humain, onboarding visioconférence inclus. Aucune pression commerciale."
+        primaryLabel="Poser une question"
+        primaryHref="/contact"
+        secondaryLabel="Lire le manifeste"
+        secondaryHref="/manifeste"
+      />
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../../scripts/animations";
+</script>
+
+<style>
+  /* ───────── Hero produit ───────── */
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+  }
+  .breadcrumb a {
+    color: var(--color-text-secondary);
+  }
+  .breadcrumb a:hover {
+    color: var(--color-brand);
+  }
+  .breadcrumb [aria-current="page"] {
+    color: var(--color-text);
+    font-weight: var(--fw-medium);
+  }
+
+  .product-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-7);
+    align-items: start;
+  }
+
+  @media (min-width: 960px) {
+    .product-layout {
+      grid-template-columns: 1.1fr 1fr;
+      gap: var(--space-8);
+    }
+  }
+
+  .product-layout__details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    align-items: flex-start;
+  }
+
+  /* Ancre #commander — le header sticky ne doit pas masquer le haut du buybox
+   * quand on arrive via le bouton "Acheter" depuis la grille. */
+  .buybox-anchor {
+    scroll-margin-top: 80px;
+    width: 100%;
+  }
+
+  .product-layout__title {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: 0;
+  }
+  @media (min-width: 960px) {
+    .product-layout__title {
+      font-size: var(--fs-3xl);
+    }
+  }
+
+  .product-layout__tagline {
+    font-size: var(--fs-md);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 50ch;
+    margin: 0;
+  }
+
+  /* Quick specs */
+  .product-layout__quickspecs {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-3) 0 var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-self: stretch;
+  }
+  .product-layout__quickspecs li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+  }
+  .quickspec__label {
+    color: var(--color-text-secondary);
+    font-weight: var(--fw-medium);
+  }
+  .quickspec__value {
+    color: var(--color-text);
+    text-align: right;
+    max-width: 60%;
+  }
+
+  /* ───────── L217-3 ───────── */
+  .l217 {
+    display: flex;
+    gap: var(--space-5);
+    align-items: flex-start;
+  }
+  .l217__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-lg);
+    background-color: var(--color-brand-soft);
+    color: var(--color-brand);
+  }
+  .l217__content {
+    flex: 1;
+  }
+  .l217__eyebrow {
+    font-size: var(--fs-xs);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    font-weight: var(--fw-medium);
+    margin: 0 0 var(--space-2);
+  }
+  .l217__title {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-3);
+  }
+  .l217__body {
+    font-size: var(--fs-md);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+    max-width: 65ch;
+  }
+
+  /* ───────── Specs détaillées ───────── */
+  .specs {
+    margin: 0;
+    padding: 0;
+  }
+  .specs__row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .specs__row:last-child {
+    border-bottom: none;
+  }
+  .specs__label {
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    font-weight: var(--fw-medium);
+  }
+  .specs__value {
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+    margin: 0;
+  }
+
+  /* ───────── Prose markdown body ───────── */
+  .prose {
+    color: var(--color-text);
+    font-size: var(--fs-md);
+    line-height: var(--lh-relaxed);
+  }
+  .prose :global(h2) {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin-top: var(--space-7);
+    margin-bottom: var(--space-3);
+  }
+  .prose :global(h3) {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-3);
+  }
+  .prose :global(p) {
+    margin-bottom: var(--space-4);
+    max-width: 65ch;
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin-bottom: var(--space-4);
+    padding-left: var(--space-5);
+  }
+  .prose :global(li) {
+    margin-bottom: var(--space-2);
+  }
+  .prose :global(strong) {
+    font-weight: var(--fw-semibold);
+    color: var(--color-text);
+  }
+
+  /* ───────── Sections génériques ───────── */
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--tight {
+    padding-block: var(--space-7);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+  }
+  .section__header {
+    margin-bottom: var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+  .section__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+  }
+  .section__lead {
+    color: var(--color-text-secondary);
+    font-size: var(--fs-md);
+    max-width: 56ch;
+    margin: 0;
+  }
+  .eyebrow {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+    color: var(--color-brand);
+    margin: 0;
+  }
+</style>

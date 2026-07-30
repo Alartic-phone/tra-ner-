@@ -1,0 +1,323 @@
+---
+import Base from "../../layouts/Base.astro";
+import Container from "../../components/atoms/Container.astro";
+import Card from "../../components/atoms/Card.astro";
+import Header from "../../components/molecules/Header.astro";
+import Footer from "../../components/molecules/Footer.astro";
+
+const API_BASE = import.meta.env.DEV ? "http://localhost:3000" : "/api";
+---
+
+<Base
+  title="Commande confirmée"
+  description="Votre commande est confirmée."
+  noindex
+>
+  <Header slot="header" />
+
+  <section class="confirmed">
+    <Container size="md">
+      <Card variant="elevated" padding="lg">
+        <div class="confirmed__icon" aria-hidden="true">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="9 12 11 14 16 9"></polyline>
+          </svg>
+        </div>
+
+        <h1 class="confirmed__title">Merci pour votre commande.</h1>
+
+        <div id="confirmed-loading" class="confirmed__loading">
+          Vérification du paiement…
+        </div>
+
+        <div id="confirmed-pending" class="confirmed__pending" hidden>
+          <p>Votre paiement est en cours de traitement. Vous recevrez un email de confirmation dès qu'il sera validé (généralement quelques secondes).</p>
+        </div>
+
+        <div id="confirmed-content" hidden>
+          <p class="confirmed__lead">
+            Votre commande <strong id="order-id-display"></strong> a bien été enregistrée.
+            Vous recevrez un email de confirmation avec votre facture sous quelques minutes.
+          </p>
+
+          <div class="confirmed__details">
+            <h2 class="confirmed__h2">Récapitulatif</h2>
+            <ul id="confirmed-items" class="confirmed__items"></ul>
+            <div class="confirmed__totals">
+              <div class="confirmed__row">
+                <span>Sous-total</span>
+                <span id="confirmed-subtotal">—</span>
+              </div>
+              <div class="confirmed__row">
+                <span>Livraison</span>
+                <span class="confirmed__free">Offerte</span>
+              </div>
+              <div class="confirmed__row confirmed__row--total">
+                <span>Total TTC</span>
+                <span id="confirmed-total">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="confirmed__steps">
+            <h2 class="confirmed__h2">Prochaines étapes</h2>
+            <ol>
+              <li>Vous recevrez un <strong>email de confirmation</strong> avec votre facture PDF.</li>
+              <li>Nous préparons votre appareil sous <strong>scellé numéroté, devant caméra</strong>.</li>
+              <li>Expédition sous <strong>5 à 7 jours ouvrés</strong> avec numéro de suivi.</li>
+              <li>À réception : vérifiez le scellé. S'il est rompu, contactez immédiatement le SAV.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div id="confirmed-error" class="confirmed__error" hidden>
+          <p>Impossible de retrouver les détails de cette commande. Si vous venez de payer, votre commande sera bientôt visible dans votre espace.</p>
+        </div>
+
+        <div class="confirmed__actions">
+          <a href="/compte" class="confirmed__cta">Mon espace</a>
+          <a href="/modeles" class="confirmed__cta-secondary">Retour à la gamme</a>
+        </div>
+      </Card>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script define:vars={{ API_BASE }}>
+  // @ts-nocheck
+  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+  function escape(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+
+  function showLoading() {
+    document.getElementById("confirmed-loading").hidden = false;
+    document.getElementById("confirmed-content").hidden = true;
+    document.getElementById("confirmed-pending").hidden = true;
+    document.getElementById("confirmed-error").hidden = true;
+  }
+
+  function showContent() {
+    document.getElementById("confirmed-loading").hidden = true;
+    document.getElementById("confirmed-content").hidden = false;
+    document.getElementById("confirmed-pending").hidden = true;
+    document.getElementById("confirmed-error").hidden = true;
+  }
+
+  function showPending() {
+    document.getElementById("confirmed-loading").hidden = true;
+    document.getElementById("confirmed-content").hidden = true;
+    document.getElementById("confirmed-pending").hidden = false;
+    document.getElementById("confirmed-error").hidden = true;
+  }
+
+  function showError() {
+    document.getElementById("confirmed-loading").hidden = true;
+    document.getElementById("confirmed-content").hidden = true;
+    document.getElementById("confirmed-pending").hidden = true;
+    document.getElementById("confirmed-error").hidden = false;
+  }
+
+  function renderOrder(order) {
+    document.getElementById("order-id-display").textContent = `#${order.id.slice(0, 8)}`;
+    const list = document.getElementById("confirmed-items");
+    list.innerHTML = "";
+    order.items.forEach((it) => {
+      const li = document.createElement("li");
+      li.className = "confirmed__item";
+      li.innerHTML = `
+        <span>
+          ${escape(it.product_name)} — ${escape(it.variant_storage_label)} — ${escape(it.variant_color_name)}
+          ${it.qty > 1 ? `<span class="confirmed__qty">× ${it.qty}</span>` : ""}
+        </span>
+        <span class="confirmed__price">${fmt.format(it.line_total_cents / 100)}</span>
+      `;
+      list.appendChild(li);
+    });
+    document.getElementById("confirmed-subtotal").textContent = fmt.format(order.subtotal_cents / 100);
+    document.getElementById("confirmed-total").textContent = fmt.format(order.total_cents / 100);
+  }
+
+  async function fetchOrder(id) {
+    const r = await fetch(`${API_BASE}/me/orders/${encodeURIComponent(id)}`, {
+      credentials: "include",
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  }
+
+  async function init() {
+    // Sécurité par défaut : on vide le panier si on arrive sur cette page,
+    // même si le checkout l'a déjà fait — anti race-condition retour browser.
+    try { localStorage.removeItem("alartic.cart.v1"); } catch {}
+
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("order");
+    if (!orderId) {
+      showError();
+      return;
+    }
+
+    showLoading();
+    let order = await fetchOrder(orderId);
+    if (!order) {
+      showError();
+      return;
+    }
+    // Le webhook Payplug peut arriver après le retour utilisateur. On poll
+    // 3 fois (toutes les 2s) si le status est encore "pending".
+    let tries = 0;
+    while (order.status === "pending" && tries < 3) {
+      await new Promise((r) => setTimeout(r, 2000));
+      order = await fetchOrder(orderId);
+      if (!order) break;
+      tries += 1;
+    }
+
+    if (!order) {
+      showError();
+      return;
+    }
+    if (order.status === "pending") {
+      renderOrder(order);
+      showPending();
+      // Affiche aussi le récap dans pending
+      document.getElementById("confirmed-content").hidden = false;
+      return;
+    }
+    renderOrder(order);
+    showContent();
+  }
+
+  document.addEventListener("astro:page-load", init);
+</script>
+
+<style>
+  .confirmed {
+    padding-block: var(--space-7) var(--space-9);
+    background-color: var(--color-bg-accent);
+    min-height: 60vh;
+  }
+  .confirmed__icon {
+    color: var(--color-success);
+    margin-bottom: var(--space-4);
+  }
+  .confirmed__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-4);
+  }
+  .confirmed__loading,
+  .confirmed__pending {
+    padding: var(--space-4);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    margin: var(--space-4) 0;
+  }
+  .confirmed__lead {
+    font-size: var(--fs-md);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0 0 var(--space-6);
+  }
+  .confirmed__lead strong {
+    color: var(--color-text);
+    font-family: var(--font-mono);
+  }
+  .confirmed__h2 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    margin: var(--space-5) 0 var(--space-3);
+  }
+  .confirmed__details {
+    padding: var(--space-4);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
+  }
+  .confirmed__items {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .confirmed__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--fs-sm);
+  }
+  .confirmed__qty { color: var(--color-text-muted); margin-left: var(--space-1); }
+  .confirmed__price { font-weight: var(--fw-semibold); white-space: nowrap; }
+  .confirmed__totals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .confirmed__row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--fs-sm);
+  }
+  .confirmed__row--total {
+    padding-top: var(--space-3);
+    margin-top: var(--space-1);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .confirmed__free {
+    color: var(--color-success);
+    font-weight: var(--fw-medium);
+  }
+  .confirmed__steps ol {
+    margin: 0;
+    padding-left: var(--space-5);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .confirmed__steps strong { color: var(--color-text); }
+  .confirmed__error {
+    padding: var(--space-4);
+    background-color: color-mix(in srgb, var(--color-warning) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    margin: var(--space-4) 0;
+  }
+  .confirmed__actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-6);
+  }
+  .confirmed__cta {
+    display: inline-block;
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--fw-semibold);
+  }
+  .confirmed__cta-secondary {
+    display: inline-block;
+    padding: var(--space-3) var(--space-5);
+    color: var(--color-text);
+    text-decoration: underline;
+    font-weight: var(--fw-medium);
+  }
+</style>

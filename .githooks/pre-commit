@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Pre-commit : scan des secrets via gitleaks (CDC §3.6)
+# Bloque le commit si une clé/token est détectée dans les fichiers stagés.
+
+set -e
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "→ gitleaks: scan des fichiers stagés…"
+  gitleaks protect --staged --redact -v
+  echo "✓ gitleaks: pas de secret détecté."
+else
+  echo "⚠️  gitleaks non installé — secret scan ignoré."
+  echo "    Installer : winget install gitleaks.gitleaks"
+  echo "    (ou voir https://github.com/gitleaks/gitleaks/releases)"
+fi

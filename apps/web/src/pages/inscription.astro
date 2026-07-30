@@ -1,0 +1,395 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Badge from "../components/atoms/Badge.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+
+// L'inscription utilise le même endpoint que la connexion : la création de
+// l'utilisateur est silencieuse côté back (upsert sur email_hash). Différence
+// avec /connexion : le formulaire impose la coche d'acceptation des CGV/RGPD.
+const API_BASE = import.meta.env.DEV ? "http://localhost:3000" : "/api";
+---
+
+<Base
+  title="Inscription"
+  description="Créez un compte ALARTIC en 30 secondes. Email uniquement, magic link, chiffrement systématique."
+  noindex
+>
+  <Header slot="header" />
+
+  <section class="auth">
+    <Container size="sm">
+      <Card variant="elevated" padding="lg">
+        <header class="auth__header">
+          <Badge variant="brand" size="sm">Nouveau compte</Badge>
+          <h1 class="auth__title">Créer un compte.</h1>
+          <p class="auth__lead">
+            Seul l'email est requis. Pas de mot de passe à mémoriser. Tout est chiffré au repos
+            (AES-256-GCM). Vous pouvez supprimer votre compte à tout moment, en un clic.
+          </p>
+        </header>
+
+        <div id="auth-form-wrap">
+          <form id="register-form" class="auth__form" novalidate>
+            <div class="auth__row">
+              <label for="email" class="auth__label">Email</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                class="auth__input"
+                required
+                autocomplete="email"
+                placeholder="vous@exemple.fr"
+                autofocus
+              />
+              <p class="auth__hint">
+                Utilisé uniquement pour les magic links et les notifications de commande / SAV.
+              </p>
+            </div>
+
+            <div class="auth__row">
+              <label class="auth__checkbox">
+                <input type="checkbox" name="consent" id="consent" required />
+                <span>
+                  J'ai lu et j'accepte les
+                  <a href="/cgv">CGV</a> et la
+                  <a href="/confidentialite">Politique de confidentialité</a>.
+                </span>
+              </label>
+            </div>
+
+            <button type="submit" class="auth__submit" id="register-submit">
+              Créer mon compte
+            </button>
+
+            <p id="register-msg" class="auth__msg" hidden></p>
+          </form>
+        </div>
+
+        <div class="auth__divider"><span>ou</span></div>
+
+        <p class="auth__alt">
+          Déjà un compte ? <a href="/connexion">Se connecter</a>.
+        </p>
+      </Card>
+
+      <ul class="auth__pledges">
+        <li>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Suppression du compte en 1 clic — instantanée.
+        </li>
+        <li>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Export JSON de vos données disponible à tout moment.
+        </li>
+        <li>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Compte inactif &gt; 3 ans → suppression automatique.
+        </li>
+      </ul>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script define:vars={{ API_BASE }}>
+  let abortCtl;
+  let pollTimer;
+
+  function isLoggedIn() {
+    return document.cookie.split("; ").some((c) => c.startsWith("alartic_csrf="));
+  }
+
+  function setupInscription() {
+    abortCtl?.abort();
+    abortCtl = new AbortController();
+    const signal = abortCtl.signal;
+    clearInterval(pollTimer);
+
+    // Si déjà connecté (autre onglet), on bascule sur /compte.
+    if (isLoggedIn()) {
+      window.location.replace("/compte");
+      return;
+    }
+
+    const form = document.getElementById("register-form");
+    const btn = document.getElementById("register-submit");
+    const msg = document.getElementById("register-msg");
+    const wrap = document.getElementById("auth-form-wrap");
+    if (!form || !btn || !msg || !wrap) return;
+
+    form.addEventListener(
+      "submit",
+      async (e) => {
+        e.preventDefault();
+        const email = form.email.value.trim();
+        const consent = form.consent.checked;
+        if (!email) return;
+        if (!consent) {
+          showError("Vous devez accepter les CGV et la Politique de confidentialité.");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Création…";
+        msg.hidden = true;
+        msg.classList.remove("auth__msg--error");
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ email, purpose: "signup" }),
+          });
+          if (res.ok) {
+            renderSuccess(email);
+          } else if (res.status === 400) {
+            showError("Format d'email invalide.");
+          } else {
+            showError("Une erreur est survenue. Réessayez dans un instant.");
+          }
+        } catch (err) {
+          showError("Impossible de joindre le serveur. Vérifiez votre connexion.");
+        }
+      },
+      { signal }
+    );
+
+    function renderSuccess(email) {
+      const safe = escapeHtml(email);
+      wrap.innerHTML = `
+        <div class="auth__success">
+          <h2 class="auth__success-title">Compte en attente d'activation.</h2>
+          <p class="auth__success-lead">
+            Un lien d'activation a été envoyé à <strong>${safe}</strong>.
+            Cliquez dessus dans les <strong>15 minutes</strong> pour finaliser
+            la création de votre compte.
+          </p>
+          <p class="auth__hint">
+            Cet onglet vous redirigera automatiquement vers votre espace dès
+            que vous aurez cliqué sur le lien (pensez à vérifier vos spams).
+          </p>
+        </div>
+      `;
+      pollTimer = setInterval(() => {
+        if (isLoggedIn()) {
+          clearInterval(pollTimer);
+          window.location.replace("/compte");
+        }
+      }, 1500);
+    }
+
+    function showError(text) {
+      msg.hidden = false;
+      msg.textContent = text;
+      msg.classList.add("auth__msg--error");
+      btn.disabled = false;
+      btn.textContent = "Créer mon compte";
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c]);
+    }
+  }
+
+  document.addEventListener("astro:page-load", setupInscription);
+  document.addEventListener("astro:before-swap", () => {
+    abortCtl?.abort();
+    clearInterval(pollTimer);
+  });
+</script>
+
+<style>
+  .auth {
+    padding-block: var(--space-9);
+    background-color: var(--color-bg-accent);
+    min-height: 60vh;
+  }
+  .auth__header {
+    margin-bottom: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+  .auth__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+  }
+  .auth__lead {
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    margin: 0;
+  }
+  .auth__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .auth__row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .auth__label {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text);
+  }
+  .auth__hint {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .auth__input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--fs-base);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+  .auth__input:focus {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+    border-color: var(--color-brand);
+  }
+  .auth__checkbox {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    font-size: var(--fs-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-3);
+    background-color: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+  }
+  .auth__checkbox input {
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .auth__checkbox a {
+    color: var(--color-brand);
+    text-decoration: underline;
+  }
+  .auth__submit {
+    padding: var(--space-4) var(--space-5);
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border: 1px solid var(--color-text);
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .auth__submit:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+  .auth__submit:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .auth__msg {
+    margin: 0;
+    font-size: var(--fs-sm);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-accent);
+    border: 1px solid var(--color-border);
+  }
+  .auth__msg--error {
+    color: var(--color-danger, #b91c1c);
+    background-color: #fef2f2;
+    border-color: #fecaca;
+  }
+  .auth__success {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-accent);
+    border: 1px solid var(--color-border);
+  }
+  .auth__success-title {
+    margin: 0;
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
+  }
+  .auth__success-lead {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+  }
+  .auth__divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: var(--space-5) 0;
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+  }
+  .auth__divider::before,
+  .auth__divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: var(--color-border);
+  }
+  .auth__alt {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--fs-sm);
+    margin: 0;
+  }
+  .auth__alt a {
+    color: var(--color-brand);
+    font-weight: var(--fw-medium);
+    text-decoration: underline;
+  }
+
+  .auth__pledges {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-5) 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .auth__pledges li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+  .auth__pledges svg {
+    color: var(--color-success);
+    flex-shrink: 0;
+  }
+</style>

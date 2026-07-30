@@ -1,0 +1,219 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+import CtaBanner from "../components/molecules/CtaBanner.astro";
+
+const principles = [
+  {
+    n: "01",
+    title: "Zéro tracker.",
+    body: "Pas de pixel publicitaire. Pas de retargeting. Pas d'analyse comportementale. Aucun service tiers de Mountain View, Menlo Park ou Seattle ne sait que vous existez parce que vous avez visité ce site. Nous mesurons l'audience avec Plausible auto-hébergé, sans cookies, IP anonymisée.",
+  },
+  {
+    n: "02",
+    title: "Aucune ressource tierce.",
+    body: "Pas de Google Fonts, pas de jQuery CDN, pas de Stripe.js, pas de chatbot Intercom, pas de reCAPTCHA. Chaque ligne de code, chaque police, chaque image servie par ce site provient de nos serveurs. Vous chargez du ALARTIC. Point.",
+  },
+  {
+    n: "03",
+    title: "Collecte minimale.",
+    body: "Adresse email pour vous contacter, adresse de livraison pour vous livrer, contenu de vos messages SAV pour y répondre. Tout est chiffré au repos (AES-256-GCM applicatif, LUKS disque). Tout est supprimé automatiquement après 3 ans d'inactivité, sauf obligation légale stricte (factures, 10 ans).",
+  },
+  {
+    n: "04",
+    title: "Transparence radicale.",
+    body: "Pas de marketing creux. Notre politique de sécurité est technique, pas marketing. Notre politique RGPD est lisible, pas un mur juridique. Notre rapport de transparence est publié annuellement. Si nous recevons une réquisition judiciaire, vous le saurez (sauf interdiction légale absolue).",
+  },
+  {
+    n: "05",
+    title: "Performance mesurée.",
+    body: "TTFB sous 200 ms, score Lighthouse perf ≥ 90, score a11y ≥ 95. Aucune dépendance JavaScript inutile. HTML statique servi depuis un VPS Cloud Infomaniak. Pas de framework lourd côté visiteur. Pas de hydration agressive.",
+  },
+  {
+    n: "06",
+    title: "Chiffrement systématique.",
+    body: "TLS 1.3 en transit (objectif SSL Labs A+). AES-256-GCM applicatif sur tous les champs sensibles (adresse, téléphone, contenu tickets, pièces jointes). LUKS au repos sur la partition PostgreSQL. Clé maîtresse via gestionnaire de secrets, jamais en repo. Sauvegardes chiffrées avec une clé indépendante.",
+  },
+];
+---
+
+<Base
+  title="Manifeste"
+  description="Six principes non négociables. Aucun n'est un slogan. Tous sont vérifiables."
+>
+  <Header slot="header" />
+
+  <section class="hero">
+    <Container size="lg">
+      <div data-anim="hero-stagger">
+        <h1 class="hero__title">
+          Un téléphone n'est pas un service.
+        </h1>
+        <p class="hero__lead">
+          C'est un objet personnel. Qui contient votre vie. Qui doit vous obéir,
+          à vous, et à personne d'autre. ALARTIC existe parce que ce qui devrait
+          être évident est devenu rare.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="md">
+      <p class="intro">
+        Les six principes qui suivent sont <strong>non négociables</strong>. Avant chaque ajout de
+        dépendance, chaque intégration, chaque décision technique, nous vérifions qu'ils tiennent.
+        S'ils ne tiennent pas, on ne fait pas. Quitte à fonctionnaliser moins, vendre moins,
+        scaler moins.
+      </p>
+    </Container>
+  </section>
+
+  <section class="section section--surface">
+    <Container size="md">
+      <div class="principles">
+        {principles.map((p) => (
+          <article class="principle">
+            <div class="principle__num">{p.n}</div>
+            <div class="principle__content">
+              <h2 class="principle__title">{p.title}</h2>
+              <p class="principle__body">{p.body}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="md">
+      <blockquote class="closing">
+        <p>
+          Si vous reconnaissez vos préoccupations dans ces principes,
+          <strong>vous êtes au bon endroit</strong>.
+        </p>
+      </blockquote>
+    </Container>
+  </section>
+
+  <section class="section">
+    <Container size="xl">
+      <CtaBanner
+        variant="sky"
+        eyebrow="Prêt à choisir ?"
+        title="Voir la gamme."
+        description="Tous les Pixel durcis, configurés et scellés. Avec une garantie humaine."
+        primaryLabel="Voir les modèles"
+        primaryHref="/modeles"
+        secondaryLabel="Lire la politique de sécurité"
+        secondaryHref="/securite"
+      />
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  import "../scripts/animations";
+</script>
+
+<style>
+  .hero {
+    padding-block: var(--space-9) var(--space-7);
+    background-color: var(--color-bg);
+  }
+  .hero__title {
+    font-family: var(--font-serif);
+    font-size: var(--fs-5xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: var(--space-4) 0 var(--space-4);
+    max-width: 18ch;
+  }
+  .hero__lead {
+    font-size: var(--fs-lg);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 56ch;
+  }
+
+  .section {
+    padding-block: var(--space-9);
+  }
+  .section--surface {
+    background-color: var(--color-bg-accent);
+    padding-block: var(--space-9);
+  }
+
+  .intro {
+    font-size: var(--fs-lg);
+    color: var(--color-text);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin: 0;
+  }
+
+  .principles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+  }
+
+  .principle {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 720px) {
+    .principle {
+      grid-template-columns: auto 1fr;
+      gap: var(--space-6);
+    }
+  }
+
+  .principle__num {
+    font-family: var(--font-serif);
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    color: var(--color-brand);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1;
+  }
+
+  .principle__title {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--lh-tight);
+    margin: 0 0 var(--space-3);
+  }
+
+  .principle__body {
+    font-size: var(--fs-md);
+    color: var(--color-text-secondary);
+    line-height: var(--lh-relaxed);
+    max-width: 65ch;
+    margin: 0;
+  }
+
+  .closing {
+    font-family: var(--font-serif);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-medium);
+    line-height: var(--lh-snug);
+    color: var(--color-text);
+    border-left: 3px solid var(--color-brand);
+    padding-left: var(--space-5);
+    margin: 0;
+    max-width: 56ch;
+  }
+  .closing p {
+    margin: 0;
+    text-wrap: balance;
+  }
+</style>

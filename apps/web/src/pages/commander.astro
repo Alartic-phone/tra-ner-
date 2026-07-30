@@ -1,0 +1,604 @@
+---
+import Base from "../layouts/Base.astro";
+import Container from "../components/atoms/Container.astro";
+import Card from "../components/atoms/Card.astro";
+import Header from "../components/molecules/Header.astro";
+import Footer from "../components/molecules/Footer.astro";
+
+const API_BASE = import.meta.env.DEV ? "http://localhost:3000" : "/api";
+---
+
+<Base
+  title="Commander"
+  description="Récapitulatif et paiement sécurisé Payplug."
+  noindex
+>
+  <Header slot="header" />
+
+  <section class="checkout">
+    <Container size="lg">
+      <h1 class="checkout__title">Commander</h1>
+
+      <div class="checkout__not-logged" id="checkout-not-logged" hidden>
+        <Card variant="elevated" padding="lg">
+          <p class="checkout__msg">
+            Vous devez être connecté pour finaliser votre commande.
+          </p>
+          <a href="/connexion?next=/commander" class="checkout__cta">Se connecter</a>
+          <a href="/inscription?next=/commander" class="checkout__cta-secondary">Créer un compte</a>
+        </Card>
+      </div>
+
+      <div class="checkout__empty" id="checkout-empty" hidden>
+        <Card variant="elevated" padding="lg">
+          <p class="checkout__msg">Votre panier est vide.</p>
+          <a href="/modeles" class="checkout__cta">Voir les modèles</a>
+        </Card>
+      </div>
+
+      <div class="checkout__layout" id="checkout-layout" hidden>
+        <form id="checkout-form" class="checkout__form" novalidate>
+          <Card variant="outlined" padding="lg">
+            <h2 class="checkout__h2">Identité</h2>
+            <div class="checkout__grid">
+              <div class="checkout__field">
+                <label for="first_name">Prénom</label>
+                <input id="first_name" name="first_name" type="text" required maxlength="60" autocomplete="given-name" />
+              </div>
+              <div class="checkout__field">
+                <label for="last_name">Nom</label>
+                <input id="last_name" name="last_name" type="text" required maxlength="60" autocomplete="family-name" />
+              </div>
+              <div class="checkout__field checkout__field--full">
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" required maxlength="254" autocomplete="email" />
+              </div>
+              <div class="checkout__field checkout__field--full">
+                <label for="phone">Téléphone <span class="checkout__hint">(optionnel)</span></label>
+                <input id="phone" name="phone" type="tel" maxlength="30" autocomplete="tel" />
+              </div>
+            </div>
+          </Card>
+
+          <Card variant="outlined" padding="lg">
+            <h2 class="checkout__h2">Adresse de livraison</h2>
+            <div class="checkout__grid">
+              <div class="checkout__field checkout__field--full">
+                <label for="address1">Adresse</label>
+                <input id="address1" name="address1" type="text" required maxlength="120" autocomplete="street-address" />
+              </div>
+              <div class="checkout__field checkout__field--full">
+                <label for="address2">Complément <span class="checkout__hint">(optionnel)</span></label>
+                <input id="address2" name="address2" type="text" maxlength="120" autocomplete="address-line2" />
+              </div>
+              <div class="checkout__field">
+                <label for="postcode">Code postal</label>
+                <input id="postcode" name="postcode" type="text" required maxlength="12" pattern="[0-9]{5}" autocomplete="postal-code" />
+              </div>
+              <div class="checkout__field">
+                <label for="city">Ville</label>
+                <input id="city" name="city" type="text" required maxlength="80" autocomplete="address-level2" />
+              </div>
+              <div class="checkout__field checkout__field--full">
+                <label for="country">Pays</label>
+                <select id="country" name="country" required autocomplete="country">
+                  <option value="FR" selected>France</option>
+                </select>
+                <p class="checkout__hint">Livraison en France métropolitaine uniquement (extension UE/CH sur devis).</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card variant="outlined" padding="lg">
+            <h2 class="checkout__h2">Mode de commande</h2>
+            <label class="checkout__checkbox">
+              <input id="is_pro" name="is_pro" type="checkbox" />
+              <span>J'achète à titre professionnel (B2B)</span>
+            </label>
+            <div id="pro-fields" class="checkout__grid" hidden>
+              <div class="checkout__field checkout__field--full">
+                <label for="company_name">Raison sociale</label>
+                <input id="company_name" name="company_name" type="text" maxlength="120" autocomplete="organization" />
+              </div>
+              <div class="checkout__field checkout__field--full">
+                <label for="siret">SIRET <span class="checkout__hint">(14 chiffres)</span></label>
+                <input id="siret" name="siret" type="text" pattern="[0-9]{14}" maxlength="14" />
+              </div>
+              <p class="checkout__hint checkout__hint--block">
+                TVA non applicable, art. 293 B du CGI (auto-entrepreneur en franchise en base).
+              </p>
+            </div>
+          </Card>
+
+          <Card variant="outlined" padding="lg">
+            <h2 class="checkout__h2">Acceptation des conditions</h2>
+            <label class="checkout__checkbox">
+              <input id="cgv_accepted" name="cgv_accepted" type="checkbox" required />
+              <span>
+                J'ai lu et j'accepte les <a href="/cgv" target="_blank">conditions générales de vente</a>
+                et la <a href="/confidentialite" target="_blank">politique de confidentialité</a>.
+                <br><span class="checkout__hint">Cette case n'est pas pré-cochée — art. 1369-5 du Code civil.</span>
+              </span>
+            </label>
+          </Card>
+
+          <p id="checkout-error" class="checkout__error" hidden></p>
+
+          <button type="submit" id="checkout-submit" class="checkout__submit">
+            Payer maintenant
+          </button>
+
+          <p class="checkout__secure">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Paiement sécurisé via <strong>Payplug</strong> (3D Secure, EU). Aucune donnée bancaire stockée chez nous.
+          </p>
+        </form>
+
+        <aside class="checkout__summary">
+          <Card variant="elevated" padding="lg">
+            <h2 class="checkout__h2">Récapitulatif</h2>
+            <ul id="checkout-items" class="checkout__items"></ul>
+            <div class="checkout__totals">
+              <div class="checkout__row">
+                <span>Sous-total</span>
+                <span id="checkout-subtotal">—</span>
+              </div>
+              <div class="checkout__row">
+                <span>Livraison</span>
+                <span class="checkout__free">Offerte</span>
+              </div>
+              <div class="checkout__row checkout__row--total">
+                <span>Total TTC</span>
+                <span id="checkout-total">—</span>
+              </div>
+            </div>
+          </Card>
+        </aside>
+      </div>
+    </Container>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script define:vars={{ API_BASE }}>
+  // @ts-nocheck — DOM manipulation permissive (cf. autres pages compte/ticket).
+  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+  function getCsrf() {
+    const m = document.cookie.match(/(?:^|; )alartic_csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function escape(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+
+  function readCart() {
+    try {
+      const raw = localStorage.getItem("alartic.cart.v1");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function clearCart() {
+    try { localStorage.removeItem("alartic.cart.v1"); } catch {}
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("checkout-error");
+    el.textContent = msg;
+    el.hidden = false;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function hideError() {
+    document.getElementById("checkout-error").hidden = true;
+  }
+
+  function renderSummary(items) {
+    const list = document.getElementById("checkout-items");
+    list.innerHTML = "";
+    let total = 0;
+    items.forEach((it) => {
+      const line = it.unitPrice * it.qty;
+      total += line;
+      const li = document.createElement("li");
+      li.className = "checkout__item";
+      li.innerHTML = `
+        <div class="checkout__item-name">
+          ${escape(it.productName)} — ${escape(it.storageLabel)} — ${escape(it.colorName)}
+          ${it.qty > 1 ? `<span class="checkout__item-qty">× ${it.qty}</span>` : ""}
+        </div>
+        <div class="checkout__item-price">${fmt.format(line)}</div>
+      `;
+      list.appendChild(li);
+    });
+    document.getElementById("checkout-subtotal").textContent = fmt.format(total);
+    document.getElementById("checkout-total").textContent = fmt.format(total);
+  }
+
+  async function preFillFromProfile() {
+    try {
+      const rp = await fetch(`${API_BASE}/me/profile`, { credentials: "include" });
+      if (!rp.ok) return false;
+      const p = await rp.json();
+      if (p.email) document.getElementById("email").value = p.email;
+      if (p.is_pro) {
+        const proCb = document.getElementById("is_pro");
+        proCb.checked = true;
+        document.getElementById("pro-fields").hidden = false;
+      }
+      // L'adresse + tel viennent d'un endpoint séparé (collecte minimale —
+      // ces champs ne sont chargés qu'à la demande).
+      const ra = await fetch(`${API_BASE}/me/address`, { credentials: "include" });
+      if (ra.ok) {
+        const c = await ra.json();
+        if (c.phone) document.getElementById("phone").value = c.phone;
+        if (c.address) {
+          if (c.address.address1) document.getElementById("address1").value = c.address.address1;
+          if (c.address.address2) document.getElementById("address2").value = c.address.address2;
+          if (c.address.postcode) document.getElementById("postcode").value = c.address.postcode;
+          if (c.address.city) document.getElementById("city").value = c.address.city;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function submit(items) {
+    hideError();
+    const submitBtn = document.getElementById("checkout-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Traitement…";
+
+    const form = document.getElementById("checkout-form");
+    const fd = new FormData(form);
+    const is_pro = fd.get("is_pro") === "on";
+
+    if (!fd.get("cgv_accepted")) {
+      showError("Vous devez accepter les CGV pour continuer.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Payer maintenant";
+      return;
+    }
+
+    const body = {
+      items: items.map((it) => ({
+        product_slug: it.productSlug,
+        color_slug: it.colorSlug,
+        storage_slug: it.storageSlug,
+        qty: it.qty,
+        mods: it.mods || {},
+      })),
+      customer: {
+        email: String(fd.get("email") || "").trim(),
+        first_name: String(fd.get("first_name") || "").trim(),
+        last_name: String(fd.get("last_name") || "").trim(),
+        phone: String(fd.get("phone") || "").trim() || null,
+      },
+      billing_address: {
+        address1: String(fd.get("address1") || "").trim(),
+        address2: String(fd.get("address2") || "").trim() || null,
+        postcode: String(fd.get("postcode") || "").trim(),
+        city: String(fd.get("city") || "").trim(),
+        country: String(fd.get("country") || "FR").trim(),
+      },
+      shipping_address: null,
+      is_pro,
+      company_name: is_pro ? String(fd.get("company_name") || "").trim() : null,
+      siret: is_pro ? String(fd.get("siret") || "").trim() : null,
+      cgv_accepted: true,
+    };
+
+    const csrf = getCsrf();
+    if (!csrf) {
+      showError("Session expirée. Veuillez vous reconnecter.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Payer maintenant";
+      return;
+    }
+
+    try {
+      const r = await fetch(`${API_BASE}/orders/checkout`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
+        body: JSON.stringify(body),
+      });
+      if (r.status === 401) {
+        window.location.href = "/connexion?next=/commander";
+        return;
+      }
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showError(messageFromError(err.error || ""));
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Payer maintenant";
+        return;
+      }
+      const data = await r.json();
+      // On vide le panier avant de rediriger : si le user revient via back
+      // browser, il ne verra pas un panier "fantôme".
+      clearCart();
+      window.location.href = data.payment_url;
+    } catch (e) {
+      showError("Erreur réseau. Veuillez réessayer.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Payer maintenant";
+    }
+  }
+
+  function messageFromError(code) {
+    switch (code) {
+      case "cgv_required": return "Vous devez accepter les CGV.";
+      case "country_not_supported": return "Pays non pris en charge — France métropolitaine uniquement.";
+      case "siret_required": return "Le SIRET est requis pour une commande pro.";
+      case "company_name_required": return "La raison sociale est requise pour une commande pro.";
+      case "unknown_variant": return "Un article du panier n'est plus disponible. Veuillez revoir votre panier.";
+      case "empty_cart": return "Votre panier est vide.";
+      case "payment_provider_error": return "Le service de paiement est indisponible. Réessayez dans quelques minutes.";
+      default: return "Une erreur est survenue. Vérifiez vos informations et réessayez.";
+    }
+  }
+
+  async function init() {
+    const items = readCart();
+    if (items.length === 0) {
+      document.getElementById("checkout-empty").hidden = false;
+      return;
+    }
+    renderSummary(items);
+
+    // On laisse les cookies passer : credentials: include rejoue les cookies
+    // alartic_session et alartic_csrf.
+    const loggedIn = await preFillFromProfile();
+    if (!loggedIn) {
+      document.getElementById("checkout-not-logged").hidden = false;
+      return;
+    }
+    document.getElementById("checkout-layout").hidden = false;
+
+    document.getElementById("is_pro").addEventListener("change", (e) => {
+      document.getElementById("pro-fields").hidden = !e.target.checked;
+    });
+
+    document.getElementById("checkout-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      submit(items);
+    });
+  }
+
+  document.addEventListener("astro:page-load", init);
+</script>
+
+<style>
+  .checkout {
+    padding-block: var(--space-7) var(--space-9);
+    background-color: var(--color-bg-accent);
+    min-height: 60vh;
+  }
+  .checkout__title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-6);
+  }
+  .checkout__h2 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    margin: 0 0 var(--space-4);
+  }
+  .checkout__layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+  /* `display: grid` écrase l'attribut HTML `hidden` (qui pose display: none
+   * de base). On remet une règle explicite pour les trois zones togglables. */
+  .checkout__layout[hidden],
+  .checkout__not-logged[hidden],
+  .checkout__empty[hidden] {
+    display: none;
+  }
+  @media (min-width: 960px) {
+    .checkout__layout {
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: var(--space-6);
+      align-items: start;
+    }
+  }
+  .checkout__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .checkout__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  .checkout__field--full {
+    grid-column: 1 / -1;
+  }
+  .checkout__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .checkout__field label {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--color-text-secondary);
+  }
+  .checkout__field input,
+  .checkout__field select {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-elevated);
+    font-family: inherit;
+    font-size: var(--fs-md);
+    color: var(--color-text);
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+  .checkout__field input:focus,
+  .checkout__field select:focus {
+    outline: none;
+    border-color: var(--color-brand);
+  }
+  .checkout__hint {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+    font-weight: var(--fw-regular);
+  }
+  .checkout__hint--block {
+    grid-column: 1 / -1;
+  }
+  .checkout__checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-relaxed);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+  .checkout__checkbox input {
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .checkout__checkbox a {
+    color: var(--color-text);
+    text-decoration: underline;
+  }
+  .checkout__error {
+    padding: var(--space-3) var(--space-4);
+    background-color: color-mix(in srgb, var(--color-danger) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-danger);
+    font-size: var(--fs-sm);
+    margin: 0;
+  }
+  .checkout__submit {
+    padding: var(--space-4);
+    width: 100%;
+    border: none;
+    border-radius: var(--radius-md);
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    font-family: inherit;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .checkout__submit:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .checkout__submit:not(:disabled):hover {
+    opacity: 0.85;
+  }
+  .checkout__secure {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-secondary);
+  }
+  .checkout__summary {
+    position: sticky;
+    top: calc(64px + var(--space-3));
+  }
+  .checkout__items {
+    list-style: none;
+    margin: 0 0 var(--space-4);
+    padding: 0 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .checkout__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--fs-sm);
+  }
+  .checkout__item-name {
+    color: var(--color-text);
+  }
+  .checkout__item-qty {
+    color: var(--color-text-muted);
+    margin-left: var(--space-1);
+  }
+  .checkout__item-price {
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+  }
+  .checkout__totals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .checkout__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+  }
+  .checkout__row--total {
+    padding-top: var(--space-3);
+    margin-top: var(--space-1);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .checkout__free {
+    color: var(--color-success);
+    font-weight: var(--fw-medium);
+  }
+  .checkout__not-logged,
+  .checkout__empty {
+    max-width: 480px;
+    margin-inline: auto;
+    text-align: center;
+  }
+  .checkout__msg {
+    margin: 0 0 var(--space-4);
+    color: var(--color-text-secondary);
+  }
+  .checkout__cta {
+    display: inline-block;
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--color-text);
+    color: var(--color-text-on-inverse);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: var(--fw-semibold);
+    margin: 0 var(--space-2);
+  }
+  .checkout__cta-secondary {
+    display: inline-block;
+    padding: var(--space-3) var(--space-5);
+    color: var(--color-text);
+    text-decoration: underline;
+    font-weight: var(--fw-medium);
+  }
+</style>

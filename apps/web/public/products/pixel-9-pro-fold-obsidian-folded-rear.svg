@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="775" height="1552" version="1.1" viewBox="0 0 775 1552" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(0 131.28)">
+  <rect y="328.22" width="10" height="145" rx="5" ry="5" fill="#2d2d2d"/>
+  <rect y="573.22" width="10" height="200" rx="5" ry="5" fill="#2d2d2d"/>
+  <g fill="#555">
+   <rect x="4" y="-131.28" width="771" height="1552" rx="125" ry="125"/>
+   <rect x="255" y="-131.28" width="500" height="1552" rx="15" ry="15"/>
+   <rect x="275" y="-111.28" width="500" height="1512" rx="15" ry="15"/>
+  </g>
+  <rect x="16.5" y="-118.78" width="711" height="1527" rx="112.5" ry="112.5" fill="#2d2d2d"/>
+  <g fill="none" stroke="#000">
+   <g stroke-opacity=".2" stroke-width="12.5">
+    <path d="m10.25 265.72v15"/>
+    <path d="m630-125.03h15"/>
+    <path d="m10.25 1005.7v15"/>
+    <path d="m187.5-125.03h15"/>
+    <path d="m630 1414h15"/>
+    <path d="m187.5 1414h15"/>
+   </g>
+   <path d="m755-111.28v1512" stroke-width="7"/>
+  </g>
+  <g>
+   <rect x="44" y="-94.283" width="475" height="360" rx="100" ry="100" fill="#555" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+   <rect x="71.5" y="93.217" width="282.5" height="145" rx="72.5" ry="72.5" fill="#333"/>
+   <rect x="71.5" y="-66.783" width="282.5" height="145" rx="72.5" ry="72.5" fill="#333"/>
+  </g>
+  <circle cx="425" cy="5.7176" r="27.5" fill="#fff" fill-opacity=".86667" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+  <g fill-opacity=".13333">
+   <rect transform="rotate(-45)" x="290.23" y="298.31" width="12.5" height="12.5" fill="#ff0"/>
+   <circle cx="152" cy="165.72" r="37.5" fill="#888"/>
+   <circle cx="276" cy="5.7167" r="35" fill="#888"/>
+   <circle cx="151.63" cy="165.72" r="17.5" fill="#08f"/>
+   <circle cx="276" cy="5.7167" r="15" fill="#08f"/>
+  </g>
+  <circle cx="425" cy="165.72" r="5" fill="#444" fill-opacity=".53333"/>
+  <circle cx="152" cy="5.7167" r="5" fill="#ddd" fill-opacity=".26667"/>
+  <rect x="251" y="128.22" width="50" height="75" rx="5" ry="5" fill="#888" fill-opacity=".13333"/>
+  <circle cx="276" cy="165.72" r="17.5" fill="#08f" fill-opacity=".13333"/>
+  <circle cx="101" cy="-15.283" r="15" fill="#ddd" fill-opacity=".26667"/>
+  <circle cx="101" cy="26.717" r="15" fill="#ddd" fill-opacity=".26667"/>
+  <path d="m389.5 582.22a62.5 62.5 0 0 0-62.5 62.5 62.5 62.5 0 0 0 62.5 62.5 62.5 62.5 0 0 0 62.5-62.5 62.5 62.5 0 0 0-1.5981-13.798h-60.902v27.597h32.049a34.902 34.902 0 0 1-32.049 21.104 34.902 34.902 0 0 1-34.902-34.903 34.902 34.902 0 0 1 34.902-34.903 34.902 34.902 0 0 1 23.557 9.201l19.532-19.531a62.5 62.5 0 0 0-43.089-17.268z" fill="#fff" fill-opacity=".13333" stroke-width="1.1595"/>
+ </g>
+</svg>
