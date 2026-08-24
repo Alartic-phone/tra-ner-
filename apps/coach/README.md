@@ -15,6 +15,7 @@ planning rend inutilisables les plans calés sur une semaine de bureau.
 - [Créer l'application Strava](#créer-lapplication-strava)
 - [Récupérer la clé API Anthropic](#récupérer-la-clé-api-anthropic)
 - [Le cycle de postes](#le-cycle-de-postes)
+- [Le moteur de calcul](#le-moteur-de-calcul)
 - [Modèle de données](#modèle-de-données)
 - [Sauvegarde et restauration](#sauvegarde-et-restauration)
 - [Déploiement](#déploiement)
@@ -28,7 +29,7 @@ planning rend inutilisables les plans calés sur une semaine de bureau.
 | 1 | Socle : Next.js, Prisma, schéma complet, protection par mot de passe, layout | **fait** |
 | 2 | Cycle de postes, calendrier, exceptions, contraintes d'entraînement | **fait** |
 | 3 | Strava : OAuth, import historique, synchronisation, activités | **fait** |
-| 4 | Moteur de calcul (TRIMP, CTL/ATL/TSB, zones, découplage) + page Analyses | à venir |
+| 4 | Moteur de calcul (TRIMP, CTL/ATL/TSB, zones, découplage, prédiction) + page Analyses | **fait** |
 | 5 | Journal et onboarding | à venir |
 | 6 | Génération de plan par l'API Claude + adaptation hebdomadaire | à venir |
 | 7 | Simulateur et prédictions | à venir |
@@ -241,6 +242,84 @@ Dérivées des postes, toutes paramétrables dans les réglages :
 Le calcul de disponibilité tient compte des postes de la veille et du
 lendemain : une nuit déborde sur la journée suivante, et le sommeil se
 reconstitue de jour.
+
+## Le moteur de calcul
+
+Tout est dans `src/lib/metrics/`, en TypeScript pur, sans dépendance à Next ni
+à Prisma, et couvert par des tests aux valeurs de référence publiées.
+
+| Module | Contenu | Source |
+|---|---|---|
+| `trimp.ts` | TRIMP, coefficient différencié selon le sexe | Banister (1991) |
+| `load.ts` | Condition physique (42 j), fatigue (7 j), forme, ratio aigu/chronique, monotonie et contrainte | Gabbett (2016), Foster (1998) |
+| `zones.ts` | Cinq zones de FC sur la réserve cardiaque, zones d'allure en % de VMA | Karvonen (1957) |
+| `gap.ts` | Allure ajustée du dénivelé | Minetti (2002) |
+| `decoupling.ts` | Découplage cardiaque Pa:Hr | Friel, Allen & Coggan |
+| `prediction.ts` | Riegel, VDOT de Daniels, vitesse critique, fourchette et indice de confiance | Riegel (1981), Daniels & Gilbert (1979), Monod & Scherrer (1965) |
+| `best-efforts.ts` | Meilleurs efforts par durée et par distance | — |
+
+### Trois écarts assumés par rapport au cahier des charges
+
+1. **Monotonie de Foster.** Le cahier des charges la décrit comme
+   « l'écart-type de la charge hebdomadaire ». La définition de Foster est :
+   *moyenne des charges quotidiennes ÷ écart-type de ces mêmes charges*, sur
+   sept jours ; la contrainte vaut *charge hebdomadaire × monotonie*. C'est
+   cette définition qui est implémentée.
+
+2. **Pw:Hr n'est pas calculable.** La variante fondée sur la puissance exige un
+   capteur de puissance de course, que ni Strava ni la COROS ne fournissent sur
+   cette chaîne de données. Seul **Pa:Hr** (allure sur fréquence cardiaque) est
+   calculé, et il est plus sensible au vent et au dénivelé.
+
+3. **La GAP est un modèle, pas la GAP de Strava.** Strava n'expose pas la
+   sienne par l'API. Celle-ci est recalculée avec le polynôme de Minetti, plus
+   pentu en montée que le modèle propriétaire de Strava : les deux valeurs ne
+   coïncideront pas. Elle est systématiquement marquée comme estimée.
+
+### Traçabilité de la charge
+
+Chaque activité porte un champ `trimpMethod` qui dit **comment** sa charge a été
+obtenue, par ordre de préférence :
+
+1. `banister_stream` — seconde par seconde, la forme fidèle ;
+2. `banister_average` — sur la FC moyenne, faute de flux. **Sous-estime les
+   fractionnés**, la pondération de Banister étant convexe ;
+3. `rpe_foster` — RPE du journal × durée, faute de tout cardio ;
+4. `coros_native` — valeur de la montre, la seule qui ne soit pas une
+   estimation de notre part.
+
+Si aucune source n'existe, la charge reste **nulle** — jamais remplacée par une
+valeur d'apparence plausible. La page Analyses indique alors combien
+d'activités de la période sont dans ce cas, et donc de combien la charge
+affichée est sous-estimée.
+
+### Recalculer
+
+Les métriques sont calculées automatiquement à l'import des flux. Le bouton
+**Calculer** de la page Analyses traite ce qui reste en attente, par lots
+bornés en temps.
+
+**Après toute modification de la FC max, de la FC de repos ou du sexe**, il faut
+lancer **Tout recalculer** : le TRIMP dépend directement de ces trois valeurs,
+et toutes les charges déjà calculées deviennent caduques. L'application le
+rappelle à l'enregistrement du profil.
+
+### Graphiques
+
+Les palettes sont validées, pas choisies à l'œil : bande de clarté, plancher de
+chroma, séparation pour les déficiences de vision des couleurs, contraste sur la
+surface sombre réelle de l'application. Conséquences visibles :
+
+- **jamais de double axe.** La charge, la condition physique et la fatigue
+  partagent l'unité TRIMP et tiennent sur un axe unique ; la forme, qui est
+  signée, a son propre graphique plutôt qu'une seconde échelle ;
+- les zones de fréquence cardiaque forment une **rampe à teinte unique**, pas un
+  arc-en-ciel : ce sont des degrés d'intensité, pas des catégories ;
+- la période d'amorçage de la courbe de condition physique (42 jours pendant
+  lesquels la moyenne mobile part de zéro) est **matérialisée** au lieu d'être
+  masquée ;
+- le temps sans mesure cardiaque n'est **pas** réparti au prorata dans les
+  zones : il est compté à part et affiché.
 
 ## Modèle de données
 

@@ -7,6 +7,8 @@ import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { ActivityCharts } from "@/components/activities/activity-charts.tsx";
 import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
+import { TRIMP_METHOD_LABELS, type TrimpMethod } from "@/lib/metrics/trimp.ts";
+import { decouplingVerdict } from "@/lib/metrics/decoupling.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { loadShiftRange } from "@/lib/shifts/repository.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
@@ -81,7 +83,11 @@ export default async function ActivityPage({
             label="Charge (TRIMP)"
             value={activity.trimp != null ? Math.round(activity.trimp) : <Unavailable />}
             estimated={activity.trimpMethod !== null && activity.trimpMethod !== "coros_native"}
-            hint={activity.trimpMethod ?? "moteur de calcul à venir (phase 4)"}
+            hint={
+              activity.trimpMethod
+                ? TRIMP_METHOD_LABELS[activity.trimpMethod as TrimpMethod]
+                : "Aucune source de charge disponible pour cette séance"
+            }
           />
         </div>
       </Card>
@@ -155,14 +161,51 @@ export default async function ActivityPage({
       <Card className="mt-4">
         <CardHeader
           title="Analyse"
-          hint="Découplage cardiaque, allure ajustée du dénivelé et charge : moteur de calcul prévu en phase 4."
+          hint="Indicateurs dérivés. Tous sont des modèles appliqués aux flux, pas des mesures de la montre."
         />
-        <CardBody>
-          <p className="text-xs text-[var(--color-muted)]">
-            Ces indicateurs ne sont pas encore calculés. Ils ne sont volontairement
-            pas affichés avec une valeur provisoire.
-          </p>
-        </CardBody>
+        <div className="grid grid-cols-1 divide-y divide-[var(--color-border)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <Stat
+            label="Découplage cardiaque (Pa:Hr)"
+            value={
+              activity.decouplingPct != null ? (
+                `${activity.decouplingPct.toFixed(1)} %`
+              ) : (
+                <Unavailable reason="Exige un effort d'au moins 30 min avec allure et fréquence cardiaque" />
+              )
+            }
+            estimated
+            tone={
+              activity.decouplingPct == null
+                ? "default"
+                : decouplingVerdict(activity.decouplingPct) === "bon"
+                  ? "ok"
+                  : decouplingVerdict(activity.decouplingPct) === "correct"
+                    ? "default"
+                    : "warn"
+            }
+            hint="Sous 5 %, l'endurance aérobie est installée pour cette durée."
+          />
+          <Stat
+            label="Allure ajustée du dénivelé"
+            value={
+              activity.gapPaceSPerKm != null ? (
+                formatPace(activity.gapPaceSPerKm)
+              ) : (
+                <Unavailable reason="Exige les flux de distance et d'altitude" />
+              )
+            }
+            estimated
+            hint="Modèle de Minetti (2002). Ne coïncidera pas avec la GAP de Strava, qui utilise un modèle propriétaire."
+          />
+        </div>
+        {activity.metricsComputedAt === null ? (
+          <CardBody>
+            <p className="text-xs text-[var(--color-muted)]">
+              Les métriques de cette activité n&apos;ont pas encore été calculées.
+              Lancer le calcul depuis la page Analyses.
+            </p>
+          </CardBody>
+        ) : null}
       </Card>
     </div>
   );

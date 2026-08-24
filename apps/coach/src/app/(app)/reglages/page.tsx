@@ -161,6 +161,15 @@ export default async function SettingsPage({
         </Card>
 
         <Card>
+          <CardHeader title="Profil" hint="Repères cardiaques, VMA, historique de blessures." />
+          <CardBody>
+            <Link href="/reglages/profil" className="text-sm text-[var(--color-accent)] hover:underline">
+              Renseigner le profil →
+            </Link>
+          </CardBody>
+        </Card>
+
+        <Card>
           <CardHeader title="Cycle de postes" hint="Séquence, horaires et contraintes." />
           <CardBody>
             <Link href="/reglages/postes" className="text-sm text-[var(--color-accent)] hover:underline">

@@ -10,6 +10,7 @@ import {
   quotaExhausted,
 } from "./client.ts";
 import { isRun, toActivityData } from "./mapping.ts";
+import { getProfileStatus, persistActivityMetrics } from "../metrics/repository.ts";
 import {
   STREAM_KEYS,
   activityDetailSchema,
@@ -260,6 +261,12 @@ async function runActivityStreams(payload: unknown): Promise<void> {
     where: { id: activity.id },
     data: { hasStreams: true },
   });
+
+  // Les métriques dérivées sont calculées dans la foulée : les flux viennent
+  // d'être décompressés, les recalculer plus tard coûterait une seconde
+  // décompression pour rien.
+  const { profile } = await getProfileStatus();
+  await persistActivityMetrics(activity.id, profile);
 }
 
 export type WorkerReport = {

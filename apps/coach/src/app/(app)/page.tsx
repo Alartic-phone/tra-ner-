@@ -6,6 +6,7 @@ import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, minutesToTime } from "@/lib/shifts/day.ts";
 import { formatDayLong, formatDayShort, today } from "@/lib/time.ts";
+import { loadFitnessSnapshot } from "@/lib/metrics/repository.ts";
 import { formatClock, formatDistance } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
   const now = today();
   const rules = await getAvailabilityRules();
 
-  const [range, stats, recent, weekActivities] = await Promise.all([
+  const [range, stats, recent, weekActivities, fitness] = await Promise.all([
     loadShiftRange(now, addDays(now, 6), rules),
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({ orderBy: { startedAt: "desc" }, take: 5 }),
@@ -22,7 +23,10 @@ export default async function DashboardPage() {
       where: { startDay: { gte: addDays(now, -6), lte: now } },
       select: { distanceM: true, movingTimeS: true },
     }),
+    loadFitnessSnapshot(addDays(now, -30), now),
   ]);
+
+  const current = fitness.current;
 
   const weekDistance = weekActivities.reduce((sum, a) => sum + a.distanceM, 0);
   const weekTime = weekActivities.reduce((sum, a) => sum + a.movingTimeS, 0);
@@ -110,16 +114,70 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader
             title="État de forme"
-            hint="CTL, ATL, TSB et ratio aigu/chronique : moteur de calcul prévu en phase 4."
+            hint={
+              fitness.profileMissing.length > 0
+                ? `Non calculable : il manque ${fitness.profileMissing.join(", ")} au profil.`
+                : "Toutes ces valeurs sont des modèles, pas des mesures."
+            }
+            action={
+              <Link href="/analyses" className="text-xs text-[var(--color-accent)] hover:underline">
+                Analyses →
+              </Link>
+            }
           />
           <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] sm:grid-cols-4 sm:divide-y-0">
-            <Stat label="CTL (fitness)" value={<Unavailable />} />
-            <Stat label="ATL (fatigue)" value={<Unavailable />} />
-            <Stat label="TSB (forme)" value={<Unavailable />} />
-            <Stat label="Ratio A/C" value={<Unavailable />} />
+            <Stat
+              label="Condition physique"
+              value={current ? Math.round(current.ctl) : <Unavailable />}
+              hint="42 jours"
+              estimated
+            />
+            <Stat
+              label="Fatigue"
+              value={current ? Math.round(current.atl) : <Unavailable />}
+              hint="7 jours"
+              estimated
+            />
+            <Stat
+              label="Forme"
+              value={current ? Math.round(current.tsb) : <Unavailable />}
+              tone={
+                current == null ? "default" : current.tsb > 5 ? "ok" : current.tsb < -25 ? "danger" : "default"
+              }
+              estimated
+            />
+            <Stat
+              label="Ratio aigu/chronique"
+              value={fitness.acwr.ratio != null ? fitness.acwr.ratio.toFixed(2) : <Unavailable />}
+              hint={fitness.acwr.zone}
+              tone={
+                fitness.acwr.zone === "alerte"
+                  ? "danger"
+                  : fitness.acwr.zone === "prudence"
+                    ? "warn"
+                    : fitness.acwr.zone === "optimale"
+                      ? "ok"
+                      : "default"
+              }
+              estimated
+            />
           </div>
         </Card>
       </div>
+
+      {fitness.acwr.zone === "alerte" ? (
+        <p className="mt-4 rounded-md border border-[var(--color-danger)]/40 px-3 py-2 text-xs text-[var(--color-danger)]">
+          Ratio aigu/chronique à {fitness.acwr.ratio?.toFixed(2)} : progression de
+          charge trop brutale. La semaine à venir doit être allégée.
+        </p>
+      ) : null}
+      {fitness.foster.monotonyWarning ? (
+        <p className="mt-3 rounded-md border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
+          Monotonie de {fitness.foster.monotony?.toFixed(2)} sur sept jours :
+          l&apos;entraînement manque de contraste. Une vraie journée de repos vaut
+          mieux qu&apos;une séance de plus.
+        </p>
+      ) : null}
 
       <Card className="mt-4">
         <CardHeader title="7 derniers jours" />

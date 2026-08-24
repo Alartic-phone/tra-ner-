@@ -131,6 +131,10 @@ model Activity {
   hasHeartrate Boolean @default(false)
   hasStreams   Boolean @default(false)
 
+  /// Horodatage du dernier calcul des métriques dérivées. Nul = jamais
+  /// calculé, ce qui permet de ne retraiter que ce qui doit l'être.
+  metricsComputedAt DateTime?
+
   deviceName String?
   gearId     String?
   trainer    Boolean @default(false)
@@ -139,8 +143,9 @@ model Activity {
   /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
   rawSummaryJson String?
 
-  stream ActivityStream?
-  laps   Lap[]
+  stream       ActivityStream?
+  laps         Lap[]
+  bestEfforts  BestEffort[]
 
   /// Séance planifiée à laquelle cette activité correspond (rapprochement
   /// manuel ou automatique).
@@ -174,6 +179,27 @@ model ActivityStream {
   availableStreamsJson String
   pointCount           Int
   fetchedAt            DateTime @default(now())
+}
+
+/// Meilleurs efforts extraits d'une activité : plus grande distance couverte
+/// dans une durée de référence. Stockés plutôt que recalculés à la volée, car
+/// le modèle de vitesse critique les agrège sur plusieurs mois d'historique et
+/// décompresser tous les flux à chaque affichage serait prohibitif.
+model BestEffort {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  /// Durée de référence, en secondes (60, 120, 300, 600, 1200, 1800, 3600).
+  durationS Int
+  /// Distance réellement couverte sur cette fenêtre, en mètres.
+  distanceM Float
+  /// Jour de l'activité, dupliqué pour filtrer sur une période sans jointure.
+  day       String
+
+  @@unique([activityId, durationS])
+  @@index([durationS, distanceM])
+  @@index([day])
 }
 
 /// Tours et intervalles — indispensables pour lire une séance de fractionné.

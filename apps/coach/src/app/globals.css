@@ -21,11 +21,43 @@
   --color-accent: #5b9cf6;
   --color-accent-soft: #1d3a5f;
 
-  /* Sémantique métier — également utilisée par les graphiques. */
-  --color-ok: #3fb984;
-  --color-warn: #e0a33e;
-  --color-danger: #e0565b;
+  /*
+   * Couleurs de statut. Jeu fixe, validé sur la surface sombre de
+   * l'application : bande de clarté, plancher de chroma, séparation pour les
+   * déficiences de vision des couleurs, contraste. Elles ne servent JAMAIS de
+   * couleur de série, et sont toujours accompagnées d'un libellé ou d'une
+   * icône — jamais porteuses de sens à elles seules.
+   */
+  --color-ok: #0ca30c;
+  --color-warn: #fab219;
+  --color-serious: #ec835a;
+  --color-danger: #d03b3b;
   --color-info: #6ba8d8;
+
+  /*
+   * Couleurs de graphique.
+   *
+   * Catégorielles : ordre fixe, jamais recyclé. Un filtre qui réduit le
+   * nombre de séries ne repeint pas les survivantes.
+   */
+  --chart-1: #3987e5; /* bleu   — condition physique (CTL) */
+  --chart-2: #d95926; /* orange — fatigue (ATL) */
+  --chart-neutral: #4a5568; /* charge quotidienne, en retrait */
+
+  /* Divergente pour la forme (TSB) : deux pôles opposés, milieu neutre. */
+  --chart-positive: #3987e5;
+  --chart-negative: #e66767;
+
+  /* Rampe ordinale à teinte unique pour les zones de fréquence cardiaque. */
+  --chart-seq-1: #184f95;
+  --chart-seq-2: #256abf;
+  --chart-seq-3: #3987e5;
+  --chart-seq-4: #6da7ec;
+  --chart-seq-5: #9ec5f4;
+
+  /* Chrome de graphique : grille et axes en retrait. */
+  --chart-grid: #232a37;
+  --chart-axis: #5d6779;
 
   /* Codes de poste. Repris de la base quand ils y sont personnalisés. */
   --color-shift-m: #f59e0b;
