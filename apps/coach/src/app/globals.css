@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/*
+ * Interface sobre et dense, orientée données. Mode sombre par défaut :
+ * l'application se consulte surtout tôt le matin, la nuit et en poste.
+ * Aucune ressource externe — pas de police Google, la pile système suffit et
+ * s'affiche instantanément.
+ */
+
+@theme {
+  --color-bg: #0b0e14;
+  --color-surface: #11151d;
+  --color-surface-2: #171c26;
+  --color-border: #232a37;
+  --color-border-strong: #303949;
+
+  --color-text: #e6eaf2;
+  --color-muted: #8b95a7;
+  --color-faint: #5d6779;
+
+  --color-accent: #5b9cf6;
+  --color-accent-soft: #1d3a5f;
+
+  /* Sémantique métier — également utilisée par les graphiques. */
+  --color-ok: #3fb984;
+  --color-warn: #e0a33e;
+  --color-danger: #e0565b;
+  --color-info: #6ba8d8;
+
+  /* Codes de poste. Repris de la base quand ils y sont personnalisés. */
+  --color-shift-m: #f59e0b;
+  --color-shift-a: #3b82f6;
+  --color-shift-n: #7c3aed;
+  --color-rest: #2b3444;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* Zone sûre iOS : l'app est consultée depuis le téléphone, installée en PWA. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Chiffres alignés en colonne dans les tableaux de données. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
