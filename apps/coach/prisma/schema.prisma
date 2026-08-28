@@ -1,0 +1,541 @@
+// Schéma Prisma — application de suivi d'entraînement, MONO-UTILISATEUR.
+//
+// Conventions transverses (voir README §Modèle de données) :
+//
+//  * Provider SQLite en local. Le schéma n'utilise QUE des types portables vers
+//    PostgreSQL : pas d'`enum` Prisma (non supporté par SQLite), pas de type
+//    `Json` (idem), pas de tableaux scalaires. Les champs `*Json` sont des
+//    `String` contenant du JSON validé par Zod à la lecture ET à l'écriture.
+//    Passer en Postgres = changer les deux lignes du bloc `datasource`.
+//
+//  * Les entités indexées sur un jour calendaire portent un champ `day` de type
+//    String au format "YYYY-MM-DD", exprimé en Europe/Paris. C'est volontaire :
+//    un DateTime pour représenter une journée réintroduit systématiquement des
+//    bugs de fuseau (une séance du 14/10 stockée en UTC bascule au 13/10).
+//    L'ordre lexicographique d'une date ISO est l'ordre chronologique, donc le
+//    tri et les filtres d'intervalle fonctionnent nativement.
+//
+//  * Les instants réels (départ d'activité, horodatages système) restent des
+//    DateTime stockés en UTC.
+//
+//  * Aucune table ne porte de `userId` : il y a exactement un utilisateur.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Profil
+// ---------------------------------------------------------------------------
+
+/// Ligne unique, créée à l'onboarding. Aucune notion de compte, de rôle ou de
+/// mot de passe ici : l'accès à l'application est protégé en amont par un mot
+/// de passe unique en variable d'environnement.
+model User {
+  id        String   @id @default("me")
+  firstName String?
+  birthDate String? // "YYYY-MM-DD"
+
+  /// Nécessaire au calcul du TRIMP de Banister, dont le coefficient
+  /// exponentiel diffère selon le sexe (1.92 hommes / 1.67 femmes).
+  sex String? // "M" | "F"
+
+  weightKg Float?
+
+  // Repères physiologiques saisis à l'onboarding, ajustables ensuite.
+  hrMax              Int?
+  hrRest             Int?
+  lactateThresholdHr Int?
+  /// Vitesse maximale aérobie, en km/h.
+  vma                Float?
+
+  /// Zones personnalisées. Si nul, elles sont dérivées de hrMax/hrRest
+  /// (Karvonen) et de la VMA — l'interface indique alors qu'elles sont
+  /// calculées et non saisies.
+  hrZonesJson   String?
+  paceZonesJson String?
+
+  // Contexte d'entraînement déclaré (onboarding).
+  weeklyVolumeKm       Float?
+  weeklySessionsTarget Int?
+  injuryHistory        String?
+
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Activités
+// ---------------------------------------------------------------------------
+
+model Activity {
+  id String @id @default(cuid())
+
+  /// Provenance : "strava" | "coros" | "fit" | "manual".
+  source String
+  /// Identifiant chez la source. Pour Strava, l'id numérique de l'activité —
+  /// c'est la clé de déduplication stricte exigée par le cahier des charges.
+  sourceId String?
+
+  /// Conservé à part et indexé pour la déduplication Strava, qui est le
+  /// chemin d'import principal.
+  stravaActivityId BigInt? @unique
+
+  name      String
+  /// Type Strava brut ("Run", "TrailRun", "Workout"…).
+  type      String
+  sportType String?
+
+  /// Instant de départ, en UTC. `startDay` est le même instant projeté sur le
+  /// calendrier Europe/Paris : c'est lui qui sert à rattacher l'activité à une
+  /// journée, un poste ou une séance planifiée.
+  startedAt DateTime
+  startDay  String
+
+  distanceM     Float
+  movingTimeS   Int
+  elapsedTimeS  Int
+  elevationGainM Float?
+
+  avgSpeedMps Float?
+  maxSpeedMps Float?
+  avgHr       Int?
+  maxHr       Int?
+  avgCadence  Float?
+  calories    Float?
+
+  /// Allure ajustée du dénivelé (GAP). TOUJOURS une estimation : Strava
+  /// n'expose pas sa propre GAP via l'API, elle est recalculée ici à partir du
+  /// profil altimétrique. `gapEstimated` est vrai dès que la valeur existe, et
+  /// l'interface doit l'afficher comme estimée.
+  gapPaceSPerKm Float?
+  gapEstimated  Boolean @default(true)
+
+  /// Charge d'entraînement. `trimpMethod` documente COMMENT elle a été
+  /// obtenue ("banister_hr", "coros_native", "rpe_fallback"), pour qu'aucune
+  /// valeur approchée ne soit affichée comme une mesure.
+  trimp       Float?
+  trimpMethod String?
+
+  /// Découplage cardiaque Pa:Hr en % (allure/FC). Pw:Hr n'est pas calculable :
+  /// il exige une mesure de puissance que ni Strava ni la COROS ne fournissent
+  /// pour la course à pied sur cette chaîne de données.
+  decouplingPct Float?
+
+  hasHeartrate Boolean @default(false)
+  hasStreams   Boolean @default(false)
+
+  /// Horodatage du dernier calcul des métriques dérivées. Nul = jamais
+  /// calculé, ce qui permet de ne retraiter que ce qui doit l'être.
+  metricsComputedAt DateTime?
+
+  deviceName String?
+  gearId     String?
+  trainer    Boolean @default(false)
+  commute    Boolean @default(false)
+
+  /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
+  rawSummaryJson String?
+
+  stream       ActivityStream?
+  laps         Lap[]
+  bestEfforts  BestEffort[]
+
+  /// Séance planifiée à laquelle cette activité correspond (rapprochement
+  /// manuel ou automatique).
+  plannedWorkout PlannedWorkout?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([source, sourceId])
+  @@index([startDay])
+  @@index([startedAt])
+}
+
+/// Données seconde par seconde. Une ligne par activité, tous les flux
+/// regroupés dans un unique blob JSON gzippé : sur plusieurs années
+/// d'historique, stocker un enregistrement par seconde ferait exploser la base
+/// pour un bénéfice nul (ces séries ne sont jamais requêtées champ par champ,
+/// seulement chargées en entier pour analyse).
+model ActivityStream {
+  id         String   @id @default(cuid())
+  activityId String   @unique
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  /// gzip(JSON.stringify({ time, heartrate, velocity_smooth, altitude,
+  /// cadence, distance })). Les clés absentes sont absentes — jamais
+  /// remplies par interpolation.
+  data Bytes
+
+  /// Tableau JSON des flux réellement disponibles, pour savoir ce qui manque
+  /// sans décompresser.
+  availableStreamsJson String
+  pointCount           Int
+  fetchedAt            DateTime @default(now())
+}
+
+/// Meilleurs efforts extraits d'une activité : plus grande distance couverte
+/// dans une durée de référence. Stockés plutôt que recalculés à la volée, car
+/// le modèle de vitesse critique les agrège sur plusieurs mois d'historique et
+/// décompresser tous les flux à chaque affichage serait prohibitif.
+model BestEffort {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  /// Durée de référence, en secondes (60, 120, 300, 600, 1200, 1800, 3600).
+  durationS Int
+  /// Distance réellement couverte sur cette fenêtre, en mètres.
+  distanceM Float
+  /// Jour de l'activité, dupliqué pour filtrer sur une période sans jointure.
+  day       String
+
+  @@unique([activityId, durationS])
+  @@index([durationS, distanceM])
+  @@index([day])
+}
+
+/// Tours et intervalles — indispensables pour lire une séance de fractionné.
+model Lap {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  lapIndex       Int
+  name           String?
+  distanceM      Float
+  elapsedTimeS   Int
+  movingTimeS    Int
+  elevationGainM Float?
+  avgSpeedMps    Float?
+  maxSpeedMps    Float?
+  avgHr          Int?
+  maxHr          Int?
+  avgCadence     Float?
+  startedAt      DateTime?
+  splitIndex     Int?
+
+  @@unique([activityId, lapIndex])
+}
+
+// ---------------------------------------------------------------------------
+// Santé et ressenti
+// ---------------------------------------------------------------------------
+
+/// Métriques quotidiennes hors activité : sommeil, HRV, FC de repos, poids,
+/// statut de récupération. Alimentées par l'import COROS (JSON/CSV) ou FIT.
+/// Tout champ nul signifie « non disponible » et doit être affiché comme tel.
+model HealthMetric {
+  id  String @id @default(cuid())
+  day String @unique
+
+  sleepDurationMin Int?
+  sleepDeepMin     Int?
+  sleepRemMin      Int?
+  /// Score de qualité de sommeil tel que fourni par la montre (0-100).
+  sleepScore       Int?
+
+  /// HRV nocturne en ms (rMSSD tel que rapporté par la COROS).
+  hrv       Float?
+  restingHr Int?
+  weightKg  Float?
+
+  /// Statut de récupération COROS en %, et charge d'entraînement propriétaire.
+  recoveryStatusPct Int?
+  trainingLoadCoros Float?
+
+  /// "coros_export" | "fit" | "manual" — pour tracer l'origine de chaque
+  /// valeur affichée.
+  source     String
+  importedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Saisie quotidienne subjective. Doit tenir en moins de 30 secondes.
+model JournalEntry {
+  id  String @id @default(cuid())
+  day String @unique
+
+  /// Échelles 1-10.
+  overall               Int?
+  fatigue               Int?
+  motivation            Int?
+  sleepQualitySubjective Int?
+
+  /// Tableau JSON [{ zone: string, intensity: 1..10, since?: "YYYY-MM-DD" }].
+  painsJson String @default("[]")
+
+  /// RPE de la séance du jour (échelle de Borg modifiée 1-10).
+  rpe   Int?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Cycle de postes
+// ---------------------------------------------------------------------------
+
+/// Définition paramétrable du cycle. La séquence n'est JAMAIS codée en dur
+/// dans l'application : elle vit ici et se modifie depuis les réglages.
+model ShiftPattern {
+  id   String @id @default(cuid())
+  name String @default("Cycle principal")
+
+  /// Premier jour du premier bloc. "YYYY-MM-DD".
+  anchorDay String
+
+  /// Tableau JSON [{ sequence: "MMAAANN", restDays: 9 }, …].
+  /// La longueur totale du cycle en découle (ici 7+9 + 7+10 + 7+9 = 49 jours).
+  blocksJson String
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Un code de poste et son horaire. Sert à calculer le créneau d'entraînement
+/// réellement disponible un jour travaillé.
+model ShiftCode {
+  code      String  @id
+  label     String
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm", peut être < startTime si le poste passe minuit
+  color     String  @default("#64748b")
+  /// Faux pour un code représentant une absence (congé, arrêt) que l'on veut
+  /// tout de même nommer dans le calendrier.
+  isWork    Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+/// Écart ponctuel au cycle théorique. Bidirectionnel par construction :
+///   - repos -> poste  (remplacement accepté, le cas le plus fréquent)
+///   - poste -> repos  (congé, échange)
+///   - poste -> autre poste
+/// `code` nul signifie « repos ce jour-là ». Aucune récurrence n'est
+/// supposée : une exception ne vaut que pour son jour.
+model ShiftException {
+  id   String  @id @default(cuid())
+  day  String  @unique
+  code String?
+  note String?
+
+  /// Vrai quand l'exception ajoute un poste sur un jour de repos théorique.
+  /// Renseigné à l'écriture pour pouvoir calculer le taux de remplacements
+  /// accepté sans rejouer tout le cycle.
+  isReplacement Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Objectifs et plans
+// ---------------------------------------------------------------------------
+
+model Goal {
+  id   String @id @default(cuid())
+  name String
+  /// Jour de la course. "YYYY-MM-DD".
+  day  String
+
+  distanceM Float
+  /// Chrono visé, en secondes.
+  targetTimeS Int?
+  /// Chrono « plancher » encore considéré comme une réussite.
+  floorTimeS  Int?
+  /// "A" | "B" | "C".
+  priority String @default("A")
+
+  notes    String?
+  isActive Boolean @default(true)
+
+  plans TrainingPlan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([day])
+}
+
+model TrainingPlan {
+  id     String @id @default(cuid())
+  goalId String?
+  goal   Goal?  @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  name     String
+  startDay String
+  endDay   String
+
+  /// Incrémentée à chaque régénération complète. Les adaptations
+  /// hebdomadaires créent une PlanRevision, pas une nouvelle version.
+  version Int @default(1)
+
+  /// "active" | "archived" | "draft".
+  status String @default("active")
+
+  /// Tableau JSON des phases : [{ name: "base"|"développement"|"spécifique"
+  /// |"affûtage", startDay, endDay, focus, weeklyVolumeKm }].
+  phasesJson String
+
+  /// Modèle Claude utilisé, et contexte exact envoyé — conservés pour pouvoir
+  /// rejouer et comprendre une génération a posteriori.
+  model       String
+  contextJson String?
+  rationale   String?
+
+  workouts  PlannedWorkout[]
+  revisions PlanRevision[]
+
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PlannedWorkout {
+  id     String       @id @default(cuid())
+  planId String
+  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  day       String
+  /// "endurance" | "seuil" | "vma" | "cotes" | "sortie_longue" |
+  /// "recuperation" | "repos".
+  type      String
+  title     String
+  description String?
+
+  /// Description structurée : [{ repeat, work: {durationS|distanceM, paceMin,
+  /// paceMax, hrZone}, recovery: {...} }]. Validée par Zod.
+  structureJson String?
+
+  targetDurationS  Int?
+  targetDistanceM  Float?
+  /// Fourchette d'allure cible, en secondes par kilomètre.
+  targetPaceMinSPerKm Float?
+  targetPaceMaxSPerKm Float?
+  targetHrZone        Int?
+
+  /// "upcoming" | "done" | "missed" | "moved".
+  status String @default("upcoming")
+
+  /// Provisoire = posée sur un jour de repos THÉORIQUE, donc susceptible de
+  /// sauter si un remplacement tombe dessus. Ferme = posée sur un jour dont on
+  /// sait déjà qu'il est travaillé.
+  isProvisional Boolean @default(false)
+  /// Séance clé (sortie longue, séance spécifique à l'objectif) : bénéficie
+  /// d'un jour de repli calculé dès la génération du plan.
+  isKeySession  Boolean @default(false)
+  fallbackDay   String?
+  movedFromDay  String?
+
+  /// Rapprochement avec l'activité réellement réalisée.
+  activityId String?   @unique
+  activity   Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  orderInDay Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([day])
+  @@index([planId, day])
+}
+
+/// Historique des adaptations. Le raisonnement du modèle est conservé
+/// intégralement : le plan doit pouvoir être compris, pas seulement subi.
+model PlanRevision {
+  id     String       @id @default(cuid())
+  planId String
+  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// "weekly" | "targeted" | "full".
+  scope String
+  /// "schedule" | "shift_exception" | "missed_workout" | "manual".
+  triggeredBy String
+
+  /// Lundi de la semaine concernée.
+  weekStartDay String
+
+  /// Texte explicatif produit par le modèle, affiché tel quel dans l'UI.
+  reasoning String
+  /// Diff structuré des séances touchées, pour affichage avant/après.
+  diffJson  String?
+
+  model     String
+  createdAt DateTime @default(now())
+
+  @@index([planId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Intégrations et plomberie
+// ---------------------------------------------------------------------------
+
+/// Connexion Strava. Ligne unique. Les jetons sont chiffrés en AES-256-GCM
+/// avec la clé d'application (ENCRYPTION_KEY) — jamais en clair en base.
+model StravaAccount {
+  id        String @id @default("strava")
+  athleteId BigInt
+
+  accessTokenEnc  String
+  refreshTokenEnc String
+  /// Expiration de l'access token (epoch seconds côté Strava).
+  expiresAt       DateTime
+  scope           String
+
+  athleteName String?
+
+  /// Id de la souscription webhook si l'application est joignable depuis
+  /// Internet. Nul = mode « bouton Synchroniser + cron ».
+  webhookSubscriptionId Int?
+
+  lastSyncAt      DateTime?
+  /// Date de départ de la dernière page importée, pour reprendre un import
+  /// historique interrompu.
+  backfillCursor  String?
+  backfillDone    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// File d'attente des appels à l'API Strava. Une table plutôt qu'une file en
+/// mémoire : l'import initial dure plusieurs heures à cause du quota, et doit
+/// survivre à un redémarrage.
+model SyncJob {
+  id String @id @default(cuid())
+
+  /// "backfill_page" | "activity_detail" | "activity_streams" |
+  /// "activity_laps".
+  kind        String
+  payloadJson String
+
+  /// "pending" | "running" | "done" | "failed".
+  status   String @default("pending")
+  attempts Int    @default(0)
+  lastError String?
+
+  /// Back-off exponentiel : le worker ignore les jobs dont runAfter est dans
+  /// le futur.
+  runAfter DateTime @default(now())
+  priority Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, runAfter])
+}
+
+/// Réglages divers (contraintes du planificateur, modèle Claude, tampon avant
+/// séance…). Clé/valeur JSON validé par Zod à la lecture.
+model Setting {
+  key       String   @id
+  valueJson String
+  updatedAt DateTime @updatedAt
+}

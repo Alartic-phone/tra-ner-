@@ -1,0 +1,54 @@
+# Déploiement local : `docker compose up`.
+#
+# La base SQLite vit dans un volume nommé : elle survit à la reconstruction de
+# l'image. La sauvegarder régulièrement avec `npm run backup`.
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Écoute uniquement sur la boucle locale. Pour exposer l'application au
+      # réseau local ou à Internet, passer par un reverse proxy avec TLS.
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: "file:/app/data/coach.db"
+      TZ: "Europe/Paris"
+      APP_PASSWORD: "${APP_PASSWORD:?APP_PASSWORD est requis}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY est requis}"
+      SESSION_DAYS: "${SESSION_DAYS:-30}"
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+      STRAVA_CLIENT_ID: "${STRAVA_CLIENT_ID:-}"
+      STRAVA_CLIENT_SECRET: "${STRAVA_CLIENT_SECRET:-}"
+      STRAVA_WEBHOOK_VERIFY_TOKEN: "${STRAVA_WEBHOOK_VERIFY_TOKEN:-}"
+      CRON_SECRET: "${CRON_SECRET:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-claude-opus-5}"
+    volumes:
+      - coach-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Synchronisation Strava quotidienne. Utile uniquement sans URL publique :
+  # avec un webhook, Strava pousse les activités en temps réel.
+  sync:
+    image: alpine:3.21
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CRON_SECRET: "${CRON_SECRET:-}"
+    command: >
+      sh -c 'apk add --no-cache curl >/dev/null &&
+             while true; do
+               curl -fsS -X POST -H "x-cron-secret: $$CRON_SECRET" http://app:3000/api/strava/sync || true;
+               sleep 86400;
+             done'
+
+volumes:
+  coach-data:
