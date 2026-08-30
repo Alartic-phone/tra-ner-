@@ -1,5 +1,7 @@
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import type { ReadinessResult, ReadinessStatus } from "@/lib/metrics/readiness.ts";
+import { formatDayLong } from "@/lib/time.ts";
+import type { Day } from "@/lib/shifts/day.ts";
 
 const STATUS_META: Record<
   ReadinessStatus,
@@ -36,8 +38,10 @@ const STATUS_META: Record<
  */
 export function ReadinessBanner({
   data,
+  today,
 }: {
-  data: { result: ReadinessResult; hrv: number; restingHr: number } | null;
+  data: { result: ReadinessResult; hrv: number; restingHr: number; measuredDay: Day } | null;
+  today: Day;
 }) {
   if (!data) {
     return (
@@ -50,9 +54,10 @@ export function ReadinessBanner({
     );
   }
 
-  const { result, hrv, restingHr } = data;
+  const { result, hrv, restingHr, measuredDay } = data;
   const meta = STATUS_META[result.status];
   const { Icon } = meta;
+  const isStale = measuredDay !== today;
 
   return (
     <div
@@ -63,6 +68,11 @@ export function ReadinessBanner({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold" style={{ color: meta.color }}>
           {meta.label}
+          {isStale ? (
+            <span className="ml-2 text-xs font-normal text-[var(--color-muted)]">
+              (mesure du {formatDayLong(measuredDay)}, pas encore de VFC aujourd&apos;hui)
+            </span>
+          ) : null}
         </p>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">{meta.message}</p>
       </div>

@@ -28,7 +28,12 @@ import {
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
 import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
-import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
+import {
+  computeReadiness,
+  meanAndStdDev,
+  selectMostRecentAvailableDay,
+  type ReadinessResult,
+} from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -480,26 +485,42 @@ export async function loadPaceZones() {
 }
 
 /**
- * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
- * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
- * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
- * sur une base insuffisante.
+ * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si aucune
+ * mesure exploitable dans la fenêtre de repli, ou si la fenêtre de référence
+ * (7 jours précédents minimum) n'a pas assez de mesures — jamais un statut
+ * affiché sur une base insuffisante.
+ *
+ * Le capteur COROS synchronise le VFC de la nuit après le réveil : consulter
+ * le tableau de bord tôt le matin tombe régulièrement sur un jour sans encore
+ * de mesure. On retombe alors sur la dernière journée mesurée (jusqu'à
+ * `MAX_STALENESS_DAYS` en arrière) plutôt que de cacher la bannière — mais la
+ * date de cette mesure est renvoyée pour que l'affichage la date clairement,
+ * jamais présentée comme celle du jour courant.
  */
 export async function loadReadiness(
   day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
+): Promise<{ result: ReadinessResult; hrv: number; restingHr: number; measuredDay: Day } | null> {
   const BASELINE_DAYS = 30;
   const MIN_SAMPLES = 7;
+  const MAX_STALENESS_DAYS = 3;
 
-  const [todayMetric, history] = await Promise.all([
-    prisma.healthMetric.findUnique({ where: { day } }),
-    prisma.healthMetric.findMany({
-      where: { day: { gte: addDays(day, -BASELINE_DAYS), lt: day } },
-      select: { hrv: true, restingHr: true },
-    }),
-  ]);
+  const recent = await prisma.healthMetric.findMany({
+    where: { day: { gte: addDays(day, -MAX_STALENESS_DAYS), lte: day } },
+    select: { day: true, hrv: true, restingHr: true },
+  });
+  const recentByDay = new Map(recent.map((m) => [m.day, m]));
 
-  if (todayMetric?.hrv == null || todayMetric.restingHr == null) return null;
+  const measuredDay = selectMostRecentAvailableDay(day, MAX_STALENESS_DAYS, (candidate) => {
+    const m = recentByDay.get(candidate);
+    return m?.hrv != null && m.restingHr != null;
+  });
+  const measured = measuredDay ? recentByDay.get(measuredDay) : undefined;
+  if (!measuredDay || measured?.hrv == null || measured.restingHr == null) return null;
+
+  const history = await prisma.healthMetric.findMany({
+    where: { day: { gte: addDays(measuredDay, -BASELINE_DAYS), lt: measuredDay } },
+    select: { hrv: true, restingHr: true },
+  });
 
   const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
   const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
@@ -509,14 +530,14 @@ export async function loadReadiness(
   const restingHrBaseline = meanAndStdDev(restingHrSamples);
 
   const result = computeReadiness({
-    hrv: todayMetric.hrv,
-    restingHr: todayMetric.restingHr,
+    hrv: measured.hrv,
+    restingHr: measured.restingHr,
     hrvBaselineMean: hrvBaseline.mean,
     hrvBaselineSd: hrvBaseline.sd,
     restingHrBaselineMean: restingHrBaseline.mean,
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  return { result, hrv: measured.hrv, restingHr: measured.restingHr, measuredDay };
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */

@@ -26,7 +26,7 @@ import {
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
-import { computeReadiness, meanAndStdDev } from "./readiness.ts";
+import { computeReadiness, meanAndStdDev, selectMostRecentAvailableDay } from "./readiness.ts";
 import {
   buildPrediction,
   classifyTrajectory,
@@ -929,5 +929,33 @@ describe("fraîcheur du jour (readiness)", () => {
       restingHrBaselineMean: 55,
     });
     expect(result.status).toBe("correct");
+  });
+
+  describe("repli sur la dernière journée mesurée", () => {
+    it("retient le jour même quand il a des données", () => {
+      const day = selectMostRecentAvailableDay("2026-08-30", 3, (d) => d === "2026-08-30");
+      expect(day).toBe("2026-08-30");
+    });
+
+    it("retombe sur la veille quand le jour même n'a pas encore synchronisé (réveil pas encore passé)", () => {
+      const day = selectMostRecentAvailableDay("2026-08-30", 3, (d) => d === "2026-08-29");
+      expect(day).toBe("2026-08-29");
+    });
+
+    it("s'arrête au jour le plus récent disponible, pas au plus ancien", () => {
+      const available = new Set(["2026-08-27", "2026-08-28"]);
+      const day = selectMostRecentAvailableDay("2026-08-30", 3, (d) => available.has(d));
+      expect(day).toBe("2026-08-28");
+    });
+
+    it("ne cherche jamais au-delà de maxStalenessDays", () => {
+      const day = selectMostRecentAvailableDay("2026-08-30", 2, (d) => d === "2026-08-27");
+      expect(day).toBeNull();
+    });
+
+    it("renvoie null si aucun jour de la fenêtre n'a de données", () => {
+      const day = selectMostRecentAvailableDay("2026-08-30", 3, () => false);
+      expect(day).toBeNull();
+    });
   });
 });

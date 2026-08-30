@@ -130,7 +130,7 @@ export default async function DashboardPage() {
       </header>
 
       <div className="mt-4">
-        <ReadinessBanner data={readiness} />
+        <ReadinessBanner data={readiness} today={now} />
       </div>
 
       <div className="mt-4">
