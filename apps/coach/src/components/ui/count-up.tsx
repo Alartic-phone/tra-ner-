@@ -3,8 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Anime un nombre de 0 à sa valeur finale au montage. Respecte
- * `prefers-reduced-motion` (pas de RAF, valeur finale affichée directement).
+ * Anime un changement de valeur (ease-out cubique). Respecte
+ * `prefers-reduced-motion`.
+ *
+ * L'état affiché démarre à `value`, jamais à 0 : ce composant est monté par un
+ * rendu serveur qui connaît déjà la vraie valeur, et le HTML statique envoyé
+ * au client doit la refléter directement. Repartir de 0 fabriquerait un chiffre
+ * faux — visible aussi longtemps que l'hydratation JS n'a pas eu lieu — ce que
+ * la règle absolue du projet interdit (jamais un zéro qui n'est pas la donnée).
+ * L'animation ne s'exécute donc qu'au changement d'une valeur déjà montée
+ * (ex. revalidation client), jamais au montage initial.
  */
 export function CountUp({
   value,
@@ -15,12 +23,13 @@ export function CountUp({
   durationMs?: number;
   decimals?: number;
 }) {
-  const [display, setDisplay] = useState(0);
-  const started = useRef(false);
+  const [display, setDisplay] = useState(value);
+  const previousValue = useRef(value);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+    const from = previousValue.current;
+    previousValue.current = value;
+    if (from === value) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setDisplay(value);
@@ -33,13 +42,12 @@ export function CountUp({
       const progress = Math.min(1, (now - start) / durationMs);
       // Ease-out cubique : rapide au début, se pose en douceur sur la valeur finale.
       const eased = 1 - (1 - progress) ** 3;
-      setDisplay(value * eased);
+      setDisplay(from + (value - from) * eased);
       if (progress < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, durationMs]);
 
   return <>{display.toFixed(decimals)}</>;
 }
