@@ -110,6 +110,28 @@
     monospace;
 
   /*
+   * Familles pour les gros chiffres et les titres de page vs. le corps de
+   * texte (système de design v2). Repliées sur --font-sans tant que la paire
+   * typographique n'est pas choisie sur /debug/typo : le jour du choix, ces
+   * deux tokens sont les seuls à changer, HeroStat n'a rien à savoir de plus.
+   */
+  --font-display: var(--font-sans);
+  --font-body: var(--font-sans);
+
+  /*
+   * Échelle des « hero numbers » (distance, allure, FC…) — ratio constant
+   * ×1.5, indépendante des tailles de texte Tailwind par défaut. Interligne
+   * resserré : ce sont des chiffres à lire d'un coup d'œil, pas du texte
+   * courant.
+   */
+  --text-hero-md: 2rem;
+  --text-hero-md--line-height: 1.1;
+  --text-hero-lg: 3rem;
+  --text-hero-lg--line-height: 1.05;
+  --text-hero-xl: 4.5rem;
+  --text-hero-xl--line-height: 1;
+
+  /*
    * Rayons et élévation. Cartes plus arrondies que le rounded-lg par défaut
    * de Tailwind, dans l'esprit des tableaux de bord de forme physique
    * (Whoop/Oura) plutôt que des grilles administratives strictes.
@@ -125,8 +147,22 @@
     transparent 60%
   );
 
+  /*
+   * Bordure en dégradé très subtile, réservée aux cartes hero (HeroStat) —
+   * jamais posée sur une Card ordinaire. Portée par .hero-stat-card via la
+   * technique du double arrière-plan (padding-box + border-box).
+   */
+  --hero-border-gradient: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--color-accent) 45%, transparent) 0%,
+    transparent 45%,
+    transparent 65%,
+    color-mix(in oklab, var(--color-border-strong) 90%, transparent) 100%
+  );
+
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
+  --duration-base: 250ms;
   --duration-slow: 400ms;
 }
 
@@ -159,6 +195,21 @@
 .stagger-item {
   animation: fade-in-up var(--duration-slow) var(--ease-standard) backwards;
   animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+/*
+ * Chrome de carte pour HeroStat : halo sport optionnel (calque du haut, posé
+ * en padding-box, transparent tant que --hero-sport-halo n'est pas défini en
+ * style inline) + bordure en dégradé (calque du bas, sur border-box). Le
+ * halo reste toujours mélangé à du transparent et s'estompe avant le centre
+ * de la carte — jamais un aplat de couleur sport.
+ */
+.hero-stat-card {
+  background-color: var(--color-surface-2);
+  background-image: var(--hero-sport-halo, none), var(--hero-border-gradient);
+  background-origin: padding-box, border-box;
+  background-clip: padding-box, border-box;
+  border: 1px solid transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
