@@ -15,7 +15,7 @@ import type { ReactElement } from "react";
 import type { ChartPoint } from "@/lib/streams.ts";
 import { formatClock, formatPace } from "@/lib/utils.ts";
 import { zoneForHeartRate, type HeartRateZone } from "@/lib/metrics/zones.ts";
-import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
+import { ZONE_RAMP } from "@/lib/metrics/zones.ts";
 
 /** Tracé progressif de gauche à droite au chargement, comme les autres
  * graphiques temporels de l'app — jamais une courbe qui apparaît d'un coup. */

@@ -13,6 +13,22 @@ export type HeartRateZone = {
   toBpm: number;
 };
 
+/**
+ * Rampe des 5 zones FC, partagée par `ZoneChart`, `ZoneBar` et le tableau de
+ * bord. Définie ici plutôt que dans un composant "use client" : un Server
+ * Component qui importerait une simple constante depuis un module client la
+ * reçoit comme une référence opaque (le mécanisme de "client reference" de
+ * React Server Components), pas comme le tableau réel — l'indexation renvoie
+ * silencieusement `undefined` plutôt que de planter.
+ */
+export const ZONE_RAMP = [
+  "var(--zone-1)",
+  "var(--zone-2)",
+  "var(--zone-3)",
+  "var(--zone-4)",
+  "var(--zone-5)",
+];
+
 const HR_ZONE_BOUNDS: Array<{
   index: 1 | 2 | 3 | 4 | 5;
   name: string;

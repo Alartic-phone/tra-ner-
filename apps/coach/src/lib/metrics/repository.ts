@@ -480,14 +480,22 @@ export async function loadPaceZones() {
 }
 
 /**
- * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
+ * Fraîcheur du jour, pour le héros du tableau de bord. `null` si le VFC ou
  * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
  * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
- * sur une base insuffisante.
+ * sur une base insuffisante. Les plages (`hrvRange`/`restingHrRange`) sont
+ * la moyenne et l'écart-type de la même fenêtre, pour dessiner la « plage
+ * habituelle » sur les jauges plutôt qu'un simple statut textuel.
  */
 export async function loadReadiness(
   day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
+): Promise<{
+  result: ReadinessResult;
+  hrv: number;
+  restingHr: number;
+  hrvRange: { mean: number; sd: number };
+  restingHrRange: { mean: number; sd: number };
+} | null> {
   const BASELINE_DAYS = 30;
   const MIN_SAMPLES = 7;
 
@@ -516,7 +524,27 @@ export async function loadReadiness(
     restingHrBaselineMean: restingHrBaseline.mean,
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  return {
+    result,
+    hrv: todayMetric.hrv,
+    restingHr: todayMetric.restingHr,
+    hrvRange: hrvBaseline,
+    restingHrRange: restingHrBaseline,
+  };
+}
+
+/**
+ * Dernière mesure de VFC connue avant `day`, pour le héros du tableau de
+ * bord quand rien n'a encore été synchronisé aujourd'hui : « pas encore de
+ * mesure » plutôt qu'un zéro ou un silence complet.
+ */
+export async function loadLastKnownHrv(day: Day): Promise<{ day: Day; hrv: number } | null> {
+  const row = await prisma.healthMetric.findFirst({
+    where: { day: { lt: day }, hrv: { not: null } },
+    orderBy: { day: "desc" },
+    select: { day: true, hrv: true },
+  });
+  return row?.hrv != null ? { day: row.day as Day, hrv: row.hrv } : null;
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */

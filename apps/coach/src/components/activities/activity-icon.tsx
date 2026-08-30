@@ -27,3 +27,11 @@ export function sportColor(type: string): string {
   if (/swim/i.test(type)) return "var(--sport-swim)";
   return "var(--sport-other)";
 }
+
+/** Clé de sport pour `HeroStat`, même classification que `sportColor`. */
+export function sportKey(type: string): "run" | "ride" | "swim" | "other" {
+  if (/run/i.test(type)) return "run";
+  if (/ride|bike|cycl/i.test(type)) return "ride";
+  if (/swim/i.test(type)) return "swim";
+  return "other";
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDuration } from "@/lib/utils.ts";
+import { ZONE_RAMP } from "@/lib/metrics/zones.ts";
 
 export type ZoneRow = {
   index: number;
@@ -9,15 +10,6 @@ export type ZoneRow = {
   fromBpm: number;
   toBpm: number;
 };
-
-/** Rampe des 5 zones FC, partagée avec `ZoneBar` (activités, calendrier). */
-export const ZONE_RAMP = [
-  "var(--zone-1)",
-  "var(--zone-2)",
-  "var(--zone-3)",
-  "var(--zone-4)",
-  "var(--zone-5)",
-];
 
 /**
  * Répartition du temps par zone de fréquence cardiaque.

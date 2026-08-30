@@ -55,6 +55,8 @@ function SvgRouteMap({
   height,
   strokeWidth,
   showMarkers,
+  color,
+  fill = false,
   className,
 }: {
   points: LatLng[];
@@ -62,6 +64,10 @@ function SvgRouteMap({
   height: number;
   strokeWidth: number;
   showMarkers: boolean;
+  color: string;
+  /** Remplit et recadre le conteneur (fond de carte) plutôt que de garantir
+   *  le tracé entier visible sans recadrage. */
+  fill?: boolean;
   className?: string;
 }) {
   const decimated = decimate(points, 500);
@@ -104,13 +110,15 @@ function SvgRouteMap({
     <svg
       viewBox={`0 0 ${width} ${height}`}
       width="100%"
-      style={{ height: "auto" }}
+      height={fill ? "100%" : undefined}
+      preserveAspectRatio={fill ? "xMidYMid slice" : undefined}
+      style={fill ? undefined : { height: "auto" }}
       className={className}
     >
       <path
         d={pathD}
         fill="none"
-        stroke="var(--color-accent)"
+        stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -131,7 +139,7 @@ function SvgRouteMap({
             cy={end.y}
             r={strokeWidth * 1.6}
             fill="var(--color-bg)"
-            stroke="var(--color-accent)"
+            stroke={color}
             strokeWidth={strokeWidth * 0.8}
           />
         </>
@@ -153,6 +161,8 @@ function MapLibreRouteMap({
   height,
   strokeWidth,
   showMarkers,
+  color,
+  fill = false,
   className,
 }: {
   points: LatLng[];
@@ -161,6 +171,8 @@ function MapLibreRouteMap({
   height: number;
   strokeWidth: number;
   showMarkers: boolean;
+  color: string;
+  fill?: boolean;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -190,6 +202,16 @@ function MapLibreRouteMap({
         // une copie statique du worker dans `public/` (cf. commentaire de
         // fichier). À resynchroniser si `maplibre-gl` est mis à jour.
         maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
+
+        // Le paint WebGL de MapLibre n'interprète pas `var(--x)` : c'est du
+        // CSS uniquement. On résout la variable en couleur calculée une fois
+        // le composant monté ; une couleur déjà littérale (hex/rgb) traverse
+        // telle quelle.
+        const resolvedColor = color.startsWith("var(")
+          ? getComputedStyle(document.documentElement)
+              .getPropertyValue(color.slice(4, -1))
+              .trim() || "#5b9cf6"
+          : color;
 
         const coords = points.map(([lat, lng]) => [lng, lat] as [number, number]);
         const bounds = coords.reduce(
@@ -224,7 +246,7 @@ function MapLibreRouteMap({
             type: "line",
             source: "route",
             layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": "#5b9cf6", "line-width": 3 },
+            paint: { "line-color": resolvedColor, "line-width": 3 },
           });
         });
       })
@@ -250,6 +272,8 @@ function MapLibreRouteMap({
         height={height}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
+        color={color}
+        fill={fill}
         className={className}
       />
     );
@@ -259,7 +283,11 @@ function MapLibreRouteMap({
     <div
       ref={containerRef}
       className={className}
-      style={{ width, height, maxWidth: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }}
+      style={
+        fill
+          ? { width: "100%", height: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }
+          : { width, height, maxWidth: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }
+      }
     />
   );
 }
@@ -271,6 +299,8 @@ export function RouteMap({
   height = 220,
   strokeWidth = 3,
   showMarkers = true,
+  color = "var(--color-accent)",
+  fill = false,
   className,
 }: {
   latlng: ReadonlyArray<LatLng | null>;
@@ -280,6 +310,14 @@ export function RouteMap({
   height?: number;
   strokeWidth?: number;
   showMarkers?: boolean;
+  /** Couleur du tracé — `var(--sport-*)` pour l'identité du sport, valeur littérale sinon. */
+  color?: string;
+  /**
+   * Remplit et recadre son conteneur au lieu de garantir le tracé entier
+   * visible — pour un fond de carte (le conteneur impose sa taille, pas
+   * `width`/`height`, qui ne servent alors qu'à cadrer le tracé en carré).
+   */
+  fill?: boolean;
   className?: string;
 }) {
   const valid = latlng.filter((p): p is LatLng => p != null);
@@ -294,6 +332,8 @@ export function RouteMap({
         height={height}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
+        color={color}
+        fill={fill}
         className={className}
       />
     );
@@ -306,6 +346,8 @@ export function RouteMap({
       height={height}
       strokeWidth={strokeWidth}
       showMarkers={showMarkers}
+      color={color}
+      fill={fill}
       className={className}
     />
   );

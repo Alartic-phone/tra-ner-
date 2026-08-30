@@ -197,6 +197,14 @@
   animation-delay: calc(var(--stagger-index, 0) * 40ms);
 }
 
+/* Cascade des HeroStat au chargement du tableau de bord — la seule animation
+   remarquée de la page (cf. lib/motion.ts). Délai de 60 ms, plus lent que
+   .stagger-item : il n'y a que 4 HeroStat à l'écran, l'effet doit se voir. */
+.hero-cascade {
+  animation: fade-in-up var(--duration-slow) var(--ease-standard) backwards;
+  animation-delay: calc(var(--stagger-index, 0) * 60ms);
+}
+
 /*
  * Chrome de carte pour HeroStat : halo sport optionnel (calque du haut, posé
  * en padding-box, transparent tant que --hero-sport-halo n'est pas défini en
