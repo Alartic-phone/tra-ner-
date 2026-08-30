@@ -818,6 +818,16 @@ describe("meilleurs efforts", () => {
     expect(efforts[0]!.distanceM).toBeGreaterThan(0);
   });
 
+  it("écarte un « meilleur effort » à une allure de marche ou plus lente", () => {
+    // Séance de musculation démarrée en mode « course en salle » : 2h46 pour
+    // 1,13 km (147 min/km, cas réel observé). Aucune fenêtre de 3600 s n'est
+    // une course à pied plausible : le point ne doit pas exister.
+    const durationS = 9965;
+    const distanceGym = Array.from({ length: durationS + 1 }, (_, t) => (t / durationS) * 1130);
+    const t = Array.from({ length: durationS + 1 }, (_, i) => i);
+    expect(bestDistanceForDurations({ time: t, distance: distanceGym }, [3600])).toEqual([]);
+  });
+
   it("fusionne les meilleurs efforts de plusieurs sorties", () => {
     const merged = mergeBestEfforts([
       { durationS: 300, distanceM: 1500 },
