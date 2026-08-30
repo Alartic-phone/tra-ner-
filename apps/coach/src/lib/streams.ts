@@ -18,6 +18,8 @@ const streamDataSchema = z.object({
   altitude: z.array(z.number().nullable()).optional(),
   cadence: z.array(z.number().nullable()).optional(),
   distance: z.array(z.number().nullable()).optional(),
+  /** Paires [lat, lng] en degrés décimaux. */
+  latlng: z.array(z.tuple([z.number(), z.number()]).nullable()).optional(),
 });
 
 export type StreamData = z.infer<typeof streamDataSchema>;

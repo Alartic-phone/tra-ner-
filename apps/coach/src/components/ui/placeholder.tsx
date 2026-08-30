@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import { Card, CardBody, CardHeader } from "./card.tsx";
 import { Badge } from "./badge.tsx";
 
@@ -12,12 +13,14 @@ export function Placeholder({
   description,
   items,
   requires,
+  icon: Icon,
 }: {
   title: string;
   phase: string;
   description: string;
   items: string[];
   requires?: string;
+  icon?: LucideIcon;
 }) {
   return (
     <div className="p-4 md:p-6">
@@ -26,8 +29,18 @@ export function Placeholder({
         <Badge tone="info">{phase}</Badge>
       </header>
 
-      <Card className="mt-4 max-w-2xl">
-        <CardHeader title="Pas encore développé" hint={description} />
+      <Card elevated className="mt-4 max-w-2xl">
+        <CardHeader
+          title="Pas encore développé"
+          hint={description}
+          action={
+            Icon ? (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-card)] bg-[var(--color-surface-2)] text-[var(--color-accent)]">
+                <Icon size={20} aria-hidden />
+              </div>
+            ) : null
+          }
+        />
         <CardBody>
           <ul className="space-y-1.5 text-xs text-[var(--color-muted)]">
             {items.map((item) => (

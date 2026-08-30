@@ -122,3 +122,23 @@ export function mergeBestEfforts(
     .map(([durationS, distanceM]) => ({ durationS, distanceM }))
     .sort((a, b) => a.durationS - b.durationS);
 }
+
+/**
+ * Durées pour lesquelles les efforts d'une activité égalent ou dépassent le
+ * meilleur historique — un record personnel, façon « MEILLEURS RÉSULTATS »
+ * de Strava. `allTimeBest` doit déjà exclure l'activité elle-même n'a pas
+ * besoin d'être exclue : si son propre effort EST le meilleur historique,
+ * l'égalité déclenche bien le badge.
+ */
+export function detectPersonalRecords(
+  current: ReadonlyArray<BestEffort>,
+  allTimeBest: ReadonlyMap<number, number>,
+): number[] {
+  return current
+    .filter((e) => {
+      const best = allTimeBest.get(e.durationS);
+      return best == null || e.distanceM >= best;
+    })
+    .map((e) => e.durationS)
+    .sort((a, b) => a - b);
+}

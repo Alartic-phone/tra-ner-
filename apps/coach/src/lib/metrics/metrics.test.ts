@@ -26,10 +26,13 @@ import {
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
+import { computeReadiness, meanAndStdDev } from "./readiness.ts";
 import {
   buildPrediction,
+  classifyTrajectory,
   computeCriticalSpeed,
   danielsPaces,
+  estimatesForDistance,
   fitRiegelExponent,
   fractionOfVo2Max,
   predictTimeFromCriticalSpeed,
@@ -42,8 +45,10 @@ import {
 import {
   bestDistanceForDurations,
   bestTimeForDistances,
+  detectPersonalRecords,
   mergeBestEfforts,
 } from "./best-efforts.ts";
+import { computeWeekStreak } from "./streak.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -736,6 +741,45 @@ describe("synthèse des prédictions", () => {
 
 // ---------------------------------------------------------------------------
 
+describe("estimatesForDistance", () => {
+  it("renvoie trois estimations à null sans aucun effort de référence", () => {
+    const estimates = estimatesForDistance(10000, []);
+    expect(estimates).toHaveLength(3);
+    expect(estimates.every((e) => e.timeS === null)).toBe(true);
+  });
+
+  it("produit des estimations cohérentes à partir d'un seul effort de référence", () => {
+    // 20 minutes à 3,5 m/s : 4200 m.
+    const estimates = estimatesForDistance(10000, [{ durationS: 1200, distanceM: 4200 }]);
+    const bySource = Object.fromEntries(estimates.map((e) => [e.source, e.timeS]));
+    // Riegel et VDOT sont calculables dès un seul effort.
+    expect(bySource.riegel).not.toBeNull();
+    expect(bySource.vdot).not.toBeNull();
+    // La vitesse critique exige au moins trois efforts entre 2 et 30 min.
+    expect(bySource.vitesse_critique).toBeNull();
+    // 10 km est plus long que la référence : le chrono prédit doit être plus lent.
+    expect(bySource.riegel!).toBeGreaterThan(1200 * (10000 / 4200));
+  });
+});
+
+describe("classifyTrajectory", () => {
+  const targetTimeS = 3840; // 1h04
+
+  it("classe 'avance' quand la prédiction bat largement la cible", () => {
+    expect(classifyTrajectory(3600, targetTimeS)).toBe("avance");
+  });
+
+  it("classe 'dans_les_temps' dans la bande de tolérance", () => {
+    expect(classifyTrajectory(3850, targetTimeS)).toBe("dans_les_temps");
+  });
+
+  it("classe 'retard' quand la prédiction est nettement plus lente", () => {
+    expect(classifyTrajectory(4200, targetTimeS)).toBe("retard");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe("meilleurs efforts", () => {
   // Sortie d'une heure : 20 minutes à 3 m/s, 10 minutes à 5 m/s, puis 3 m/s.
   const time = Array.from({ length: 3601 }, (_, i) => i);
@@ -782,5 +826,108 @@ describe("meilleurs efforts", () => {
     ]);
     expect(merged).toHaveLength(2);
     expect(merged[0]).toEqual({ durationS: 300, distanceM: 1620 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("détection des records personnels", () => {
+  it("signale une durée quand l'effort du jour égale ou dépasse le record", () => {
+    const current = [
+      { durationS: 300, distanceM: 1500 },
+      { durationS: 600, distanceM: 2800 },
+    ];
+    const allTimeBest = new Map([
+      [300, 1500], // égalité : compte comme record.
+      [600, 3000], // en retrait : pas un record.
+    ]);
+    expect(detectPersonalRecords(current, allTimeBest)).toEqual([300]);
+  });
+
+  it("traite une durée absente du all-time comme un record automatique", () => {
+    const current = [{ durationS: 1200, distanceM: 4000 }];
+    expect(detectPersonalRecords(current, new Map())).toEqual([1200]);
+  });
+
+  it("ne signale rien si aucun effort n'atteint le record", () => {
+    const current = [{ durationS: 300, distanceM: 1400 }];
+    const allTimeBest = new Map([[300, 1500]]);
+    expect(detectPersonalRecords(current, allTimeBest)).toEqual([]);
+  });
+});
+
+describe("série hebdomadaire (streak)", () => {
+  const TODAY = "2026-08-29"; // samedi
+
+  it("compte la semaine courante dès la première activité", () => {
+    expect(computeWeekStreak(["2026-08-25"], TODAY)).toBe(1);
+  });
+
+  it("remonte les semaines consécutives", () => {
+    // Semaines du 27/07, 03/08, 10/08, 17/08, 24/08 — cinq consécutives.
+    const days = ["2026-07-28", "2026-08-05", "2026-08-12", "2026-08-19", "2026-08-26"];
+    expect(computeWeekStreak(days, TODAY)).toBe(5);
+  });
+
+  it("s'arrête à la première semaine sans activité", () => {
+    // Semaine courante + précédente, puis un trou.
+    const days = ["2026-08-26", "2026-08-19", "2026-08-01"];
+    expect(computeWeekStreak(days, TODAY)).toBe(2);
+  });
+
+  it("vaut zéro sans activité cette semaine, même avec un historique récent", () => {
+    expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(0);
+  });
+});
+
+describe("fraîcheur du jour (readiness)", () => {
+  it("moyenne et écart-type d'une série connue", () => {
+    const { mean, sd } = meanAndStdDev([2, 4, 4, 4, 5, 5, 7, 9]);
+    expect(mean).toBe(5);
+    expect(sd).toBeCloseTo(2, 5);
+  });
+
+  it("« frais » quand le VFC est dans la norme et la FC de repos stable", () => {
+    const result = computeReadiness({
+      hrv: 50,
+      restingHr: 55,
+      hrvBaselineMean: 48,
+      hrvBaselineSd: 6,
+      restingHrBaselineMean: 55,
+    });
+    expect(result.status).toBe("frais");
+  });
+
+  it("« prudence » quand le VFC chute nettement sous la norme", () => {
+    const result = computeReadiness({
+      hrv: 30,
+      restingHr: 55,
+      hrvBaselineMean: 48,
+      hrvBaselineSd: 6,
+      restingHrBaselineMean: 55,
+    });
+    expect(result.status).toBe("prudence");
+  });
+
+  it("« prudence » quand la FC de repos grimpe même si le VFC est stable", () => {
+    const result = computeReadiness({
+      hrv: 48,
+      restingHr: 61,
+      hrvBaselineMean: 48,
+      hrvBaselineSd: 6,
+      restingHrBaselineMean: 55,
+    });
+    expect(result.status).toBe("prudence");
+  });
+
+  it("« correct » entre les deux", () => {
+    const result = computeReadiness({
+      hrv: 44,
+      restingHr: 57,
+      hrvBaselineMean: 48,
+      hrvBaselineSd: 6,
+      restingHrBaselineMean: 55,
+    });
+    expect(result.status).toBe("correct");
   });
 });

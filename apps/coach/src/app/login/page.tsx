@@ -24,12 +24,15 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
+    <main
+      className="flex min-h-dvh items-center justify-center p-6"
+      style={{ backgroundImage: "var(--surface-glow)" }}
+    >
       <form
         action={login}
-        className="w-full max-w-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
+        className="w-full max-w-xs rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-elevated)]"
       >
-        <h1 className="text-base font-semibold">Coach</h1>
+        <h1 className="text-xl font-semibold">Coach</h1>
         <p className="mt-1 text-xs text-[var(--color-muted)]">
           Application personnelle. Un seul utilisateur, un seul mot de passe.
         </p>

@@ -86,6 +86,10 @@ export const streamSetSchema = z.object({
   altitude: z.object({ data: z.array(z.number().nullable()) }).optional(),
   cadence: z.object({ data: z.array(z.number().nullable()) }).optional(),
   distance: z.object({ data: z.array(z.number().nullable()) }).optional(),
+  // Paires [lat, lng], pas un nombre seul — forme différente des autres flux.
+  latlng: z
+    .object({ data: z.array(z.tuple([z.number(), z.number()]).nullable()) })
+    .optional(),
 });
 
 export type StravaStreamSet = z.infer<typeof streamSetSchema>;
@@ -97,6 +101,7 @@ export const STREAM_KEYS = [
   "altitude",
   "cadence",
   "distance",
+  "latlng",
 ] as const;
 
 export const webhookEventSchema = z.object({

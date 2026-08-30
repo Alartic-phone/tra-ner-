@@ -10,12 +10,13 @@ export type ZoneRow = {
   toBpm: number;
 };
 
-const RAMP = [
-  "var(--chart-seq-1)",
-  "var(--chart-seq-2)",
-  "var(--chart-seq-3)",
-  "var(--chart-seq-4)",
-  "var(--chart-seq-5)",
+/** Rampe des 5 zones FC, partagée avec `ZoneBar` (activités, calendrier). */
+export const ZONE_RAMP = [
+  "var(--zone-1)",
+  "var(--zone-2)",
+  "var(--zone-3)",
+  "var(--zone-4)",
+  "var(--zone-5)",
 ];
 
 /**
@@ -72,12 +73,12 @@ export function ZoneChart({
                   {zone.fromBpm}–{zone.toBpm}
                 </span>
               </span>
-              <span className="h-4 min-w-0 flex-1 rounded-sm bg-[var(--color-surface-2)]">
+              <span className="h-4 min-w-0 flex-1 rounded-[var(--radius-pill)] bg-[var(--color-surface-2)]">
                 <span
-                  className="block h-4 rounded-sm"
+                  className="block h-4 rounded-[var(--radius-pill)] transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"
                   style={{
                     width: `${(zone.seconds / max) * 100}%`,
-                    backgroundColor: RAMP[zone.index - 1],
+                    backgroundColor: ZONE_RAMP[zone.index - 1],
                   }}
                 />
               </span>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db.ts";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
+import { CountUp } from "@/components/ui/count-up.tsx";
 import {
   AcwrChart,
   FitnessChart,
@@ -12,6 +13,7 @@ import { RecomputeButton } from "@/components/analytics/recompute-button.tsx";
 import {
   loadBestEfforts,
   loadFitnessSnapshot,
+  loadNextGoal,
   loadPaceZones,
   loadZoneDistribution,
 } from "@/lib/metrics/repository.ts";
@@ -38,12 +40,13 @@ export default async function AnalyticsPage({
   const now = today();
   const from = addDays(now, -range.days);
 
-  const [snapshot, zones, efforts, paceZones, pendingMetrics] = await Promise.all([
+  const [snapshot, zones, efforts, paceZones, pendingMetrics, nextGoal] = await Promise.all([
     loadFitnessSnapshot(from, now),
     loadZoneDistribution(from, now),
     loadBestEfforts(from, now),
     loadPaceZones(),
     prisma.activity.count({ where: { metricsComputedAt: null } }),
+    loadNextGoal(),
   ]);
 
   const criticalSpeed = computeCriticalSpeed(efforts);
@@ -64,7 +67,7 @@ export default async function AnalyticsPage({
       </header>
 
       {snapshot.profileMissing.length > 0 ? (
-        <p className="mt-4 rounded-md border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
+        <p className="mt-4 rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
           Charge non calculable : il manque {snapshot.profileMissing.join(", ")} au
           profil. Le TRIMP de Banister repose sur la réserve cardiaque et sur un
           coefficient qui dépend du sexe.{" "}
@@ -89,10 +92,10 @@ export default async function AnalyticsPage({
           <Link
             key={option.key}
             href={{ pathname: "/analyses", query: { r: option.key } }}
-            className={`rounded border px-2 py-1 text-xs ${
+            className={`rounded-[var(--radius-pill)] border px-3 py-1 text-xs transition-colors duration-[var(--duration-fast)] ${
               option.key === range.key
-                ? "border-[var(--color-accent)] text-[var(--color-accent)]"
-                : "border-[var(--color-border-strong)] text-[var(--color-muted)]"
+                ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+                : "border-[var(--color-border-strong)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"
             }`}
           >
             {option.label}
@@ -100,31 +103,39 @@ export default async function AnalyticsPage({
         ))}
       </div>
 
-      <Card className="mt-4">
+      <Card elevated className="mt-4">
         <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] sm:grid-cols-4 sm:divide-y-0">
           <Stat
+            size="lg"
             label="Condition physique"
-            value={current ? Math.round(current.ctl) : <Unavailable />}
+            value={current ? <CountUp value={Math.round(current.ctl)} /> : <Unavailable />}
             hint="moyenne mobile 42 jours"
             estimated
           />
           <Stat
+            size="lg"
             label="Fatigue"
-            value={current ? Math.round(current.atl) : <Unavailable />}
+            value={current ? <CountUp value={Math.round(current.atl)} /> : <Unavailable />}
             hint="moyenne mobile 7 jours"
             estimated
           />
           <Stat
+            size="lg"
             label="Forme"
-            value={current ? Math.round(current.tsb) : <Unavailable />}
+            value={current ? <CountUp value={Math.round(current.tsb)} /> : <Unavailable />}
             hint="condition physique − fatigue"
             tone={tsbTone}
             estimated
           />
           <Stat
+            size="lg"
             label="Ratio aigu/chronique"
             value={
-              snapshot.acwr.ratio != null ? snapshot.acwr.ratio.toFixed(2) : <Unavailable />
+              snapshot.acwr.ratio != null ? (
+                <CountUp value={snapshot.acwr.ratio} decimals={2} />
+              ) : (
+                <Unavailable />
+              )
             }
             hint={snapshot.acwr.zone.replace("_", " ")}
             tone={
@@ -142,7 +153,7 @@ export default async function AnalyticsPage({
       </Card>
 
       {snapshot.acwr.zone === "alerte" ? (
-        <p className="mt-3 rounded-md border border-[var(--color-danger)]/40 px-3 py-2 text-xs text-[var(--color-danger)]">
+        <p className="mt-3 rounded-[var(--radius-card)] border border-[var(--color-danger)]/40 px-3 py-2 text-xs text-[var(--color-danger)]">
           Ratio aigu/chronique au-dessus de 1,5 : la progression de charge des sept
           derniers jours est trop brutale par rapport à ce à quoi l&apos;organisme
           est habitué. La semaine à venir doit être allégée.
@@ -156,7 +167,7 @@ export default async function AnalyticsPage({
         />
         <CardBody>
           {snapshot.series.length > 0 ? (
-            <FitnessChart rows={snapshot.series} />
+            <FitnessChart rows={snapshot.series} raceDay={nextGoal?.day} />
           ) : (
             <p className="text-xs text-[var(--color-muted)]">Aucune donnée sur la période.</p>
           )}

@@ -54,7 +54,7 @@ export default async function SettingsPage({
 
       {message ? (
         <p
-          className={`mt-4 rounded-md border px-3 py-2 text-xs ${
+          className={`mt-4 rounded-[var(--radius-card)] border px-3 py-2 text-xs ${
             message.tone === "ok"
               ? "border-[var(--color-ok)]/40 text-[var(--color-ok)]"
               : message.tone === "warn"
@@ -68,7 +68,7 @@ export default async function SettingsPage({
       ) : null}
 
       <div className="mt-5 max-w-2xl space-y-5">
-        <Card>
+        <Card elevated>
           <CardHeader
             title="Strava"
             hint="La COROS n'expose pas d'API publique aux particuliers ; elle synchronise en revanche automatiquement vers Strava, qui sert donc de source principale."
@@ -183,8 +183,8 @@ export default async function SettingsPage({
           <CardBody className="space-y-2 text-xs">
             <Row
               label="Import de fichiers FIT"
-              value="à venir (phase 8)"
-              hint="Sommeil, HRV nocturne et statut de récupération COROS, absents de Strava."
+              value={`manuel (COROS) · ${status.withStreams} activité(s) avec flux`}
+              hint="npm run import:coros puis import:coros:fit — sommeil, HRV nocturne et statut de récupération COROS, absents de Strava."
             />
             <Row
               label="Génération de plan par Claude"

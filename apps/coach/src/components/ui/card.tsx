@@ -1,13 +1,27 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils.ts";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  elevated = false,
+  interactive = false,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  /** Lueur de fond très discrète + ombre portée — réservé aux cartes hero. */
+  elevated?: boolean;
+  /** Léger effet au survol, pour les cartes qui sont aussi un lien. */
+  interactive?: boolean;
+}) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]",
+        "rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)]",
+        "transition-[transform,box-shadow] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
+        elevated && "shadow-[var(--shadow-elevated)]",
+        interactive && "hover:-translate-y-0.5 hover:border-[var(--color-border-strong)]",
         className,
       )}
+      style={elevated ? { backgroundImage: "var(--surface-glow)" } : undefined}
       {...props}
     />
   );
@@ -51,6 +65,7 @@ export function Stat({
   hint,
   estimated = false,
   tone = "default",
+  size = "default",
 }: {
   label: string;
   value: ReactNode;
@@ -58,6 +73,11 @@ export function Stat({
   hint?: string;
   estimated?: boolean;
   tone?: "default" | "ok" | "warn" | "danger";
+  /**
+   * "lg" = chiffre mis en avant dans une grille de plusieurs stats.
+   * "xl" = LE chiffre hero de la page (façon Strava/Nike) — un seul par page.
+   */
+  size?: "default" | "lg" | "xl";
 }) {
   const toneColor = {
     default: "var(--color-text)",
@@ -73,14 +93,23 @@ export function Stat({
         {estimated ? (
           <span
             title="Valeur estimée, pas mesurée"
-            className="rounded border border-[var(--color-border-strong)] px-1 text-[10px] leading-4 text-[var(--color-warn)]"
+            className="rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-1 text-[10px] leading-4 text-[var(--color-warn)]"
           >
             est.
           </span>
         ) : null}
       </div>
       <div className="tabular mt-1 flex items-baseline gap-1">
-        <span className="text-xl font-semibold" style={{ color: toneColor }}>
+        <span
+          className={
+            size === "xl"
+              ? "text-6xl font-bold"
+              : size === "lg"
+                ? "text-4xl font-semibold"
+                : "text-xl font-semibold"
+          }
+          style={{ color: toneColor }}
+        >
           {value}
         </span>
         {unit ? (

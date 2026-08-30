@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Loader2, Moon, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -23,6 +23,11 @@ export type CalendarDay = {
   allowsQuality: boolean;
   allowsLongRun: boolean;
   blockers: string[];
+  /** Jour de la course d'un objectif actif — mis en avant dans la grille. */
+  isRaceDay: boolean;
+  /** Volume cible (km) de la phase de plan actif couvrant la semaine de ce
+   * jour, si elle en chiffre un. `null` sinon — jamais une cible inventée. */
+  weeklyVolumeTargetKm: number | null;
   activities: { id: string; name: string; distanceM: number; movingTimeS: number }[];
   planned: {
     id: string;
@@ -94,6 +99,12 @@ export function MonthGrid({
     ? days.filter((d) => d.day >= selection.from && d.day <= selection.to)
     : [];
 
+  // La grille livre toujours des semaines complètes (lundi à dimanche,
+  // cf. `gridFrom`/`gridTo` côté page) : le découpage par tranches de 7 est
+  // donc sûr, et sert à accoler un résumé de semaine sous chaque rangée.
+  const weeks: CalendarDay[][] = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -125,96 +136,118 @@ export function MonthGrid({
           </div>
         ))}
 
-        {days.map((d) => {
-          const timing = d.code ? byCode.get(d.code) : undefined;
-          const isSelected = selection && d.day >= selection.from && d.day <= selection.to;
-          const isRangeAnchor = rangeStart === d.day;
+        {weeks.map((week, wi) => (
+          <Fragment key={wi}>
+            {week.map((d) => {
+              const timing = d.code ? byCode.get(d.code) : undefined;
+              const isSelected = selection && d.day >= selection.from && d.day <= selection.to;
+              const isRangeAnchor = rangeStart === d.day;
+              const stripeColor = timing?.color ?? "var(--color-rest)";
 
-          return (
-            <button
-              key={d.day}
-              type="button"
-              onClick={() => onDayClick(d.day)}
-              aria-label={`${formatDayLong(d.day)} — ${timing?.label ?? "repos"}`}
-              className={cn(
-                "relative min-h-[74px] bg-[var(--color-surface)] p-1 text-left transition-colors md:min-h-[96px]",
-                !d.inMonth && "opacity-40",
-                (isSelected || isRangeAnchor) && "ring-2 ring-inset ring-[var(--color-accent)]",
-                "hover:bg-[var(--color-surface-2)]",
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <span
+              return (
+                <button
+                  key={d.day}
+                  type="button"
+                  onClick={() => onDayClick(d.day)}
+                  aria-label={`${formatDayLong(d.day)} — ${timing?.label ?? "repos"}${d.isRaceDay ? " — jour de course" : ""}`}
                   className={cn(
-                    "tabular text-[11px]",
-                    d.isToday
-                      ? "rounded bg-[var(--color-accent)] px-1 font-semibold text-[#06101f]"
-                      : "text-[var(--color-muted)]",
+                    "relative min-h-[74px] overflow-hidden bg-[var(--color-surface)] p-1 pl-2 text-left transition-colors md:min-h-[96px]",
+                    !d.inMonth && "opacity-40",
+                    (isSelected || isRangeAnchor) && "ring-2 ring-inset ring-[var(--color-accent)]",
+                    d.isRaceDay && "ring-1 ring-inset ring-[var(--color-warn)]",
+                    "hover:bg-[var(--color-surface-2)]",
                   )}
                 >
-                  {Number(d.day.slice(8, 10))}
-                </span>
-                {d.code ? (
+                  {/* Bandeau de poste : la rythmique du cycle se lit d'un
+                      regard sur toute la grille, pas seulement case par case. */}
                   <span
-                    className="rounded px-1 text-[10px] font-semibold leading-4 text-white"
-                    style={{ backgroundColor: timing?.color ?? "#64748b" }}
-                    title={timing?.label ?? d.code}
-                  >
-                    {d.code}
-                  </span>
-                ) : null}
-              </div>
+                    className="absolute inset-y-0 left-0 w-1"
+                    style={{ backgroundColor: stripeColor }}
+                    aria-hidden
+                  />
 
-              {d.isException ? (
-                <div className="mt-0.5 flex items-center gap-0.5 text-[9px] text-[var(--color-warn)]">
-                  <AlertTriangle size={9} aria-hidden />
-                  {d.isReplacement ? "remplacement" : d.isFreed ? "libéré" : "modifié"}
-                </div>
-              ) : null}
-
-              <div className="mt-1 space-y-0.5">
-                {d.planned.map((p) => (
-                  <div
-                    key={p.id}
-                    className={cn(
-                      "truncate rounded px-1 text-[10px] leading-4",
-                      p.isProvisional
-                        ? "border border-dashed border-[var(--color-border-strong)] text-[var(--color-muted)]"
-                        : "bg-[var(--color-accent-soft)] text-[var(--color-text)]",
-                      p.status === "missed" && "line-through opacity-60",
-                    )}
-                    title={
-                      p.isProvisional
-                        ? `${p.title} — séance provisoire (jour de repos théorique)`
-                        : p.title
-                    }
-                  >
-                    {p.isKeySession ? "★ " : ""}
-                    {p.title}
+                  <div className="flex items-start justify-between">
+                    <span
+                      className={cn(
+                        "tabular flex items-center gap-1 text-[11px]",
+                        d.isToday
+                          ? "rounded bg-[var(--color-accent)] px-1 font-semibold text-[#06101f]"
+                          : "text-[var(--color-muted)]",
+                      )}
+                    >
+                      {d.isRaceDay ? (
+                        <Flag size={10} className="text-[var(--color-warn)]" aria-hidden />
+                      ) : null}
+                      {Number(d.day.slice(8, 10))}
+                    </span>
+                    {d.code ? (
+                      <span
+                        className="rounded px-1 text-[10px] font-semibold leading-4 text-white"
+                        style={{ backgroundColor: timing?.color ?? "#64748b" }}
+                        title={timing?.label ?? d.code}
+                      >
+                        {d.code}
+                      </span>
+                    ) : null}
                   </div>
-                ))}
-                {d.activities.map((a) => (
-                  <div
-                    key={a.id}
-                    className="tabular truncate rounded bg-[var(--color-ok)]/15 px-1 text-[10px] leading-4 text-[var(--color-ok)]"
-                    title={a.name}
-                  >
-                    <Check size={9} className="mr-0.5 inline" aria-hidden />
-                    {formatDistance(a.distanceM)}
-                  </div>
-                ))}
-              </div>
 
-              {!d.allowsLongRun && d.code === null ? (
-                <Moon
-                  size={9}
-                  className="absolute bottom-1 right-1 text-[var(--color-faint)]"
-                  aria-label="Sortie longue impossible ce jour"
-                />
-              ) : null}
-            </button>
-          );
-        })}
+                  {d.isException ? (
+                    <div className="mt-0.5 flex items-center gap-0.5 text-[9px] text-[var(--color-warn)]">
+                      <AlertTriangle size={9} aria-hidden />
+                      {d.isReplacement ? "remplacement" : d.isFreed ? "libéré" : "modifié"}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-1 space-y-0.5">
+                    {d.planned.map((p) => (
+                      <div
+                        key={p.id}
+                        className={cn(
+                          "truncate rounded-[var(--radius-pill)] px-1.5 leading-4",
+                          "text-[10px]",
+                          p.isProvisional
+                            ? "border border-dashed border-[var(--color-border-strong)] text-[var(--color-muted)]"
+                            : "bg-[var(--color-accent-soft)] text-[var(--color-text)]",
+                          p.status === "missed" && "line-through opacity-60",
+                        )}
+                        title={
+                          p.isProvisional
+                            ? `${p.title} — séance provisoire (jour de repos théorique)`
+                            : p.title
+                        }
+                      >
+                        {p.isKeySession ? "★ " : ""}
+                        {p.title}
+                      </div>
+                    ))}
+                    {d.activities.map((a) => (
+                      <div
+                        key={a.id}
+                        className="tabular truncate rounded-[var(--radius-pill)] bg-[var(--color-ok)]/15 px-1.5 text-[10px] leading-4 text-[var(--color-ok)]"
+                        title={a.name}
+                      >
+                        <Check size={9} className="mr-0.5 inline" aria-hidden />
+                        {formatDistance(a.distanceM)}
+                      </div>
+                    ))}
+                  </div>
+
+                  {!d.allowsLongRun && d.code === null ? (
+                    <Moon
+                      size={9}
+                      className="absolute bottom-1 right-1 text-[var(--color-faint)]"
+                      aria-label="Sortie longue impossible ce jour"
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+
+            {week[0]?.weeklyVolumeTargetKm != null ? (
+              <WeekSummary week={week} targetKm={week[0].weeklyVolumeTargetKm} />
+            ) : null}
+          </Fragment>
+        ))}
       </div>
 
       {selection ? (
@@ -228,6 +261,31 @@ export function MonthGrid({
           onClose={() => setSelection(null)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Résumé de semaine, sous la rangée : volume réalisé face au volume cible de
+ * la phase de plan active. N'apparaît que si un plan chiffre réellement une
+ * cible pour cette semaine — jamais de cible affichée par défaut.
+ */
+function WeekSummary({ week, targetKm }: { week: CalendarDay[]; targetKm: number }) {
+  const realizedKm =
+    week.reduce((sum, d) => sum + d.activities.reduce((s, a) => s + a.distanceM, 0), 0) / 1000;
+  const pct = Math.min(100, Math.round((realizedKm / targetKm) * 100));
+
+  return (
+    <div className="col-span-7 flex items-center gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1">
+      <span className="h-1 flex-1 overflow-hidden rounded-[var(--radius-pill)] bg-[var(--color-surface-2)]">
+        <span
+          className="block h-1 rounded-[var(--radius-pill)] bg-[var(--color-info)]"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="tabular whitespace-nowrap text-[10px] text-[var(--color-faint)]">
+        {realizedKm.toFixed(0)} / {targetKm.toFixed(0)} km — semaine de plan
+      </span>
     </div>
   );
 }
@@ -255,7 +313,7 @@ function ShiftPicker({
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 md:inset-0 md:flex md:items-center md:justify-center md:bg-black/50">
-      <div className="rounded-t-xl border-t border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:w-full md:max-w-sm md:rounded-xl md:border">
+      <div className="rounded-t-[var(--radius-card)] border-t border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:w-full md:max-w-sm md:rounded-[var(--radius-card)] md:border">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="text-sm font-medium">

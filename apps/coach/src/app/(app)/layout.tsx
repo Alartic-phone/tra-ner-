@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth.ts";
 import { AppNav } from "@/components/nav.tsx";
+import { PageTransition } from "@/components/ui/page-transition.tsx";
 
 /**
  * Coquille authentifiée. La vérification se fait ici plutôt que dans un
@@ -15,7 +16,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh md:flex">
       <AppNav />
-      <main className="min-w-0 flex-1 pb-20 md:pb-0">{children}</main>
+      <main className="min-w-0 flex-1 pb-20 md:pb-0">
+        <PageTransition>{children}</PageTransition>
+      </main>
     </div>
   );
 }

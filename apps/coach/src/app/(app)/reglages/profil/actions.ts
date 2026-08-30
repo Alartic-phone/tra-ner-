@@ -8,7 +8,7 @@ import { isAuthenticated } from "@/lib/auth.ts";
 const optionalNumber = (schema: z.ZodNumber) =>
   z.union([schema, z.null()]).optional().transform((v) => v ?? null);
 
-export const profileSchema = z.object({
+const profileSchema = z.object({
   firstName: z.string().max(60).nullable().optional(),
   birthDate: z
     .string()

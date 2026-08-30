@@ -50,6 +50,13 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-opus-5"),
 
+  /**
+   * Clé Static Maps API (maptiler.com, gratuite en usage personnel) pour
+   * afficher un vrai fond de carte sous le tracé GPS. Absente = repli sur
+   * le tracé seul en SVG (déjà en place), jamais une image cassée.
+   */
+  MAPTILER_API_KEY: z.string().optional(),
+
   TZ: z.string().default("Europe/Paris"),
 });
 
@@ -91,4 +98,9 @@ export function isWebhookCapable(): boolean {
 
 export function isCoachConfigured(): boolean {
   return Boolean(getEnv().ANTHROPIC_API_KEY);
+}
+
+/** Fond de carte réel disponible sous le tracé GPS. */
+export function isMapConfigured(): boolean {
+  return Boolean(getEnv().MAPTILER_API_KEY);
 }

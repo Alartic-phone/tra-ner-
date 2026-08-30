@@ -10,7 +10,12 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+// Script autonome (pas de PrismaClient ici, qui charge .env lui-même côté
+// app) : sans ceci, DATABASE_URL est absent et le chemin par défaut
+// ci-dessous se combine avec sqlitePath() pour pointer sur prisma/prisma/.
+process.loadEnvFile();
+
+const url = process.env.DATABASE_URL ?? "file:./dev.db";
 
 function sqlitePath(databaseUrl: string): string {
   if (!databaseUrl.startsWith("file:")) {

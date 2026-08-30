@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils.ts";
  * rupture en moins.
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap",
+  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-pill)] text-sm font-medium transition-[background-color,opacity,transform] duration-[var(--duration-fast)] ease-[var(--ease-standard)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap",
   {
     variants: {
       variant: {

@@ -16,6 +16,16 @@ import {
   AreaChart,
 } from "recharts";
 import { formatDayShort } from "@/lib/time.ts";
+import { weekdayLabel } from "@/lib/shifts/day.ts";
+
+/** Durée et amorti partagés par tous les graphiques temporels : tracé
+ * progressif de gauche à droite au chargement, jamais instantané. */
+const DRAW_IN = { isAnimationActive: true, animationDuration: 800, animationEasing: "ease-out" } as const;
+
+/** Étiquette de date enrichie du jour de semaine, pour les tooltips. */
+function dayTooltipLabel(day: string): string {
+  return `${weekdayLabel(day)} ${formatDayShort(day)}`;
+}
 
 export type FitnessRow = {
   day: string;
@@ -36,8 +46,9 @@ const axisProps = {
 const tooltipStyle = {
   backgroundColor: "var(--color-surface-2)",
   border: "1px solid var(--color-border-strong)",
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 11,
+  boxShadow: "var(--shadow-elevated)",
 } as const;
 
 /**
@@ -48,16 +59,38 @@ const tooltipStyle = {
  * trompeurs. La forme (TSB) est pour cette raison tracée à part, dans son
  * propre graphique, plutôt que superposée sur une seconde échelle.
  */
-export function FitnessChart({ rows }: { rows: FitnessRow[] }) {
+export function FitnessChart({
+  rows,
+  raceDay,
+}: {
+  rows: FitnessRow[];
+  /** Jour de la course visée, si elle tombe dans la période affichée : un
+   * repère de plus pour lire l'évolution de charge avec un objectif en tête. */
+  raceDay?: string | null;
+}) {
   const last = rows[rows.length - 1];
   const firstReliable = rows.find((r) => r.reliable)?.day;
   const unreliableUntil =
     firstReliable && rows[0] && firstReliable !== rows[0].day ? firstReliable : null;
+  const raceInRange =
+    raceDay && rows[0] && rows[rows.length - 1] && raceDay >= rows[0].day && raceDay <= rows[rows.length - 1]!.day
+      ? raceDay
+      : null;
 
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={rows} margin={{ top: 8, right: 44, bottom: 0, left: -14 }}>
+          <defs>
+            <linearGradient id="ctlFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="atlFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
 
           {/* Zone d'amorçage : la moyenne mobile à 42 jours part de zéro et
@@ -88,7 +121,7 @@ export function FitnessChart({ rows }: { rows: FitnessRow[] }) {
           <Tooltip
             contentStyle={tooltipStyle}
             cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }}
-            labelFormatter={(d: string) => formatDayShort(d)}
+            labelFormatter={(d: string) => dayTooltipLabel(d)}
             formatter={(value: number, name: string) => [Math.round(value), name]}
           />
           <Legend
@@ -98,13 +131,45 @@ export function FitnessChart({ rows }: { rows: FitnessRow[] }) {
             wrapperStyle={{ fontSize: 11, color: "var(--color-muted)" }}
           />
 
+          {raceInRange ? (
+            <ReferenceLine
+              x={raceInRange}
+              stroke="var(--color-accent)"
+              strokeDasharray="4 3"
+              label={{
+                value: "course",
+                position: "top",
+                fill: "var(--color-accent)",
+                fontSize: 9,
+              }}
+            />
+          ) : null}
+
           <Bar
             dataKey="load"
             name="Charge du jour"
             fill="var(--chart-neutral)"
             radius={[2, 2, 0, 0]}
             maxBarSize={6}
-            isAnimationActive={false}
+            {...DRAW_IN}
+          />
+          <Area
+            dataKey="ctl"
+            name="Condition physique (42 j)"
+            stroke="none"
+            fill="url(#ctlFill)"
+            legendType="none"
+            tooltipType="none"
+            {...DRAW_IN}
+          />
+          <Area
+            dataKey="atl"
+            name="Fatigue (7 j)"
+            stroke="none"
+            fill="url(#atlFill)"
+            legendType="none"
+            tooltipType="none"
+            {...DRAW_IN}
           />
           <Line
             dataKey="ctl"
@@ -112,7 +177,7 @@ export function FitnessChart({ rows }: { rows: FitnessRow[] }) {
             stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
-            isAnimationActive={false}
+            {...DRAW_IN}
           />
           <Line
             dataKey="atl"
@@ -120,7 +185,7 @@ export function FitnessChart({ rows }: { rows: FitnessRow[] }) {
             stroke="var(--chart-2)"
             strokeWidth={2}
             dot={false}
-            isAnimationActive={false}
+            {...DRAW_IN}
           />
 
           {/* Étiquettes directes sur la dernière valeur : la légende dit qui
@@ -186,16 +251,10 @@ export function FormChart({ rows }: { rows: FitnessRow[] }) {
           <Tooltip
             contentStyle={tooltipStyle}
             cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }}
-            labelFormatter={(d: string) => formatDayShort(d)}
+            labelFormatter={(d: string) => dayTooltipLabel(d)}
             formatter={(value: number) => [Math.round(value), "Forme"]}
           />
-          <Area
-            dataKey="tsb"
-            stroke="var(--chart-positive)"
-            strokeWidth={2}
-            fill="url(#tsbFill)"
-            isAnimationActive={false}
-          />
+          <Area dataKey="tsb" stroke="var(--chart-positive)" strokeWidth={2} fill="url(#tsbFill)" {...DRAW_IN} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -249,7 +308,7 @@ export function AcwrChart({
           <Tooltip
             contentStyle={tooltipStyle}
             cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }}
-            labelFormatter={(d: string) => formatDayShort(d)}
+            labelFormatter={(d: string) => dayTooltipLabel(d)}
             formatter={(value: number) => [value.toFixed(2), "Ratio aigu/chronique"]}
           />
           <Area
@@ -259,7 +318,7 @@ export function AcwrChart({
             fill="var(--chart-1)"
             fillOpacity={0.12}
             connectNulls={false}
-            isAnimationActive={false}
+            {...DRAW_IN}
           />
         </AreaChart>
       </ResponsiveContainer>

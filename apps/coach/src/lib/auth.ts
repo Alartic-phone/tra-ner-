@@ -41,7 +41,13 @@ export async function createSession(): Promise<void> {
   const store = await cookies();
   store.set(SESSION_COOKIE, buildToken(Date.now() + maxAge * 1000), {
     httpOnly: true,
-    sameSite: "strict",
+    // "strict" empêcherait ce cookie de repartir quand Strava nous redirige
+    // vers /api/strava/callback (navigation inter-site) : la session semblerait
+    // expirée à cet instant précis et l'app renverrait vers /login. "lax" reste
+    // protecteur contre le CSRF (aucun envoi sur une requête POST inter-site)
+    // tout en laissant passer les redirections GET de premier niveau — même
+    // choix déjà fait pour le cookie d'état OAuth (STATE_COOKIE).
+    sameSite: "lax",
     secure: env.NODE_ENV === "production",
     path: "/",
     maxAge,

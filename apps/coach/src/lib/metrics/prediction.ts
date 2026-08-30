@@ -1,3 +1,5 @@
+import type { BestEffort } from "./best-efforts.ts";
+
 /**
  * Prédiction de performance.
  *
@@ -342,4 +344,60 @@ export function buildPrediction(
     confidence: Math.max(0, Math.min(1, confidence)),
     confidenceNotes: notes,
   };
+}
+
+/**
+ * Compose les trois modèles à partir de meilleurs efforts réels, pour une
+ * distance cible. La référence retenue pour Riegel et le VDOT est l'effort de
+ * plus longue durée disponible : c'est le signal le plus proche d'un effort
+ * d'endurance soutenu, donc le moins déformé par la filière anaérobie.
+ *
+ * Tableau vide en entrée -> trois estimations à `timeS: null`, jamais une
+ * erreur : c'est à `buildPrediction` de décider quoi faire d'une entrée sans
+ * données (il renvoie `null`).
+ */
+export function estimatesForDistance(
+  distanceM: number,
+  efforts: readonly BestEffort[],
+): Array<{ source: PredictionSource; timeS: number | null }> {
+  if (efforts.length === 0) {
+    return [
+      { source: "riegel", timeS: null },
+      { source: "vdot", timeS: null },
+      { source: "vitesse_critique", timeS: null },
+    ];
+  }
+
+  const reference = efforts.reduce((best, e) => (e.durationS > best.durationS ? e : best));
+  const vdot = vdotFromRace(reference.distanceM, reference.durationS);
+  const cs = computeCriticalSpeed(efforts);
+
+  return [
+    { source: "riegel", timeS: riegel(reference.distanceM, reference.durationS, distanceM) },
+    { source: "vdot", timeS: vdot != null ? predictTimeFromVdot(vdot, distanceM) : null },
+    {
+      source: "vitesse_critique",
+      timeS: cs ? predictTimeFromCriticalSpeed(cs, distanceM) : null,
+    },
+  ];
+}
+
+export type TrajectoryStatus = "avance" | "dans_les_temps" | "retard";
+
+/**
+ * Classe une prédiction de chrono par rapport à un objectif chiffré.
+ *
+ * Simple seuil applicatif, PAS une formule tirée de la littérature — la
+ * tolérance par défaut (2 %) absorbe le bruit normal d'une prédiction
+ * multi-modèles sans le sur-interpréter comme un vrai écart de forme.
+ */
+export function classifyTrajectory(
+  predictedTimeS: number,
+  targetTimeS: number,
+  toleranceFraction = 0.02,
+): TrajectoryStatus {
+  const delta = (predictedTimeS - targetTimeS) / targetTimeS;
+  if (delta <= -toleranceFraction) return "avance";
+  if (delta >= toleranceFraction) return "retard";
+  return "dans_les_temps";
 }

@@ -6,12 +6,18 @@ import { availableStreams, loadStreams, toChartPoints } from "@/lib/streams.ts";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { ActivityCharts } from "@/components/activities/activity-charts.tsx";
-import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
+import { RouteMap } from "@/components/activities/route-map.tsx";
+import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
+import { formatClock, formatDistance, formatPace, formatSpeed, paceFromSpeed } from "@/lib/utils.ts";
 import { TRIMP_METHOD_LABELS, type TrimpMethod } from "@/lib/metrics/trimp.ts";
 import { decouplingVerdict } from "@/lib/metrics/decoupling.ts";
+import { getProfileStatus, loadPersonalRecords } from "@/lib/metrics/repository.ts";
+import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { loadShiftRange } from "@/lib/shifts/repository.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
+import { getEnv } from "@/lib/env.ts";
+import { isRun } from "@/lib/strava/mapping.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +35,19 @@ export default async function ActivityPage({
   if (!activity) notFound();
 
   const rules = await getAvailabilityRules();
-  const [streams, shifts] = await Promise.all([
+  const [streams, shifts, personalRecords, profileStatus] = await Promise.all([
     loadStreams(activity.id),
     loadShiftRange(activity.startDay, activity.startDay, rules),
+    loadPersonalRecords(activity.id),
+    getProfileStatus(),
   ]);
 
   const points = streams ? toChartPoints(streams) : [];
   const present = availableStreams(streams);
+  const isRunActivity = isRun(activity.type);
+  const hrZones = profileStatus.profile
+    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
+    : null;
   const shiftOfDay = shifts.byDay.get(activity.startDay);
   const shiftLabel = shiftOfDay?.resolved.code
     ? (shifts.timings.find((t) => t.code === shiftOfDay.resolved.code)?.label ??
@@ -64,11 +76,30 @@ export default async function ActivityPage({
         ) : null}
       </header>
 
-      <Card className="mt-4">
-        <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
-          <Stat label="Distance" value={formatDistance(activity.distanceM)} />
-          <Stat label="Temps en mouvement" value={formatClock(activity.movingTimeS)} />
-          <Stat label="Allure moyenne" value={formatPace(paceFromSpeed(activity.avgSpeedMps))} />
+      <RecordCelebration durations={personalRecords} />
+
+      <Card elevated className="mt-4">
+        <CardBody className="grid grid-cols-3 gap-4 sm:gap-6">
+          <div>
+            <div className="text-[11px] text-[var(--color-muted)]">Distance</div>
+            <div className="tabular text-3xl font-bold sm:text-5xl">{formatDistance(activity.distanceM)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-[var(--color-muted)]">Temps en mouvement</div>
+            <div className="tabular text-3xl font-bold sm:text-5xl">{formatClock(activity.movingTimeS)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-[var(--color-muted)]">
+              {isRunActivity ? "Allure moyenne" : "Vitesse moyenne"}
+            </div>
+            <div className="tabular text-3xl font-bold sm:text-5xl">
+              {isRunActivity
+                ? formatPace(paceFromSpeed(activity.avgSpeedMps))
+                : formatSpeed(activity.avgSpeedMps)}
+            </div>
+          </div>
+        </CardBody>
+        <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] border-t border-[var(--color-border)] sm:grid-cols-3 sm:divide-y-0">
           <Stat
             label="FC moyenne"
             value={activity.avgHr ?? <Unavailable />}
@@ -94,6 +125,32 @@ export default async function ActivityPage({
 
       <Card className="mt-4">
         <CardHeader
+          title="Tracé"
+          hint={
+            streams?.latlng
+              ? "Position GPS seconde par seconde."
+              : "Aucune donnée de position pour cette activité."
+          }
+        />
+        <CardBody className="flex justify-center">
+          {streams?.latlng ? (
+            <RouteMap
+              latlng={streams.latlng}
+              mapTilerKey={getEnv().MAPTILER_API_KEY}
+              width={480}
+              height={320}
+              className="max-w-md"
+            />
+          ) : (
+            <p className="text-xs text-[var(--color-muted)]">
+              <Unavailable reason="Flux de position absent (séance en salle, ou import antérieur à la capture GPS)" />
+            </p>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader
           title="Flux détaillés"
           hint={
             present.length > 0
@@ -103,7 +160,7 @@ export default async function ActivityPage({
         />
         <CardBody>
           {points.length > 0 ? (
-            <ActivityCharts points={points} hasHr={present.includes("heartrate")} />
+            <ActivityCharts points={points} hasHr={present.includes("heartrate")} hrZones={hrZones} />
           ) : (
             <p className="text-xs text-[var(--color-muted)]">
               Les flux seconde par seconde ne sont pas encore importés pour cette
@@ -134,7 +191,9 @@ export default async function ActivityPage({
                   <th className="px-3 py-2 font-medium">#</th>
                   <th className="px-3 py-2 text-right font-medium">Distance</th>
                   <th className="px-3 py-2 text-right font-medium">Temps</th>
-                  <th className="px-3 py-2 text-right font-medium">Allure</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    {isRunActivity ? "Allure" : "Vitesse"}
+                  </th>
                   <th className="px-3 py-2 text-right font-medium">FC moy.</th>
                   <th className="px-3 py-2 text-right font-medium">FC max</th>
                 </tr>
@@ -146,7 +205,9 @@ export default async function ActivityPage({
                     <td className="px-3 py-1.5 text-right">{formatDistance(lap.distanceM)}</td>
                     <td className="px-3 py-1.5 text-right">{formatClock(lap.movingTimeS)}</td>
                     <td className="px-3 py-1.5 text-right">
-                      {formatPace(paceFromSpeed(lap.avgSpeedMps))}
+                      {isRunActivity
+                        ? formatPace(paceFromSpeed(lap.avgSpeedMps))
+                        : formatSpeed(lap.avgSpeedMps)}
                     </td>
                     <td className="px-3 py-1.5 text-right">{lap.avgHr ?? "—"}</td>
                     <td className="px-3 py-1.5 text-right">{lap.maxHr ?? "—"}</td>

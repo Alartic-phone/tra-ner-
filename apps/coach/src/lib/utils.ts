@@ -29,6 +29,17 @@ export function formatClock(seconds: number | null | undefined): string {
     : `${mm}:${String(sec).padStart(2, "0")}`;
 }
 
+/** "1:04:00" ou "45:00" -> secondes. `null` si vide ou mal formé. */
+export function parseClock(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parts = trimmed.split(":").map((p) => Number(p));
+  if (parts.some((p) => !Number.isFinite(p) || p < 0)) return null;
+  if (parts.length === 2) return parts[0]! * 60 + parts[1]!;
+  if (parts.length === 3) return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
+  return null;
+}
+
 /** Allure en secondes par kilomètre -> "4'32\"/km". */
 export function formatPace(secondsPerKm: number | null | undefined): string {
   if (secondsPerKm == null || !Number.isFinite(secondsPerKm)) return "—";
@@ -48,6 +59,19 @@ export function formatDistance(meters: number | null | undefined): string {
 export function paceFromSpeed(metersPerSecond: number | null | undefined): number | null {
   if (!metersPerSecond || metersPerSecond <= 0) return null;
   return 1000 / metersPerSecond;
+}
+
+/**
+ * Vitesse en km/h -> "28,4 km/h". Le vélo se lit en vitesse, pas en allure
+ * (une "allure" en min/km n'a pas de sens à 30 km/h) — jamais le même champ
+ * pour les deux, cf. `isRun`/`RUN_TYPES` dans `lib/strava/mapping.ts` pour
+ * décider laquelle afficher selon le type d'activité.
+ */
+export function formatSpeed(metersPerSecond: number | null | undefined): string {
+  if (metersPerSecond == null || !Number.isFinite(metersPerSecond) || metersPerSecond <= 0) {
+    return "—";
+  }
+  return `${(metersPerSecond * 3.6).toFixed(1).replace(".", ",")} km/h`;
 }
 
 /**

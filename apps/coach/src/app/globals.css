@@ -48,12 +48,36 @@
   --chart-positive: #3987e5;
   --chart-negative: #e66767;
 
-  /* Rampe ordinale à teinte unique pour les zones de fréquence cardiaque. */
+  /* Rampe ordinale à teinte unique — réutilisée pour toute série ordonnée
+     qui n'est PAS une intensité d'effort (ex. les phases de périodisation
+     du plan). Pour les zones FC, voir --zone-1..5 ci-dessous. */
   --chart-seq-1: #184f95;
   --chart-seq-2: #256abf;
   --chart-seq-3: #3987e5;
   --chart-seq-4: #6da7ec;
   --chart-seq-5: #9ec5f4;
+
+  /*
+   * Zones de fréquence cardiaque (Karvonen, 5 zones — cf. metrics/zones.ts).
+   * Rampe « feu tricolore » multi-teinte plutôt qu'à teinte unique : c'est
+   * une entorse délibérée à la règle « jamais un arc-en-ciel » de la charte
+   * de graphiques, parce que c'est la convention universelle du secteur
+   * (Strava, Garmin, Whoop) et que c'est l'information la plus utile de
+   * l'app d'un coup d'œil. Validée avec le script de la skill dataviz
+   * (node validate_palette.js "…" --mode dark --surface "#11151d") :
+   * séparation daltonisme et plancher vision normale au vert, contraste
+   * au vert — une seule réserve documentée : la zone 3 (jaune) déborde
+   * légèrement la bande de clarté catégorielle idéale et se situe dans la
+   * zone « avertissement » (6-8 plutôt que ≥8) de séparation daltonienne
+   * face à la zone 4 — légal selon la skill À CONDITION d'un encodage
+   * secondaire, qui existe déjà ici (labels Z1-Z5 et bpm toujours affichés,
+   * jamais la couleur seule).
+   */
+  --zone-1: #4179c8; /* récupération */
+  --zone-2: #29a37a; /* endurance fondamentale */
+  --zone-3: #b3ad05; /* endurance active */
+  --zone-4: #f2460d; /* seuil */
+  --zone-5: #bf228a; /* VMA */
 
   /* Chrome de graphique : grille et axes en retrait. */
   --chart-grid: #232a37;
@@ -65,12 +89,86 @@
   --color-shift-n: #7c3aed;
   --color-rest: #2b3444;
 
+  /*
+   * Identité visuelle par sport (icône en cercle teinté, pastilles de
+   * filtre). Purement décoratif — n'entre jamais dans un graphique de
+   * données, où les couleurs ont un sens mesuré à respecter. Choisies pour
+   * rester visuellement distinctes de --zone-1..5 (l'intensité d'effort) et
+   * de --chart-1/2 (CTL/ATL), pour qu'un même bleu-orange ne soit pas lu à
+   * tort comme une info de charge sur une carte d'activité.
+   */
+  --sport-run: #5b9cf6;
+  --sport-ride: #f2a51d;
+  --sport-swim: #33c2c2;
+  --sport-other: #8b95a7;
+
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
     monospace;
+
+  /*
+   * Rayons et élévation. Cartes plus arrondies que le rounded-lg par défaut
+   * de Tailwind, dans l'esprit des tableaux de bord de forme physique
+   * (Whoop/Oura) plutôt que des grilles administratives strictes.
+   */
+  --radius-card: 1rem;
+  --radius-pill: 999px;
+  --shadow-elevated: 0 8px 24px -12px rgb(0 0 0 / 0.5);
+
+  /* Lueur très discrète derrière les cartes hero — jamais un aplat vif. */
+  --surface-glow: radial-gradient(
+    120% 100% at 0% 0%,
+    color-mix(in oklab, var(--color-accent-soft) 55%, transparent) 0%,
+    transparent 60%
+  );
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-slow: 400ms;
+}
+
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-circumference);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Entrée échelonnée des listes : chaque ligne pose `--stagger-index` en
+   style inline, le délai s'en déduit sans classe par index. */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.stagger-item {
+  animation: fade-in-up var(--duration-slow) var(--ease-standard) backwards;
+  animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer base {

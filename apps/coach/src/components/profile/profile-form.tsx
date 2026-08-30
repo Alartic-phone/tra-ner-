@@ -230,7 +230,7 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
             value={form.injuryHistory ?? ""}
             onChange={(e) => set("injuryHistory", e.target.value || null)}
             rows={4}
-            className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] p-2 text-sm"
+            className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] p-2 text-sm"
             placeholder="Zones sensibles, blessures passées, épisodes récurrents…"
           />
         </CardBody>

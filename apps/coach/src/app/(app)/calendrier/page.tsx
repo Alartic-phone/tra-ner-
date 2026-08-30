@@ -36,7 +36,7 @@ export default async function CalendarPage({
   const gridTo = addDays(mondayOf(addDays(last, 7)), -1);
 
   const rules = await getAvailabilityRules();
-  const [range, stats, activities, planned] = await Promise.all([
+  const [range, stats, activities, planned, raceGoals, activePlans] = await Promise.all([
     loadShiftRange(gridFrom, gridTo, rules),
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({
@@ -57,7 +57,25 @@ export default async function CalendarPage({
       },
       orderBy: { orderInDay: "asc" },
     }),
+    prisma.goal.findMany({
+      where: { isActive: true, day: { gte: gridFrom, lte: gridTo } },
+      select: { day: true },
+    }),
+    prisma.trainingPlan.findMany({
+      where: { status: "active", startDay: { lte: gridTo }, endDay: { gte: gridFrom } },
+      select: { phasesJson: true },
+    }),
   ]);
+
+  const raceDays = new Set(raceGoals.map((g) => g.day));
+  const phases = activePlans.flatMap(
+    (p) =>
+      JSON.parse(p.phasesJson) as Array<{ startDay: string; endDay: string; weeklyVolumeKm?: number }>,
+  );
+  function weeklyVolumeTargetFor(day: Day): number | null {
+    const phase = phases.find((ph) => ph.startDay <= day && day <= ph.endDay);
+    return phase?.weeklyVolumeKm ?? null;
+  }
 
   const days: CalendarDay[] = range.days.map((resolved) => {
     const availability = range.byDay.get(resolved.day)!.availability;
@@ -74,6 +92,8 @@ export default async function CalendarPage({
       allowsQuality: availability.allowsQuality,
       allowsLongRun: availability.allowsLongRun,
       blockers: availability.blockers,
+      isRaceDay: raceDays.has(resolved.day),
+      weeklyVolumeTargetKm: weeklyVolumeTargetFor(resolved.day),
       activities: activities
         .filter((a) => a.startDay === resolved.day)
         .map((a) => ({
@@ -111,20 +131,20 @@ export default async function CalendarPage({
           <Link
             href={{ pathname: "/calendrier", query: { m: prev } }}
             aria-label="Mois précédent"
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)]"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             <ChevronLeft size={16} />
           </Link>
           <Link
             href="/calendrier"
-            className="flex h-9 items-center rounded-md border border-[var(--color-border-strong)] px-3 text-xs hover:bg-[var(--color-surface-2)]"
+            className="flex h-9 items-center rounded-lg border border-[var(--color-border-strong)] px-3 text-xs transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             Aujourd&apos;hui
           </Link>
           <Link
             href={{ pathname: "/calendrier", query: { m: next } }}
             aria-label="Mois suivant"
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)]"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             <ChevronRight size={16} />
           </Link>

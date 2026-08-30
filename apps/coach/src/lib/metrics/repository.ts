@@ -1,10 +1,12 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
+import { isRun } from "../strava/mapping.ts";
 import { addDays, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
   DEFAULT_DURATIONS,
   bestDistanceForDurations,
+  detectPersonalRecords,
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeDecoupling } from "./decoupling.ts";
@@ -21,9 +23,12 @@ import {
   trimpFromRpe,
   trimpFromStream,
   type HeartRateProfile,
+  type Sex,
   type TrimpMethod,
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
+import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
+import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -52,9 +57,10 @@ export async function getProfileStatus(): Promise<ProfileStatus> {
   if (user.hrRest == null) missing.push("fréquence cardiaque de repos");
   if (user.sex == null) missing.push("sexe (coefficient de Banister)");
 
-  const profile =
-    user.hrMax != null && user.hrRest != null && (user.sex === "M" || user.sex === "F")
-      ? { hrMax: user.hrMax, hrRest: user.hrRest, sex: user.sex }
+  const sex: Sex | null = user.sex === "M" || user.sex === "F" ? user.sex : null;
+  const profile: HeartRateProfile | null =
+    user.hrMax != null && user.hrRest != null && sex != null
+      ? { hrMax: user.hrMax, hrRest: user.hrRest, sex }
       : null;
 
   return { profile, vmaKmh: user.vma ?? null, missing };
@@ -121,18 +127,25 @@ export async function computeActivityMetrics(
     }
   }
 
+  // GAP, découplage et meilleurs efforts sont des modèles de course à pied
+  // (coût de Minetti, Pa:Hr, vitesse critique) : les appliquer à un vélo ou
+  // une randonnée produirait des vitesses de série totalement différentes
+  // (un vélo à 55 km/h n'est pas un "meilleur effort" de course) et
+  // corromprait silencieusement la vitesse critique et les prédictions.
+  const isRunningActivity = isRun(activity.type);
+
   const gap =
-    streams?.distance && streams.altitude && streams.time
+    isRunningActivity && streams?.distance && streams.altitude && streams.time
       ? computeGap(streams.distance, streams.altitude, streams.time)
       : null;
 
   const decoupling =
-    streams?.velocity_smooth && streams.heartrate && streams.time
+    isRunningActivity && streams?.velocity_smooth && streams.heartrate && streams.time
       ? computeDecoupling(streams.velocity_smooth, streams.heartrate, streams.time)
       : null;
 
   const bestEfforts =
-    streams?.distance && streams.time
+    isRunningActivity && streams?.distance && streams.time
       ? bestDistanceForDurations(
           { time: streams.time, distance: streams.distance },
           DEFAULT_DURATIONS,
@@ -167,12 +180,16 @@ export async function persistActivityMetrics(
     },
   });
 
+  // Purge inconditionnelle : si l'activité n'est plus éligible aux meilleurs
+  // efforts (ex. un vélo dont le type a été corrigé, ou le passage du filtre
+  // course-à-pied introduit ensuite), d'anciennes lignes ne doivent pas
+  // survivre simplement parce que la nouvelle liste est vide.
+  await prisma.bestEffort.deleteMany({ where: { activityId } });
   if (metrics.bestEfforts.length > 0) {
     const activity = await prisma.activity.findUnique({
       where: { id: activityId },
       select: { startDay: true },
     });
-    await prisma.bestEffort.deleteMany({ where: { activityId } });
     await prisma.bestEffort.createMany({
       data: metrics.bestEfforts.map((e) => ({
         activityId,
@@ -346,6 +363,39 @@ export async function loadZoneDistribution(
   };
 }
 
+/**
+ * Répartition par zone FC, séance par séance — la barre de zone des cartes
+ * d'activité. `null` par activité sans profil ou sans cardio : jamais une
+ * barre inventée.
+ */
+export async function loadZoneSecondsByActivity(
+  activityIds: readonly string[],
+): Promise<Map<string, number[] | null>> {
+  const { profile } = await getProfileStatus();
+  const out = new Map<string, number[] | null>();
+  if (!profile || activityIds.length === 0) {
+    for (const id of activityIds) out.set(id, null);
+    return out;
+  }
+
+  const zones = computeHeartRateZones(profile.hrMax, profile.hrRest);
+  await Promise.all(
+    activityIds.map(async (id) => {
+      const streams = await loadStreams(id);
+      if (!streams?.heartrate || !streams.time) {
+        out.set(id, null);
+        return;
+      }
+      const result = timeInZones(streams.heartrate, streams.time, zones);
+      out.set(
+        id,
+        zones.map((z) => result.byZone.get(z.index) ?? 0),
+      );
+    }),
+  );
+  return out;
+}
+
 /** Meilleurs efforts consolidés sur une période, pour la vitesse critique. */
 export async function loadBestEfforts(from: Day, to: Day) {
   const rows = await prisma.bestEffort.findMany({
@@ -355,8 +405,180 @@ export async function loadBestEfforts(from: Day, to: Day) {
   return mergeBestEfforts(rows);
 }
 
+/**
+ * Durées pour lesquelles cette activité égale ou bat le record all-time —
+ * `BestEffort` ne contient déjà que de la course à pied (cf. filtre par
+ * type dans `computeActivityMetrics`), pas de filtre supplémentaire à faire.
+ */
+export async function loadPersonalRecords(activityId: string): Promise<number[]> {
+  const [current, allTime] = await Promise.all([
+    prisma.bestEffort.findMany({
+      where: { activityId },
+      select: { durationS: true, distanceM: true },
+    }),
+    prisma.bestEffort.groupBy({ by: ["durationS"], _max: { distanceM: true } }),
+  ]);
+  if (current.length === 0) return [];
+
+  const allTimeBest = new Map(allTime.map((row) => [row.durationS, row._max.distanceM ?? 0]));
+  return detectPersonalRecords(current, allTimeBest);
+}
+
+/**
+ * Même chose que `loadPersonalRecords`, mais pour une liste (carte
+ * d'activité) : deux requêtes au total plutôt que deux par activité.
+ */
+export async function loadPersonalRecordsByActivity(
+  activityIds: readonly string[],
+): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>();
+  if (activityIds.length === 0) return out;
+
+  const [rows, allTime] = await Promise.all([
+    prisma.bestEffort.findMany({
+      where: { activityId: { in: [...activityIds] } },
+      select: { activityId: true, durationS: true, distanceM: true },
+    }),
+    prisma.bestEffort.groupBy({ by: ["durationS"], _max: { distanceM: true } }),
+  ]);
+
+  const allTimeBest = new Map(allTime.map((row) => [row.durationS, row._max.distanceM ?? 0]));
+  const byActivity = new Map<string, { durationS: number; distanceM: number }[]>();
+  for (const row of rows) {
+    const list = byActivity.get(row.activityId) ?? [];
+    list.push({ durationS: row.durationS, distanceM: row.distanceM });
+    byActivity.set(row.activityId, list);
+  }
+  for (const id of activityIds) {
+    out.set(id, detectPersonalRecords(byActivity.get(id) ?? [], allTimeBest));
+  }
+  return out;
+}
+
+/**
+ * Prédiction de chrono sur une distance, à partir des meilleurs efforts
+ * réels de la période. `null` si aucun effort de référence n'existe —
+ * jamais une estimation construite sur du vide.
+ */
+export async function predictDistance(
+  distanceM: number,
+  from: Day,
+  to: Day,
+): Promise<Prediction | null> {
+  const efforts = await loadBestEfforts(from, to);
+  if (efforts.length === 0) return null;
+  return buildPrediction(distanceM, estimatesForDistance(distanceM, efforts), {
+    sourceAgeDays: null,
+    sampleCount: efforts.length,
+  });
+}
+
 /** Zones d'allure dérivées de la VMA saisie. */
 export async function loadPaceZones() {
   const { vmaKmh } = await getProfileStatus();
   return vmaKmh ? computePaceZones(vmaKmh) : null;
+}
+
+/**
+ * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
+ * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
+ * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
+ * sur une base insuffisante.
+ */
+export async function loadReadiness(
+  day: Day,
+): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
+  const BASELINE_DAYS = 30;
+  const MIN_SAMPLES = 7;
+
+  const [todayMetric, history] = await Promise.all([
+    prisma.healthMetric.findUnique({ where: { day } }),
+    prisma.healthMetric.findMany({
+      where: { day: { gte: addDays(day, -BASELINE_DAYS), lt: day } },
+      select: { hrv: true, restingHr: true },
+    }),
+  ]);
+
+  if (todayMetric?.hrv == null || todayMetric.restingHr == null) return null;
+
+  const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
+  const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
+  if (hrvSamples.length < MIN_SAMPLES || restingHrSamples.length < MIN_SAMPLES) return null;
+
+  const hrvBaseline = meanAndStdDev(hrvSamples);
+  const restingHrBaseline = meanAndStdDev(restingHrSamples);
+
+  const result = computeReadiness({
+    hrv: todayMetric.hrv,
+    restingHr: todayMetric.restingHr,
+    hrvBaselineMean: hrvBaseline.mean,
+    hrvBaselineSd: hrvBaseline.sd,
+    restingHrBaselineMean: restingHrBaseline.mean,
+  });
+
+  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+}
+
+/** La séance planifiée du jour, si un plan actif en propose une. */
+export async function loadTodaysWorkout(day: Day) {
+  return prisma.plannedWorkout.findFirst({
+    where: { day, plan: { status: "active" } },
+    orderBy: { orderInDay: "asc" },
+    include: { activity: { select: { id: true } } },
+  });
+}
+
+/**
+ * Volume hebdomadaire cible de la phase de plan en cours, si un plan actif
+ * en propose une pour cette semaine. `null` sans plan, ou si la phase active
+ * n'a pas chiffré de volume — jamais une cible inventée par défaut.
+ */
+export async function loadWeeklyVolumeTargetKm(day: Day): Promise<number | null> {
+  const plan = await prisma.trainingPlan.findFirst({
+    where: { status: "active", startDay: { lte: day }, endDay: { gte: day } },
+    select: { phasesJson: true },
+  });
+  if (!plan) return null;
+
+  const phases = JSON.parse(plan.phasesJson) as Array<{
+    startDay: string;
+    endDay: string;
+    weeklyVolumeKm?: number;
+  }>;
+  const active = phases.find((p) => p.startDay <= day && day <= p.endDay);
+  return active?.weeklyVolumeKm ?? null;
+}
+
+/** Objectif actif le plus proche dans le temps, pour le compte à rebours. */
+export async function loadNextGoal() {
+  return prisma.goal.findFirst({
+    where: { isActive: true, day: { gte: today() } },
+    orderBy: { day: "asc" },
+  });
+}
+
+/**
+ * Progression du record de distance en course à pied dans le temps : pour
+ * chaque activité qui a battu le record du moment, sa distance et sa date.
+ * Sert à la barre de progression des records du tableau de bord — jamais un
+ * record affiché s'il n'a pas réellement été battu par une activité.
+ */
+export async function loadLongestRunProgression(): Promise<
+  { day: Day; distanceM: number }[]
+> {
+  const runs = await prisma.activity.findMany({
+    where: { type: { in: ["Run", "TrailRun", "VirtualRun"] } },
+    orderBy: { startDay: "asc" },
+    select: { startDay: true, distanceM: true },
+  });
+
+  const progression: { day: Day; distanceM: number }[] = [];
+  let best = 0;
+  for (const run of runs) {
+    if (run.distanceM > best) {
+      best = run.distanceM;
+      progression.push({ day: run.startDay, distanceM: run.distanceM });
+    }
+  }
+  return progression;
 }

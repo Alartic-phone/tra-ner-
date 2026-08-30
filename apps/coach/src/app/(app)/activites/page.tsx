@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db.ts";
-import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardHeader } from "@/components/ui/card.tsx";
-import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
-import { formatInstant } from "@/lib/time.ts";
+import { ActivityCard } from "@/components/activities/activity-card.tsx";
+import { sportColor } from "@/components/activities/activity-icon.tsx";
+import { loadPersonalRecordsByActivity, loadZoneSecondsByActivity } from "@/lib/metrics/repository.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +31,12 @@ export default async function ActivitiesPage({
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const activityIds = activities.map((a) => a.id);
+  const [zonesByActivity, recordsByActivity] = await Promise.all([
+    loadZoneSecondsByActivity(activityIds),
+    loadPersonalRecordsByActivity(activityIds),
+  ]);
+
   return (
     <div className="p-4 md:p-6">
       <header>
@@ -43,25 +49,36 @@ export default async function ActivitiesPage({
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Link
           href="/activites"
-          className={`rounded border px-2 py-1 text-xs ${
-            type ? "border-[var(--color-border-strong)] text-[var(--color-muted)]" : "border-[var(--color-accent)] text-[var(--color-accent)]"
+          className={`rounded-[var(--radius-pill)] border px-3 py-1 text-xs transition-colors duration-[var(--duration-fast)] ${
+            type
+              ? "border-[var(--color-border-strong)] text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"
+              : "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
           }`}
         >
           Tout
         </Link>
-        {types.map((t) => (
-          <Link
-            key={t.type}
-            href={{ pathname: "/activites", query: { type: t.type } }}
-            className={`rounded border px-2 py-1 text-xs ${
-              type === t.type
-                ? "border-[var(--color-accent)] text-[var(--color-accent)]"
-                : "border-[var(--color-border-strong)] text-[var(--color-muted)]"
-            }`}
-          >
-            {t.type} ({t._count.type})
-          </Link>
-        ))}
+        {types.map((t) => {
+          const color = sportColor(t.type);
+          const active = type === t.type;
+          return (
+            <Link
+              key={t.type}
+              href={{ pathname: "/activites", query: { type: t.type } }}
+              className="rounded-[var(--radius-pill)] border px-3 py-1 text-xs transition-colors duration-[var(--duration-fast)]"
+              style={
+                active
+                  ? {
+                      borderColor: color,
+                      backgroundColor: `color-mix(in oklab, ${color} 16%, transparent)`,
+                      color,
+                    }
+                  : { borderColor: "var(--color-border-strong)", color: "var(--color-muted)" }
+              }
+            >
+              {t.type} ({t._count.type})
+            </Link>
+          );
+        })}
       </div>
 
       {activities.length === 0 ? (
@@ -72,53 +89,16 @@ export default async function ActivitiesPage({
           />
         </Card>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--color-border)]">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-muted)]">
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Séance</th>
-                <th className="px-3 py-2 text-right font-medium">Distance</th>
-                <th className="px-3 py-2 text-right font-medium">Durée</th>
-                <th className="px-3 py-2 text-right font-medium">Allure</th>
-                <th className="px-3 py-2 text-right font-medium">FC moy.</th>
-                <th className="px-3 py-2 text-right font-medium">D+</th>
-              </tr>
-            </thead>
-            <tbody className="tabular">
-              {activities.map((a) => (
-                <tr
-                  key={a.id}
-                  className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]"
-                >
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-[var(--color-muted)]">
-                    {formatInstant(a.startedAt)}
-                  </td>
-                  <td className="max-w-[220px] truncate px-3 py-2">
-                    <Link href={{ pathname: `/activites/${a.id}` }} className="hover:underline">
-                      {a.name}
-                    </Link>
-                    {!a.hasStreams ? (
-                      <Badge className="ml-1.5" title="Flux détaillés non importés">
-                        sans flux
-                      </Badge>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-right">{formatDistance(a.distanceM)}</td>
-                  <td className="px-3 py-2 text-right">{formatClock(a.movingTimeS)}</td>
-                  <td className="px-3 py-2 text-right">
-                    {formatPace(paceFromSpeed(a.avgSpeedMps))}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {a.avgHr ?? <Unavailable reason="Aucun cardio sur cette séance" />}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {a.elevationGainM != null ? `${Math.round(a.elevationGainM)} m` : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {activities.map((a, i) => (
+            <ActivityCard
+              key={a.id}
+              activity={a}
+              secondsByZone={zonesByActivity.get(a.id) ?? null}
+              isPersonalRecord={(recordsByActivity.get(a.id) ?? []).length > 0}
+              staggerIndex={i}
+            />
+          ))}
         </div>
       )}
 

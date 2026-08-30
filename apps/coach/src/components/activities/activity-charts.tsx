@@ -14,6 +14,12 @@ import {
 import type { ReactElement } from "react";
 import type { ChartPoint } from "@/lib/streams.ts";
 import { formatClock, formatPace } from "@/lib/utils.ts";
+import { zoneForHeartRate, type HeartRateZone } from "@/lib/metrics/zones.ts";
+import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
+
+/** Tracé progressif de gauche à droite au chargement, comme les autres
+ * graphiques temporels de l'app — jamais une courbe qui apparaît d'un coup. */
+const DRAW_IN = { isAnimationActive: true, animationDuration: 800, animationEasing: "ease-out" } as const;
 
 /**
  * Graphiques d'activité.
@@ -26,15 +32,34 @@ import { formatClock, formatPace } from "@/lib/utils.ts";
 export function ActivityCharts({
   points,
   hasHr,
+  hrZones,
 }: {
   points: ChartPoint[];
   hasHr: boolean;
+  /** Zones FC du profil, pour teinter le tracé de fréquence cardiaque selon
+   * l'intensité — `null`/absent si le profil n'est pas configuré : le tracé
+   * revient alors à une seule couleur plutôt que d'inventer des zones. */
+  hrZones?: HeartRateZone[] | null;
 }) {
   const hrValues = points.map((p) => p.hr).filter((v): v is number => v != null);
   const hrDomain: [number, number] =
     hrValues.length > 0
       ? [Math.floor(Math.min(...hrValues) / 5) * 5, Math.ceil(Math.max(...hrValues) / 5) * 5]
       : [0, 200];
+
+  // Dégradé vertical calé sur les bornes de zones : au-dessus du tracé, la
+  // couleur indique l'intensité, exactement la même rampe que partout
+  // ailleurs (cartes d'activité, calendrier). Un dégradé SVG se définit du
+  // haut vers le bas — donc de la borne haute du domaine vers la basse.
+  const hrGradientStops =
+    hrZones && hrZones.length > 0
+      ? hrZones
+          .map((z) => ({
+            offset: 1 - (Math.min(Math.max(z.toBpm, hrDomain[0]), hrDomain[1]) - hrDomain[0]) / (hrDomain[1] - hrDomain[0]),
+            color: ZONE_RAMP[z.index - 1]!,
+          }))
+          .sort((a, b) => a.offset - b.offset)
+      : null;
 
   const paceValues = points.map((p) => p.paceSPerKm).filter((v): v is number => v != null);
   const paceDomain: [number, number] =
@@ -55,25 +80,47 @@ export function ActivityCharts({
     <div className="space-y-5">
       {hasHr ? (
         <Chart title="Fréquence cardiaque" unit="bpm">
-          <LineChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+          <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+            <defs>
+              <linearGradient id="hrStroke" x1="0" y1="0" x2="0" y2="1">
+                {(hrGradientStops ?? [
+                  { offset: 0, color: "var(--color-danger)" },
+                  { offset: 1, color: "var(--color-danger)" },
+                ]).map((s, i) => (
+                  <stop key={i} offset={s.offset} stopColor={s.color} />
+                ))}
+              </linearGradient>
+              <linearGradient id="hrFill" x1="0" y1="0" x2="0" y2="1">
+                {(hrGradientStops ?? [
+                  { offset: 0, color: "var(--color-danger)" },
+                  { offset: 1, color: "var(--color-danger)" },
+                ]).map((s, i) => (
+                  <stop key={i} offset={s.offset} stopColor={s.color} stopOpacity={0.18} />
+                ))}
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke="var(--color-border)" vertical={false} />
             <XAxis dataKey="t" tickFormatter={(t: number) => formatClock(t)} {...axis} />
             <YAxis domain={hrDomain} {...axis} />
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(t: number) => formatClock(t)}
-              formatter={(v: number) => [`${Math.round(v)} bpm`, "FC"]}
+              formatter={(v: number) => {
+                const zone = hrZones ? zoneForHeartRate(v, hrZones) : null;
+                return [`${Math.round(v)} bpm${zone ? ` · Z${zone.index} ${zone.name}` : ""}`, "FC"];
+              }}
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="hr"
-              stroke="var(--color-danger)"
+              stroke="url(#hrStroke)"
+              fill="url(#hrFill)"
               dot={false}
-              strokeWidth={1.3}
+              strokeWidth={1.5}
               connectNulls={false}
-              isAnimationActive={false}
+              {...DRAW_IN}
             />
-          </LineChart>
+          </AreaChart>
         </Chart>
       ) : (
         <p className="text-xs text-[var(--color-faint)]">
@@ -104,7 +151,7 @@ export function ActivityCharts({
               dot={false}
               strokeWidth={1.3}
               connectNulls={false}
-              isAnimationActive={false}
+              {...DRAW_IN}
             />
           </LineChart>
         </Chart>
@@ -132,7 +179,7 @@ export function ActivityCharts({
               fillOpacity={0.15}
               strokeWidth={1.2}
               connectNulls={false}
-              isAnimationActive={false}
+              {...DRAW_IN}
             />
           </AreaChart>
         </Chart>
@@ -144,8 +191,9 @@ export function ActivityCharts({
 const tooltipStyle = {
   backgroundColor: "var(--color-surface-2)",
   border: "1px solid var(--color-border-strong)",
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 11,
+  boxShadow: "var(--shadow-elevated)",
 } as const;
 
 function Chart({
