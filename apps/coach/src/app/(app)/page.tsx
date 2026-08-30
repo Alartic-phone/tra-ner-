@@ -10,6 +10,7 @@ import { ReadinessBanner } from "@/components/dashboard/readiness-banner.tsx";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card.tsx";
 import { RecordProgressBar } from "@/components/dashboard/record-progress-bar.tsx";
 import { loadStreams } from "@/lib/streams.ts";
+import { RUN_TYPES } from "@/lib/strava/mapping.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, diffDays, minutesToTime } from "@/lib/shifts/day.ts";
@@ -53,7 +54,7 @@ export default async function DashboardPage() {
     prisma.activity.findMany({ orderBy: { startedAt: "desc" }, take: 5 }),
     prisma.activity.findMany({
       where: { startDay: { gte: addDays(now, -6), lte: now } },
-      select: { distanceM: true, movingTimeS: true },
+      select: { distanceM: true, movingTimeS: true, type: true },
     }),
     loadFitnessSnapshot(addDays(now, -30), now),
     prisma.activity.findMany({
@@ -107,6 +108,12 @@ export default async function DashboardPage() {
 
   const weekDistance = weekActivities.reduce((sum, a) => sum + a.distanceM, 0);
   const weekTime = weekActivities.reduce((sum, a) => sum + a.movingTimeS, 0);
+  // Volume de plan = course à pied uniquement : un vélo mélangé dans la
+  // même somme fausserait la cible (calée sur des km de course à pied).
+  const weekRunningDistanceKm =
+    weekActivities
+      .filter((a) => RUN_TYPES.has(a.type))
+      .reduce((sum, a) => sum + a.distanceM, 0) / 1000;
   const todayEntry = range.byDay.get(now);
   const todayCode = todayEntry?.resolved.code;
   const todayLabel = todayCode
@@ -135,18 +142,15 @@ export default async function DashboardPage() {
           <CardHeader title="Volume — semaine" />
           <CardBody className="flex items-center gap-4">
             {weeklyVolumeTargetKm != null ? (
-              <ProgressRing
-                value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000 / weeklyVolumeTargetKm}
-                tone="info"
-              >
+              <ProgressRing value={weekRunningDistanceKm / weeklyVolumeTargetKm} tone="info">
                 <span className="tabular text-lg font-semibold">
-                  <CountUp value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000} decimals={0} />
+                  <CountUp value={weekRunningDistanceKm} decimals={0} />
                 </span>
               </ProgressRing>
             ) : (
               <div className="flex h-24 w-24 flex-col items-center justify-center">
                 <span className="tabular text-2xl font-bold">
-                  <CountUp value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000} decimals={1} />
+                  <CountUp value={weekRunningDistanceKm} decimals={1} />
                 </span>
                 <span className="text-[11px] text-[var(--color-faint)]">km</span>
               </div>
