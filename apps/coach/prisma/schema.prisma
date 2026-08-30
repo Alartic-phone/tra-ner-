@@ -143,6 +143,10 @@ model Activity {
   /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
   rawSummaryJson String?
 
+  /// Ressenti libre (météo, douleur, sensation) saisi après coup. Jamais
+  /// généré ni suggéré : uniquement ce que l'utilisateur a tapé.
+  notes String?
+
   stream       ActivityStream?
   laps         Lap[]
   bestEfforts  BestEffort[]

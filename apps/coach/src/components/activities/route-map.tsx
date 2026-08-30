@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { GeoPoint } from "@/lib/streams.ts";
 
 /**
  * Tracé GPS d'une activité, deux rendus possibles :
@@ -29,7 +30,15 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const MAPTILER_STYLE = "dataviz-dark";
 
-type LatLng = [number, number];
+/** Durée du dessin progressif du tracé au chargement — même valeur pour le
+ * SVG (stroke-dashoffset) et MapLibre (révélation point par point). */
+const DRAW_MS = 1200;
+
+export type MapSelection = { startT: number; endT: number };
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 /** Réduit à ~maxPoints par prélèvement régulier — un tracé n'a pas besoin
  * de plus de points que de pixels pour rester fidèle à l'œil. */
@@ -43,10 +52,26 @@ function decimate<T>(points: readonly T[], maxPoints: number): T[] {
   return out;
 }
 
-function project(points: LatLng[]): Array<{ x: number; y: number }> {
-  const avgLat = points.reduce((sum, [lat]) => sum + lat, 0) / points.length;
-  const cosLat = Math.cos((avgLat * Math.PI) / 180);
-  return points.map(([lat, lng]) => ({ x: lng * cosLat, y: -lat }));
+/** Index du point le plus proche de `t` par recherche dichotomique — `t` est
+ * strictement croissant le long d'une activité. */
+function nearestIndexByT(series: readonly GeoPoint[], t: number): number {
+  let lo = 0;
+  let hi = series.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (series[mid]!.t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function averageCosLat(points: readonly GeoPoint[]): number {
+  const avgLat = points.reduce((sum, p) => sum + p.lat, 0) / points.length;
+  return Math.cos((avgLat * Math.PI) / 180);
+}
+
+function projectWithCosLat(points: readonly GeoPoint[], cosLat: number): Array<{ x: number; y: number }> {
+  return points.map((p) => ({ x: p.lng * cosLat, y: -p.lat }));
 }
 
 function SvgRouteMap({
@@ -56,16 +81,21 @@ function SvgRouteMap({
   strokeWidth,
   showMarkers,
   className,
+  cursorT,
+  selection,
 }: {
-  points: LatLng[];
+  points: GeoPoint[];
   width: number;
   height: number;
   strokeWidth: number;
   showMarkers: boolean;
   className?: string;
+  cursorT?: number | null;
+  selection?: MapSelection | null;
 }) {
   const decimated = decimate(points, 500);
-  const projected = project(decimated);
+  const cosLat = averageCosLat(decimated);
+  const projected = projectWithCosLat(decimated, cosLat);
 
   const xs = projected.map((p) => p.x);
   const ys = projected.map((p) => p.y);
@@ -100,11 +130,26 @@ function SvgRouteMap({
   const start = svgPoints[0]!;
   const end = svgPoints[svgPoints.length - 1]!;
 
+  const selectionPathD = (() => {
+    if (!selection) return null;
+    const subset = points.filter((p) => p.t >= selection.startT && p.t <= selection.endT);
+    if (subset.length < 2) return null;
+    const sub = projectWithCosLat(subset, cosLat).map(toSvg);
+    return sub.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  })();
+
+  const cursorSvg = (() => {
+    if (cursorT == null || points.length === 0) return null;
+    const point = points[nearestIndexByT(points, cursorT)]!;
+    return toSvg(projectWithCosLat([point], cosLat)[0]!);
+  })();
+
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
       width="100%"
-      style={{ height: "auto" }}
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
       className={className}
     >
       <path
@@ -119,10 +164,20 @@ function SvgRouteMap({
         style={
           {
             "--ring-circumference": pathLength,
-            animation: "ring-fill 900ms var(--ease-standard) forwards",
+            animation: `ring-fill ${DRAW_MS}ms var(--ease-standard) 1 forwards`,
           } as React.CSSProperties
         }
       />
+      {selectionPathD ? (
+        <path
+          d={selectionPathD}
+          fill="none"
+          stroke="var(--color-warn)"
+          strokeWidth={strokeWidth * 2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
       {showMarkers ? (
         <>
           <circle cx={start.x} cy={start.y} r={strokeWidth * 1.6} fill="var(--color-ok)" />
@@ -136,8 +191,35 @@ function SvgRouteMap({
           />
         </>
       ) : null}
+      {cursorSvg ? (
+        <circle
+          cx={cursorSvg.x}
+          cy={cursorSvg.y}
+          r={strokeWidth * 1.4}
+          fill="var(--color-warn)"
+          stroke="var(--color-bg)"
+          strokeWidth={strokeWidth * 0.6}
+        />
+      ) : null}
     </svg>
   );
+}
+
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
+function lineFeature(coords: Array<[number, number]>): GeoJSON.FeatureCollection {
+  if (coords.length < 2) return EMPTY_FC;
+  return {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }],
+  };
+}
+
+function pointFeature(coord: [number, number]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coord } }],
+  };
 }
 
 /**
@@ -149,28 +231,28 @@ function SvgRouteMap({
 function MapLibreRouteMap({
   points,
   mapTilerKey,
-  width,
-  height,
   strokeWidth,
   showMarkers,
   className,
+  cursorT,
+  selection,
 }: {
-  points: LatLng[];
+  points: GeoPoint[];
   mapTilerKey: string;
-  width: number;
-  height: number;
   strokeWidth: number;
   showMarkers: boolean;
   className?: string;
+  cursorT?: number | null;
+  selection?: MapSelection | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    let map: import("maplibre-gl").Map | undefined;
     let cancelled = false;
     const timeout = setTimeout(() => {
       if (!cancelled) {
@@ -191,20 +273,21 @@ function MapLibreRouteMap({
         // fichier). À resynchroniser si `maplibre-gl` est mis à jour.
         maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
 
-        const coords = points.map(([lat, lng]) => [lng, lat] as [number, number]);
+        const coords = points.map((p) => [p.lng, p.lat] as [number, number]);
         const bounds = coords.reduce(
           (b, c) => b.extend(c),
           new maplibregl.LngLatBounds(coords[0]!, coords[0]!),
         );
 
-        map = new maplibregl.Map({
+        const map = new maplibregl.Map({
           container,
           style: `https://api.maptiler.com/maps/${MAPTILER_STYLE}/style.json?key=${mapTilerKey}`,
           bounds,
-          fitBoundsOptions: { padding: 24, animate: false },
+          fitBoundsOptions: { padding: 32, animate: false },
           interactive: false,
           attributionControl: false,
         });
+        mapRef.current = map;
 
         map.on("error", (e) => {
           console.error("RouteMap: erreur MapLibre, repli sur le tracé SVG.", e.error);
@@ -213,19 +296,86 @@ function MapLibreRouteMap({
         });
 
         map.on("load", () => {
-          if (cancelled || !map) return;
+          if (cancelled) return;
           clearTimeout(timeout);
-          map.addSource("route", {
-            type: "geojson",
-            data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } },
-          });
+
+          const animateDraw = !prefersReducedMotion() && coords.length > 2;
+          map.addSource("route", { type: "geojson", data: lineFeature(animateDraw ? [] : coords) });
           map.addLayer({
             id: "route-line",
             type: "line",
             source: "route",
             layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": "#5b9cf6", "line-width": 3 },
+            paint: { "line-color": "#5b9cf6", "line-width": strokeWidth },
           });
+
+          map.addSource("route-highlight", { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: "route-highlight-line",
+            type: "line",
+            source: "route-highlight",
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "#fab219", "line-width": strokeWidth * 2 },
+          });
+
+          map.addSource("route-cursor", { type: "geojson", data: EMPTY_FC });
+          map.addLayer({
+            id: "route-cursor-point",
+            type: "circle",
+            source: "route-cursor",
+            paint: {
+              "circle-radius": strokeWidth * 1.6,
+              "circle-color": "#fab219",
+              "circle-stroke-color": "#0b0e14",
+              "circle-stroke-width": strokeWidth * 0.6,
+            },
+          });
+
+          if (showMarkers) {
+            map.addSource("route-endpoints", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: [
+                  { type: "Feature", properties: { kind: "start" }, geometry: { type: "Point", coordinates: coords[0]! } },
+                  {
+                    type: "Feature",
+                    properties: { kind: "end" },
+                    geometry: { type: "Point", coordinates: coords[coords.length - 1]! },
+                  },
+                ],
+              },
+            });
+            map.addLayer({
+              id: "route-endpoints-circles",
+              type: "circle",
+              source: "route-endpoints",
+              paint: {
+                "circle-radius": strokeWidth * 1.6,
+                "circle-color": ["match", ["get", "kind"], "start", "#0ca30c", "#0b0e14"],
+                "circle-stroke-color": "#5b9cf6",
+                "circle-stroke-width": ["match", ["get", "kind"], "start", 0, strokeWidth * 0.8],
+              },
+            });
+          }
+
+          // Dessin progressif : révèle les coordonnées point par point plutôt
+          // que d'un coup — équivalent du stroke-dashoffset SVG, MapLibre
+          // n'ayant pas de primitive de dessin de trait native.
+          const source = map.getSource("route") as import("maplibre-gl").GeoJSONSource;
+          if (animateDraw) {
+            const start = performance.now();
+            const step = (now: number) => {
+              if (cancelled) return;
+              const progress = Math.min(1, (now - start) / DRAW_MS);
+              const count = Math.max(2, Math.round(coords.length * progress));
+              source.setData(lineFeature(coords.slice(0, count)));
+              if (progress < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+          } else {
+            source.setData(lineFeature(coords));
+          }
         });
       })
       .catch((error) => {
@@ -237,76 +387,112 @@ function MapLibreRouteMap({
     return () => {
       cancelled = true;
       clearTimeout(timeout);
-      map?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapTilerKey]);
+
+  // Curseur : suit le survol des graphiques, indépendamment du dessin
+  // progressif ci-dessus (effet séparé pour ne pas relancer le chargement
+  // de la carte à chaque déplacement de souris).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource("route-cursor")) return;
+    const source = map.getSource("route-cursor") as import("maplibre-gl").GeoJSONSource;
+    if (cursorT == null || points.length === 0) {
+      source.setData(EMPTY_FC);
+      return;
+    }
+    const point = points[nearestIndexByT(points, cursorT)]!;
+    source.setData(pointFeature([point.lng, point.lat]));
+  }, [cursorT, points]);
+
+  // Portion sélectionnée (clic sur un split/tour).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource("route-highlight")) return;
+    const source = map.getSource("route-highlight") as import("maplibre-gl").GeoJSONSource;
+    if (!selection) {
+      source.setData(EMPTY_FC);
+      return;
+    }
+    const subset = points
+      .filter((p) => p.t >= selection.startT && p.t <= selection.endT)
+      .map((p) => [p.lng, p.lat] as [number, number]);
+    source.setData(lineFeature(subset));
+  }, [selection, points]);
 
   if (failed) {
     return (
       <SvgRouteMap
         points={points}
-        width={width}
-        height={height}
+        width={1200}
+        height={520}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
         className={className}
+        cursorT={cursorT}
+        selection={selection}
       />
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{ width, height, maxWidth: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }}
-    />
-  );
+  return <div ref={containerRef} className={className} style={{ width: "100%", height: "100%" }} />;
 }
 
 export function RouteMap({
-  latlng,
+  points,
   mapTilerKey,
   width = 320,
   height = 220,
   strokeWidth = 3,
   showMarkers = true,
   className,
+  cursorT,
+  selection,
 }: {
-  latlng: ReadonlyArray<LatLng | null>;
+  /** Série position + temps écoulé, déjà filtrée des points sans coordonnée. */
+  points: GeoPoint[];
   /** Clé MapTiler (tuiles, gratuites) — omise ou vide = repli automatique sur le SVG seul. */
   mapTilerKey?: string;
+  /** Dimensions du viewBox pour le repli SVG uniquement — sans effet en mode MapLibre, qui remplit son conteneur. */
   width?: number;
   height?: number;
   strokeWidth?: number;
   showMarkers?: boolean;
   className?: string;
+  /** Temps écoulé (s) survolé dans les graphiques — affiche un curseur sur la carte. */
+  cursorT?: number | null;
+  /** Portion sélectionnée (clic sur un split/tour) — surlignée sur le tracé. */
+  selection?: MapSelection | null;
 }) {
-  const valid = latlng.filter((p): p is LatLng => p != null);
-  if (valid.length < 2) return null;
+  if (points.length < 2) return null;
 
   if (mapTilerKey) {
     return (
       <MapLibreRouteMap
-        points={valid}
+        points={points}
         mapTilerKey={mapTilerKey}
-        width={width}
-        height={height}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
         className={className}
+        cursorT={cursorT}
+        selection={selection}
       />
     );
   }
 
   return (
     <SvgRouteMap
-      points={valid}
+      points={points}
       width={width}
       height={height}
       strokeWidth={strokeWidth}
       showMarkers={showMarkers}
       className={className}
+      cursorT={cursorT}
+      selection={selection}
     />
   );
 }

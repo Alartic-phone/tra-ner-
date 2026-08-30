@@ -34,6 +34,7 @@ export function HeroStat({
   value,
   unit,
   label,
+  hint,
   estimated = false,
   size = "lg",
   tone = "default",
@@ -43,6 +44,7 @@ export function HeroStat({
   value: ReactNode;
   unit?: string;
   label: string;
+  hint?: string;
   /** Valeur obtenue par approximation — jamais une estimation silencieuse. */
   estimated?: boolean;
   size?: keyof typeof SIZE_CLASSES;
@@ -88,6 +90,7 @@ export function HeroStat({
         </span>
         {unit ? <span className="text-sm text-[var(--color-muted)]">{unit}</span> : null}
       </div>
+      {hint ? <div className="mt-0.5 text-[11px] text-[var(--color-faint)]">{hint}</div> : null}
     </div>
   );
 }

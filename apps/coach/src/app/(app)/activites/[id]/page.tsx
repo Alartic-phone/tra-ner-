@@ -2,17 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/db.ts";
-import { availableStreams, loadStreams, toChartPoints } from "@/lib/streams.ts";
-import { Badge, Unavailable } from "@/components/ui/badge.tsx";
+import { availableStreams, loadStreams, toChartPoints, toGeoSeries } from "@/lib/streams.ts";
+import { enrichLaps } from "@/lib/laps.ts";
+import { Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
-import { ActivityCharts } from "@/components/activities/activity-charts.tsx";
-import { RouteMap } from "@/components/activities/route-map.tsx";
-import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
-import { formatClock, formatDistance, formatPace, formatSpeed, paceFromSpeed } from "@/lib/utils.ts";
-import { TRIMP_METHOD_LABELS, type TrimpMethod } from "@/lib/metrics/trimp.ts";
+import { StatBand } from "@/components/activities/stat-band.tsx";
+import { ZoneSummary } from "@/components/activities/zone-summary.tsx";
+import { ActivityInteractive } from "@/components/activities/activity-interactive.tsx";
+import { RecordsSection } from "@/components/activities/records-section.tsx";
+import { ActivityNotes } from "@/components/activities/activity-notes.tsx";
+import { sportColor } from "@/components/activities/activity-icon.tsx";
+import type { LapRow } from "@/components/activities/lap-rows-table.tsx";
+import { formatPace } from "@/lib/utils.ts";
 import { decouplingVerdict } from "@/lib/metrics/decoupling.ts";
-import { getProfileStatus, loadPersonalRecords } from "@/lib/metrics/repository.ts";
-import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
+import { getProfileStatus, loadActivityBestEfforts } from "@/lib/metrics/repository.ts";
+import { computeHeartRateZones, timeInZones } from "@/lib/metrics/zones.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { loadShiftRange } from "@/lib/shifts/repository.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
@@ -35,14 +39,15 @@ export default async function ActivityPage({
   if (!activity) notFound();
 
   const rules = await getAvailabilityRules();
-  const [streams, shifts, personalRecords, profileStatus] = await Promise.all([
+  const [streams, shifts, bestEfforts, profileStatus] = await Promise.all([
     loadStreams(activity.id),
     loadShiftRange(activity.startDay, activity.startDay, rules),
-    loadPersonalRecords(activity.id),
+    loadActivityBestEfforts(activity.id),
     getProfileStatus(),
   ]);
 
-  const points = streams ? toChartPoints(streams) : [];
+  const chartPoints = streams ? toChartPoints(streams) : [];
+  const geoPoints = streams ? toGeoSeries(streams) : [];
   const present = availableStreams(streams);
   const isRunActivity = isRun(activity.type);
   const hrZones = profileStatus.profile
@@ -54,220 +59,154 @@ export default async function ActivityPage({
       shiftOfDay.resolved.code)
     : "repos";
 
+  // Répartition du temps par zone POUR CETTE ACTIVITÉ SEULE (pas l'agrégat de
+  // période utilisé par la page Analyses) : sert la barre de zones et le
+  // verdict de séance ci-dessous.
+  const zoneTimes =
+    hrZones && streams?.heartrate && streams.time
+      ? timeInZones(streams.heartrate, streams.time, hrZones)
+      : null;
+  const secondsByZone = zoneTimes ? hrZones!.map((z) => zoneTimes.byZone.get(z.index) ?? 0) : null;
+
+  // Verdict construit par le code, pas par un modèle : compare la zone FC
+  // cible de la séance planifiée rattachée à cette date au temps réellement
+  // passé dans cette zone.
+  const zoneVerdict = (() => {
+    const targetZone = activity.plannedWorkout?.targetHrZone;
+    if (!targetZone || !hrZones || !secondsByZone) return null;
+    const zone = hrZones.find((z) => z.index === targetZone);
+    const measuredTotal = secondsByZone.reduce((a, b) => a + b, 0);
+    if (!zone || measuredTotal === 0) return null;
+    const pct = Math.round(((secondsByZone[zone.index - 1] ?? 0) / measuredTotal) * 100);
+    return `Séance prescrite en Z${zone.index}, réalisée à ${pct} % en Z${zone.index}.`;
+  })();
+
+  const enrichedLaps = enrichLaps(activity.laps);
+  const toLapRow = (l: (typeof enrichedLaps)[number]): LapRow => ({
+    id: l.id,
+    label: l.splitIndex != null ? String(l.splitIndex) : (l.name ?? `Tour ${l.lapIndex + 1}`),
+    distanceM: l.distanceM,
+    avgSpeedMps: l.avgSpeedMps,
+    avgHr: l.avgHr,
+    elevationGainM: l.elevationGainM,
+    startT: l.startT,
+    endT: l.endT,
+  });
+  const splits = enrichedLaps.filter((l) => l.splitIndex != null).map(toLapRow);
+  const manualLaps = enrichedLaps.filter((l) => l.splitIndex == null).map(toLapRow);
+
   return (
-    <div className="p-4 md:p-6">
-      <Link
-        href="/activites"
-        className="inline-flex items-center gap-1 text-xs text-[var(--color-muted)] hover:underline"
+    <div className="pb-6">
+      <div className="p-4 md:p-6">
+        <Link
+          href="/activites"
+          className="inline-flex items-center gap-1 text-xs text-[var(--color-muted)] hover:underline"
+        >
+          <ArrowLeft size={13} aria-hidden /> Activités
+        </Link>
+      </div>
+
+      <ActivityInteractive
+        heroPoints={geoPoints}
+        mapTilerKey={getEnv().MAPTILER_API_KEY}
+        name={activity.name}
+        dateLabel={formatInstant(activity.startedAt)}
+        shiftLabel={shiftLabel}
+        sportType={activity.type}
+        chartPoints={chartPoints}
+        hasHr={present.includes("heartrate")}
+        hrZones={hrZones}
+        splits={splits}
+        manualLaps={manualLaps}
+        isRunActivity={isRunActivity}
+        sportColorValue={sportColor(activity.type)}
       >
-        <ArrowLeft size={13} aria-hidden /> Activités
-      </Link>
+        <div className="px-4 pt-4 md:px-6">
+          <StatBand
+            distanceM={activity.distanceM}
+            movingTimeS={activity.movingTimeS}
+            avgSpeedMps={activity.avgSpeedMps}
+            isRunActivity={isRunActivity}
+            avgHr={activity.avgHr}
+            maxHr={activity.maxHr}
+            elevationGainM={activity.elevationGainM}
+            avgCadence={activity.avgCadence}
+            calories={activity.calories}
+            trimp={activity.trimp}
+            trimpMethod={activity.trimpMethod}
+          />
 
-      <header className="mt-2 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">{activity.name}</h1>
-          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-            {formatInstant(activity.startedAt)} · {activity.type} · poste du jour :{" "}
-            {shiftLabel}
-          </p>
+          {secondsByZone ? (
+            <Card className="mt-4">
+              <CardHeader title="Zones FC" hint="Répartition du temps de cette séance par zone d'intensité." />
+              <CardBody>
+                <ZoneSummary zones={hrZones ?? []} secondsByZone={secondsByZone} verdict={zoneVerdict} />
+              </CardBody>
+            </Card>
+          ) : null}
         </div>
-        {activity.plannedWorkout ? (
-          <Badge tone="info">rattachée à « {activity.plannedWorkout.title} »</Badge>
-        ) : null}
-      </header>
+      </ActivityInteractive>
 
-      <RecordCelebration durations={personalRecords} />
+      <div className="px-4 md:px-6">
+        <RecordsSection efforts={bestEfforts} />
 
-      <Card elevated className="mt-4">
-        <CardBody className="grid grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">Distance</div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">{formatDistance(activity.distanceM)}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">Temps en mouvement</div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">{formatClock(activity.movingTimeS)}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">
-              {isRunActivity ? "Allure moyenne" : "Vitesse moyenne"}
-            </div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">
-              {isRunActivity
-                ? formatPace(paceFromSpeed(activity.avgSpeedMps))
-                : formatSpeed(activity.avgSpeedMps)}
-            </div>
-          </div>
-        </CardBody>
-        <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] border-t border-[var(--color-border)] sm:grid-cols-3 sm:divide-y-0">
-          <Stat
-            label="FC moyenne"
-            value={activity.avgHr ?? <Unavailable />}
-            unit={activity.avgHr ? "bpm" : undefined}
+        <Card className="mt-4">
+          <CardHeader
+            title="Analyse"
+            hint="Indicateurs dérivés. Tous sont des modèles appliqués aux flux, pas des mesures de la montre."
           />
-          <Stat
-            label="D+"
-            value={activity.elevationGainM != null ? Math.round(activity.elevationGainM) : <Unavailable />}
-            unit={activity.elevationGainM != null ? "m" : undefined}
-          />
-          <Stat
-            label="Charge (TRIMP)"
-            value={activity.trimp != null ? Math.round(activity.trimp) : <Unavailable />}
-            estimated={activity.trimpMethod !== null && activity.trimpMethod !== "coros_native"}
-            hint={
-              activity.trimpMethod
-                ? TRIMP_METHOD_LABELS[activity.trimpMethod as TrimpMethod]
-                : "Aucune source de charge disponible pour cette séance"
-            }
-          />
-        </div>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader
-          title="Tracé"
-          hint={
-            streams?.latlng
-              ? "Position GPS seconde par seconde."
-              : "Aucune donnée de position pour cette activité."
-          }
-        />
-        <CardBody className="flex justify-center">
-          {streams?.latlng ? (
-            <RouteMap
-              latlng={streams.latlng}
-              mapTilerKey={getEnv().MAPTILER_API_KEY}
-              width={480}
-              height={320}
-              className="max-w-md"
+          <div className="grid grid-cols-1 divide-y divide-[var(--color-border)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <Stat
+              label="Découplage cardiaque (Pa:Hr)"
+              value={
+                activity.decouplingPct != null ? (
+                  `${activity.decouplingPct.toFixed(1)} %`
+                ) : (
+                  <Unavailable reason="Exige un effort d'au moins 30 min avec allure et fréquence cardiaque" />
+                )
+              }
+              estimated
+              tone={
+                activity.decouplingPct == null
+                  ? "default"
+                  : decouplingVerdict(activity.decouplingPct) === "bon"
+                    ? "ok"
+                    : decouplingVerdict(activity.decouplingPct) === "correct"
+                      ? "default"
+                      : "warn"
+              }
+              hint="Sous 5 %, l'endurance aérobie est installée pour cette durée."
             />
-          ) : (
-            <p className="text-xs text-[var(--color-muted)]">
-              <Unavailable reason="Flux de position absent (séance en salle, ou import antérieur à la capture GPS)" />
-            </p>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader
-          title="Flux détaillés"
-          hint={
-            present.length > 0
-              ? `Séries disponibles : ${present.join(", ")}.`
-              : "Aucun flux importé pour cette activité."
-          }
-        />
-        <CardBody>
-          {points.length > 0 ? (
-            <ActivityCharts points={points} hasHr={present.includes("heartrate")} hrZones={hrZones} />
-          ) : (
-            <p className="text-xs text-[var(--color-muted)]">
-              Les flux seconde par seconde ne sont pas encore importés pour cette
-              activité. Ils arrivent par la file de synchronisation.
-            </p>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader
-          title="Tours"
-          hint="Indispensable pour lire une séance de fractionné."
-          action={<Badge>{activity.laps.length} tours</Badge>}
-        />
-        {activity.laps.length === 0 ? (
-          <CardBody>
-            <p className="text-xs text-[var(--color-muted)]">
-              Les tours ne sont pas encore importés. Ils arrivent avec le détail de
-              l&apos;activité.
-            </p>
-          </CardBody>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] text-left text-xs text-[var(--color-muted)]">
-                  <th className="px-3 py-2 font-medium">#</th>
-                  <th className="px-3 py-2 text-right font-medium">Distance</th>
-                  <th className="px-3 py-2 text-right font-medium">Temps</th>
-                  <th className="px-3 py-2 text-right font-medium">
-                    {isRunActivity ? "Allure" : "Vitesse"}
-                  </th>
-                  <th className="px-3 py-2 text-right font-medium">FC moy.</th>
-                  <th className="px-3 py-2 text-right font-medium">FC max</th>
-                </tr>
-              </thead>
-              <tbody className="tabular">
-                {activity.laps.map((lap) => (
-                  <tr key={lap.id} className="border-b border-[var(--color-border)] last:border-0">
-                    <td className="px-3 py-1.5">{lap.lapIndex}</td>
-                    <td className="px-3 py-1.5 text-right">{formatDistance(lap.distanceM)}</td>
-                    <td className="px-3 py-1.5 text-right">{formatClock(lap.movingTimeS)}</td>
-                    <td className="px-3 py-1.5 text-right">
-                      {isRunActivity
-                        ? formatPace(paceFromSpeed(lap.avgSpeedMps))
-                        : formatSpeed(lap.avgSpeedMps)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right">{lap.avgHr ?? "—"}</td>
-                    <td className="px-3 py-1.5 text-right">{lap.maxHr ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Stat
+              label="Allure ajustée du dénivelé"
+              value={
+                activity.gapPaceSPerKm != null ? (
+                  formatPace(activity.gapPaceSPerKm)
+                ) : (
+                  <Unavailable reason="Exige les flux de distance et d'altitude" />
+                )
+              }
+              estimated
+              hint="Modèle de Minetti (2002). Ne coïncidera pas avec la GAP de Strava, qui utilise un modèle propriétaire."
+            />
           </div>
-        )}
-      </Card>
+          {activity.metricsComputedAt === null ? (
+            <CardBody className="pt-0">
+              <p className="text-xs text-[var(--color-muted)]">
+                Les métriques de cette activité n&apos;ont pas encore été calculées.
+                Lancer le calcul depuis la page Analyses.
+              </p>
+            </CardBody>
+          ) : null}
+        </Card>
 
-      <Card className="mt-4">
-        <CardHeader
-          title="Analyse"
-          hint="Indicateurs dérivés. Tous sont des modèles appliqués aux flux, pas des mesures de la montre."
-        />
-        <div className="grid grid-cols-1 divide-y divide-[var(--color-border)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          <Stat
-            label="Découplage cardiaque (Pa:Hr)"
-            value={
-              activity.decouplingPct != null ? (
-                `${activity.decouplingPct.toFixed(1)} %`
-              ) : (
-                <Unavailable reason="Exige un effort d'au moins 30 min avec allure et fréquence cardiaque" />
-              )
-            }
-            estimated
-            tone={
-              activity.decouplingPct == null
-                ? "default"
-                : decouplingVerdict(activity.decouplingPct) === "bon"
-                  ? "ok"
-                  : decouplingVerdict(activity.decouplingPct) === "correct"
-                    ? "default"
-                    : "warn"
-            }
-            hint="Sous 5 %, l'endurance aérobie est installée pour cette durée."
-          />
-          <Stat
-            label="Allure ajustée du dénivelé"
-            value={
-              activity.gapPaceSPerKm != null ? (
-                formatPace(activity.gapPaceSPerKm)
-              ) : (
-                <Unavailable reason="Exige les flux de distance et d'altitude" />
-              )
-            }
-            estimated
-            hint="Modèle de Minetti (2002). Ne coïncidera pas avec la GAP de Strava, qui utilise un modèle propriétaire."
-          />
-        </div>
-        {activity.metricsComputedAt === null ? (
+        <Card className="mt-4">
+          <CardHeader title="Notes" hint="Ressenti, météo, douleur — sauvegardé au blur." />
           <CardBody>
-            <p className="text-xs text-[var(--color-muted)]">
-              Les métriques de cette activité n&apos;ont pas encore été calculées.
-              Lancer le calcul depuis la page Analyses.
-            </p>
+            <ActivityNotes activityId={activity.id} initialNotes={activity.notes} />
           </CardBody>
-        ) : null}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

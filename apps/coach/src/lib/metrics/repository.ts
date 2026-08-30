@@ -405,23 +405,34 @@ export async function loadBestEfforts(from: Day, to: Day) {
   return mergeBestEfforts(rows);
 }
 
+export type ActivityBestEffort = { durationS: number; distanceM: number; isRecord: boolean };
+
 /**
- * Durées pour lesquelles cette activité égale ou bat le record all-time —
+ * Meilleurs efforts de CETTE activité (durée -> distance couverte), chacun
+ * marqué `isRecord` s'il égale ou bat le record all-time sur sa durée.
  * `BestEffort` ne contient déjà que de la course à pied (cf. filtre par
  * type dans `computeActivityMetrics`), pas de filtre supplémentaire à faire.
  */
-export async function loadPersonalRecords(activityId: string): Promise<number[]> {
+export async function loadActivityBestEfforts(activityId: string): Promise<ActivityBestEffort[]> {
   const [current, allTime] = await Promise.all([
     prisma.bestEffort.findMany({
       where: { activityId },
       select: { durationS: true, distanceM: true },
+      orderBy: { durationS: "asc" },
     }),
     prisma.bestEffort.groupBy({ by: ["durationS"], _max: { distanceM: true } }),
   ]);
   if (current.length === 0) return [];
 
   const allTimeBest = new Map(allTime.map((row) => [row.durationS, row._max.distanceM ?? 0]));
-  return detectPersonalRecords(current, allTimeBest);
+  const records = new Set(detectPersonalRecords(current, allTimeBest));
+  return current.map((e) => ({ ...e, isRecord: records.has(e.durationS) }));
+}
+
+/** Durées pour lesquelles cette activité égale ou bat le record all-time. */
+export async function loadPersonalRecords(activityId: string): Promise<number[]> {
+  const efforts = await loadActivityBestEfforts(activityId);
+  return efforts.filter((e) => e.isRecord).map((e) => e.durationS);
 }
 
 /**

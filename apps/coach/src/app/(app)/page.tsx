@@ -9,7 +9,7 @@ import { RouteMap } from "@/components/activities/route-map.tsx";
 import { ReadinessBanner } from "@/components/dashboard/readiness-banner.tsx";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card.tsx";
 import { RecordProgressBar } from "@/components/dashboard/record-progress-bar.tsx";
-import { loadStreams } from "@/lib/streams.ts";
+import { loadStreams, toGeoSeries } from "@/lib/streams.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, diffDays, minutesToTime } from "@/lib/shifts/day.ts";
@@ -85,7 +85,10 @@ export default async function DashboardPage() {
   // remplacer la carte détaillée de la page activité.
   const recentRoutes = new Map(
     await Promise.all(
-      recent.map(async (a) => [a.id, (await loadStreams(a.id))?.latlng ?? null] as const),
+      recent.map(async (a) => {
+        const streams = await loadStreams(a.id);
+        return [a.id, streams ? toGeoSeries(streams) : []] as const;
+      }),
     ),
   );
 
@@ -447,10 +450,10 @@ export default async function DashboardPage() {
                   style={{ "--stagger-index": i } as React.CSSProperties}
                 >
                   <span className="flex min-w-0 flex-1 items-center gap-2">
-                    {recentRoutes.get(a.id) ? (
+                    {(recentRoutes.get(a.id)?.length ?? 0) >= 2 ? (
                       <span className="h-6 w-9 shrink-0 overflow-hidden">
                         <RouteMap
-                          latlng={recentRoutes.get(a.id)!}
+                          points={recentRoutes.get(a.id)!}
                           width={72}
                           height={48}
                           strokeWidth={4}

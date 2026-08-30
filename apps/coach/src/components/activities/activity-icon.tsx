@@ -27,3 +27,11 @@ export function sportColor(type: string): string {
   if (/swim/i.test(type)) return "var(--sport-swim)";
   return "var(--sport-other)";
 }
+
+/** Libellé français court du sport, pour le badge de la page d'activité. */
+export function sportLabel(type: string): string {
+  if (/run/i.test(type)) return "Course à pied";
+  if (/ride|bike|cycl/i.test(type)) return "Vélo";
+  if (/swim/i.test(type)) return "Natation";
+  return type;
+}

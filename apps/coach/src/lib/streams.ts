@@ -97,6 +97,28 @@ function average(
   return count === 0 ? null : transform(sum / count);
 }
 
+export type GeoPoint = { t: number; lat: number; lng: number };
+
+/**
+ * Associe chaque point de position valide à son temps écoulé (secondes
+ * depuis le départ). Sert de pont entre le curseur des graphiques (qui
+ * raisonne en `t`) et la position à afficher sur la carte — un point sans
+ * coordonnée valide est simplement absent de la série, jamais interpolé.
+ */
+export function toGeoSeries(streams: StreamData): GeoPoint[] {
+  const time = streams.time ?? [];
+  const latlng = streams.latlng ?? [];
+  const n = Math.min(time.length, latlng.length);
+  const out: GeoPoint[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = time[i];
+    const pos = latlng[i];
+    if (t == null || pos == null) continue;
+    out.push({ t, lat: pos[0], lng: pos[1] });
+  }
+  return out;
+}
+
 export function availableStreams(streams: StreamData | null): string[] {
   if (!streams) return [];
   return Object.entries(streams)
