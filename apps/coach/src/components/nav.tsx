@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Activity,
   CalendarDays,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
+import { TRANSITION } from "@/lib/motion.ts";
 
 const LINKS = [
   { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
@@ -42,6 +44,7 @@ const MORE_LINKS = LINKS.filter((l) => !PRIMARY_HREFS.includes(l.href));
 export function AppNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
   const moreActive = MORE_LINKS.some((l) => isActive(l.href));
@@ -51,22 +54,34 @@ export function AppNav() {
       <nav className="hidden w-52 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:block">
         <div className="px-2 pb-4 pt-1 text-sm font-semibold">Coach</div>
         <ul className="space-y-0.5">
-          {LINKS.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
-                  isActive(href)
-                    ? "bg-[var(--color-accent-soft)] text-[var(--color-text)]"
-                    : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
-                )}
-              >
-                <Icon size={16} aria-hidden />
-                {label}
-              </Link>
-            </li>
-          ))}
+          {LINKS.map(({ href, label, icon: Icon }) => {
+            const active = isActive(href);
+            return (
+              <li key={href} className="relative">
+                <Link
+                  href={href}
+                  className={cn(
+                    "relative flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
+                    active
+                      ? "text-[var(--color-text)]"
+                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
+                  )}
+                >
+                  {active && !reducedMotion ? (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 rounded-[var(--radius-card)] bg-[var(--color-accent-soft)]"
+                      transition={TRANSITION.base}
+                    />
+                  ) : active ? (
+                    <span className="absolute inset-0 rounded-[var(--radius-card)] bg-[var(--color-accent-soft)]" />
+                  ) : null}
+                  <Icon size={16} className="relative" aria-hidden />
+                  <span className="relative">{label}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
