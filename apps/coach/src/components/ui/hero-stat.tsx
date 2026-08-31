@@ -38,6 +38,7 @@ export function HeroStat({
   size = "lg",
   tone = "default",
   sport,
+  recent = false,
   className,
 }: {
   value: ReactNode;
@@ -49,8 +50,16 @@ export function HeroStat({
   tone?: keyof typeof TONE_VARS;
   /** Halo très discret en haut à gauche — jamais un fond plein. */
   sport?: keyof typeof SPORT_VARS;
+  /** Halo --color-warn : record battu dans les sept derniers jours. Prime sur `sport`. */
+  recent?: boolean;
   className?: string;
 }) {
+  const haloVar = recent
+    ? "--color-warn"
+    : sport
+      ? SPORT_VARS[sport]
+      : null;
+
   return (
     <div
       className={cn(
@@ -58,9 +67,9 @@ export function HeroStat({
         className,
       )}
       style={
-        sport
+        haloVar
           ? ({
-              "--hero-sport-halo": `radial-gradient(120% 100% at 0% 0%, color-mix(in oklab, var(${SPORT_VARS[sport]}) 30%, transparent) 0%, transparent 55%)`,
+              "--hero-sport-halo": `radial-gradient(120% 100% at 0% 0%, color-mix(in oklab, var(${haloVar}) 30%, transparent) 0%, transparent 55%)`,
             } as React.CSSProperties)
           : undefined
       }

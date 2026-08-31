@@ -49,6 +49,9 @@ import {
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeWeekStreak } from "./streak.ts";
+import { computeRecordProgression, HIGHER_IS_BETTER, LOWER_IS_BETTER } from "./records.ts";
+import { computeWeeklyVolume } from "./volume.ts";
+import { detectMilestones } from "./milestones.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -929,5 +932,98 @@ describe("fraîcheur du jour (readiness)", () => {
       restingHrBaselineMean: 55,
     });
     expect(result.status).toBe("correct");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("Progression de record (page /progression)", () => {
+  it("ne garde que les points qui améliorent le record, dans l'ordre chronologique", () => {
+    const points = [
+      { day: "2026-03-01", activityId: "a", value: 1200 },
+      { day: "2026-01-01", activityId: "b", value: 1500 },
+      { day: "2026-02-01", activityId: "c", value: 1600 }, // pire que "b" : exclu
+      { day: "2026-04-01", activityId: "d", value: 1100 },
+    ];
+    expect(computeRecordProgression(points, LOWER_IS_BETTER)).toEqual([
+      { day: "2026-01-01", activityId: "b", value: 1500 },
+      { day: "2026-03-01", activityId: "a", value: 1200 },
+      { day: "2026-04-01", activityId: "d", value: 1100 },
+    ]);
+  });
+
+  it("HIGHER_IS_BETTER pour une distance, LOWER_IS_BETTER pour un chrono", () => {
+    expect(HIGHER_IS_BETTER(10, 5)).toBe(true);
+    expect(HIGHER_IS_BETTER(5, 10)).toBe(false);
+    expect(LOWER_IS_BETTER(5, 10)).toBe(true);
+    expect(LOWER_IS_BETTER(10, 5)).toBe(false);
+  });
+
+  it("une égalité n'est pas une amélioration", () => {
+    const points = [
+      { day: "2026-01-01", activityId: "a", value: 1000 },
+      { day: "2026-01-02", activityId: "b", value: 1000 },
+    ];
+    expect(computeRecordProgression(points, HIGHER_IS_BETTER)).toEqual([
+      { day: "2026-01-01", activityId: "a", value: 1000 },
+    ]);
+  });
+});
+
+describe("Volume hebdomadaire (page /progression)", () => {
+  it("sépare course et vélo par lundi de semaine ISO", () => {
+    const byWeek = computeWeeklyVolume([
+      { day: "2026-03-02", distanceM: 10_000, type: "Run" }, // lundi
+      { day: "2026-03-04", distanceM: 5_000, type: "TrailRun" }, // mercredi, même semaine
+      { day: "2026-03-05", distanceM: 30_000, type: "Ride" }, // même semaine
+      { day: "2026-03-09", distanceM: 8_000, type: "Run" }, // semaine suivante
+      { day: "2026-03-10", distanceM: 2_000, type: "Swim" }, // ignoré : ni course ni vélo
+    ]);
+
+    expect(byWeek.get("2026-03-02")).toEqual({ runM: 15_000, rideM: 30_000 });
+    expect(byWeek.get("2026-03-09")).toEqual({ runM: 8_000, rideM: 0 });
+  });
+
+  it("une semaine sans activité n'apparaît simplement pas dans la map", () => {
+    const byWeek = computeWeeklyVolume([]);
+    expect(byWeek.size).toBe(0);
+  });
+});
+
+describe("Jalons détectés automatiquement (page /progression)", () => {
+  it("détecte la première sortie enregistrée et la première sortie de plus de 10 km", () => {
+    const milestones = detectMilestones(
+      [
+        { day: "2026-01-05", distanceM: 5_000, type: "Run" },
+        { day: "2026-02-10", distanceM: 12_000, type: "Run" },
+        { day: "2026-03-01", distanceM: 15_000, type: "Run" },
+      ],
+      [],
+    );
+    const byKey = new Map(milestones.map((m) => [m.key, m]));
+    expect(byKey.get("first_activity")?.day).toBe("2026-01-05");
+    expect(byKey.get("long_run_10k")?.day).toBe("2026-02-10");
+    expect(byKey.has("long_run_half")).toBe(false);
+  });
+
+  it("détecte le premier 20 km sur une semaine et la première séance de seuil réalisée", () => {
+    const milestones = detectMilestones(
+      [
+        { day: "2026-01-05", distanceM: 12_000, type: "Run" },
+        { day: "2026-01-07", distanceM: 9_000, type: "Run" }, // même semaine ISO -> 21 km
+      ],
+      [
+        { day: "2026-01-06", type: "seuil", status: "upcoming" }, // pas encore réalisée
+        { day: "2026-01-20", type: "seuil", status: "done" },
+      ],
+    );
+    const byKey = new Map(milestones.map((m) => [m.key, m]));
+    expect(byKey.get("week_20k")?.day).toBe("2026-01-05");
+    expect(byKey.get("first_threshold")?.day).toBe("2026-01-20");
+    expect(byKey.has("first_vma")).toBe(false);
+  });
+
+  it("ne fabrique aucun jalon en l'absence de données", () => {
+    expect(detectMilestones([], [])).toEqual([]);
   });
 });

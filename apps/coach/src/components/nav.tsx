@@ -13,6 +13,7 @@ import {
   NotebookPen,
   Settings,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
@@ -25,6 +26,7 @@ const LINKS = [
   { href: "/journal", label: "Journal", icon: NotebookPen },
   { href: "/simulateur", label: "Simulateur", icon: Gauge },
   { href: "/analyses", label: "Analyses", icon: LineChart },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/reglages", label: "Réglages", icon: Settings },
 ] as const;
 

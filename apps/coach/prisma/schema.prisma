@@ -146,6 +146,7 @@ model Activity {
   stream       ActivityStream?
   laps         Lap[]
   bestEfforts  BestEffort[]
+  bestEffortsByDistance BestEffortByDistance[]
 
   /// Séance planifiée à laquelle cette activité correspond (rapprochement
   /// manuel ou automatique).
@@ -199,6 +200,30 @@ model BestEffort {
 
   @@unique([activityId, durationS])
   @@index([durationS, distanceM])
+  @@index([day])
+}
+
+/// Symétrique de `BestEffort` : plutôt que la plus grande distance couverte
+/// dans une durée de référence, le meilleur temps réalisé sur une distance de
+/// référence (1 km, mile, 5 km, 10 km…) — c'est cette lecture qui correspond
+/// à un record personnel au sens usuel du terme. Table séparée plutôt qu'un
+/// discriminant sur `BestEffort` : les deux champs échangent leurs rôles de
+/// référence et de mesure d'une table à l'autre, un `kind` sur une table
+/// unique aurait rendu les deux sens illisibles l'un dans l'autre.
+model BestEffortByDistance {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  /// Distance de référence, en mètres (cf. DEFAULT_DISTANCES).
+  distanceM Float
+  /// Meilleur temps réalisé sur cette distance, en secondes.
+  durationS Int
+  /// Jour de l'activité, dupliqué pour filtrer sur une période sans jointure.
+  day       String
+
+  @@unique([activityId, distanceM])
+  @@index([distanceM, durationS])
   @@index([day])
 }
 

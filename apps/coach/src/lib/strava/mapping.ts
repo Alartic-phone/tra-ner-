@@ -49,3 +49,8 @@ export const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 export function isRun(type: string): boolean {
   return RUN_TYPES.has(type);
 }
+
+/** Même regroupement que `sportColor`/`ActivityTypeIcon` (activity-icon.tsx). */
+export function isRide(type: string): boolean {
+  return /ride|bike|cycl/i.test(type);
+}

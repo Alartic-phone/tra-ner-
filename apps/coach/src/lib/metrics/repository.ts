@@ -1,11 +1,13 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
-import { isRun } from "../strava/mapping.ts";
-import { addDays, type Day } from "../shifts/day.ts";
+import { isRide, isRun, RUN_TYPES } from "../strava/mapping.ts";
+import { addDays, mondayOf, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
+  DEFAULT_DISTANCES,
   DEFAULT_DURATIONS,
   bestDistanceForDurations,
+  bestTimeForDistances,
   detectPersonalRecords,
   mergeBestEfforts,
 } from "./best-efforts.ts";
@@ -18,6 +20,13 @@ import {
   toDailyLoads,
   type FitnessPoint,
 } from "./load.ts";
+import { detectMilestones, type Milestone } from "./milestones.ts";
+import {
+  computeRecordProgression,
+  HIGHER_IS_BETTER,
+  LOWER_IS_BETTER,
+  type RecordPoint,
+} from "./records.ts";
 import {
   trimpFromAverage,
   trimpFromRpe,
@@ -26,9 +35,13 @@ import {
   type Sex,
   type TrimpMethod,
 } from "./trimp.ts";
+import { computeWeeklyVolume } from "./volume.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
 import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
 import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
+
+/** Tableau prêt pour un filtre Prisma `in` — `RUN_TYPES` est un Set. */
+const RUN_TYPE_LIST = [...RUN_TYPES];
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -72,6 +85,8 @@ export type ActivityMetrics = {
   gapPaceSPerKm: number | null;
   decouplingPct: number | null;
   bestEfforts: Array<{ durationS: number; distanceM: number }>;
+  /** Symétrique de `bestEfforts` : meilleur temps sur une distance de référence. */
+  distanceEfforts: Array<{ durationS: number; distanceM: number }>;
 };
 
 /**
@@ -94,6 +109,7 @@ export async function computeActivityMetrics(
       gapPaceSPerKm: null,
       decouplingPct: null,
       bestEfforts: [],
+      distanceEfforts: [],
     };
   }
 
@@ -152,12 +168,21 @@ export async function computeActivityMetrics(
         )
       : [];
 
+  const distanceEfforts =
+    isRunningActivity && streams?.distance && streams.time
+      ? bestTimeForDistances(
+          { time: streams.time, distance: streams.distance },
+          DEFAULT_DISTANCES,
+        )
+      : [];
+
   return {
     trimp,
     trimpMethod,
     gapPaceSPerKm: gap?.gapSPerKm ?? null,
     decouplingPct: decoupling?.decouplingPct ?? null,
     bestEfforts,
+    distanceEfforts,
   };
 }
 
@@ -185,19 +210,35 @@ export async function persistActivityMetrics(
   // course-à-pied introduit ensuite), d'anciennes lignes ne doivent pas
   // survivre simplement parce que la nouvelle liste est vide.
   await prisma.bestEffort.deleteMany({ where: { activityId } });
-  if (metrics.bestEfforts.length > 0) {
+  await prisma.bestEffortByDistance.deleteMany({ where: { activityId } });
+
+  if (metrics.bestEfforts.length > 0 || metrics.distanceEfforts.length > 0) {
     const activity = await prisma.activity.findUnique({
       where: { id: activityId },
       select: { startDay: true },
     });
-    await prisma.bestEffort.createMany({
-      data: metrics.bestEfforts.map((e) => ({
-        activityId,
-        durationS: e.durationS,
-        distanceM: e.distanceM,
-        day: activity?.startDay ?? "",
-      })),
-    });
+    const day = activity?.startDay ?? "";
+
+    if (metrics.bestEfforts.length > 0) {
+      await prisma.bestEffort.createMany({
+        data: metrics.bestEfforts.map((e) => ({
+          activityId,
+          durationS: e.durationS,
+          distanceM: e.distanceM,
+          day,
+        })),
+      });
+    }
+    if (metrics.distanceEfforts.length > 0) {
+      await prisma.bestEffortByDistance.createMany({
+        data: metrics.distanceEfforts.map((e) => ({
+          activityId,
+          distanceM: e.distanceM,
+          durationS: e.durationS,
+          day,
+        })),
+      });
+    }
   }
 }
 
@@ -564,21 +605,143 @@ export async function loadNextGoal() {
  * record affiché s'il n'a pas réellement été battu par une activité.
  */
 export async function loadLongestRunProgression(): Promise<
-  { day: Day; distanceM: number }[]
+  { day: Day; activityId: string; distanceM: number }[]
 > {
   const runs = await prisma.activity.findMany({
-    where: { type: { in: ["Run", "TrailRun", "VirtualRun"] } },
+    where: { type: { in: RUN_TYPE_LIST } },
     orderBy: { startDay: "asc" },
-    select: { startDay: true, distanceM: true },
+    select: { id: true, startDay: true, distanceM: true },
   });
 
-  const progression: { day: Day; distanceM: number }[] = [];
+  const progression: { day: Day; activityId: string; distanceM: number }[] = [];
   let best = 0;
   for (const run of runs) {
     if (run.distanceM > best) {
       best = run.distanceM;
-      progression.push({ day: run.startDay, distanceM: run.distanceM });
+      progression.push({ day: run.startDay, activityId: run.id, distanceM: run.distanceM });
     }
   }
   return progression;
+}
+
+/** Même progression que ci-dessus, mais sur la durée plutôt que la distance. */
+export async function loadLongestDurationProgression(): Promise<
+  { day: Day; activityId: string; movingTimeS: number }[]
+> {
+  const runs = await prisma.activity.findMany({
+    where: { type: { in: RUN_TYPE_LIST } },
+    orderBy: { startDay: "asc" },
+    select: { id: true, startDay: true, movingTimeS: true },
+  });
+
+  const progression: { day: Day; activityId: string; movingTimeS: number }[] = [];
+  let best = 0;
+  for (const run of runs) {
+    if (run.movingTimeS > best) {
+      best = run.movingTimeS;
+      progression.push({ day: run.startDay, activityId: run.id, movingTimeS: run.movingTimeS });
+    }
+  }
+  return progression;
+}
+
+/**
+ * Progression du record de meilleur temps sur une distance de référence
+ * (1 km, mile, 5 km, 10 km…), depuis `BestEffortByDistance`.
+ */
+export async function loadDistanceRecordProgression(distanceM: number): Promise<RecordPoint[]> {
+  const rows = await prisma.bestEffortByDistance.findMany({
+    where: { distanceM },
+    select: { day: true, activityId: true, durationS: true },
+  });
+  return computeRecordProgression(
+    rows.map((r) => ({ day: r.day, activityId: r.activityId, value: r.durationS })),
+    LOWER_IS_BETTER,
+  );
+}
+
+/**
+ * Progression du record de plus grande distance couverte dans une durée de
+ * référence (utilisé pour « meilleure allure sur 20 min »), depuis
+ * `BestEffort`.
+ */
+export async function loadDurationRecordProgression(durationS: number): Promise<RecordPoint[]> {
+  const rows = await prisma.bestEffort.findMany({
+    where: { durationS },
+    select: { day: true, activityId: true, distanceM: true },
+  });
+  return computeRecordProgression(
+    rows.map((r) => ({ day: r.day, activityId: r.activityId, value: r.distanceM })),
+    HIGHER_IS_BETTER,
+  );
+}
+
+/**
+ * Nuage allure × FC moyenne, pour les sorties de plus de trente minutes.
+ * Filtré sur la FC réellement mesurée : aucune activité sans cardio n'entre
+ * dans le nuage, jamais de point deviné.
+ */
+export async function loadPaceVsHr(): Promise<
+  Array<{ day: Day; activityId: string; paceSPerKm: number; avgHr: number }>
+> {
+  const activities = await prisma.activity.findMany({
+    where: {
+      type: { in: RUN_TYPE_LIST },
+      movingTimeS: { gt: 1800 },
+      avgHr: { not: null },
+      distanceM: { gt: 0 },
+    },
+    select: { id: true, startDay: true, movingTimeS: true, distanceM: true, avgHr: true },
+  });
+
+  return activities.map((a) => ({
+    day: a.startDay,
+    activityId: a.id,
+    paceSPerKm: a.movingTimeS / (a.distanceM / 1000),
+    avgHr: a.avgHr as number,
+  }));
+}
+
+/**
+ * Volume hebdomadaire course/vélo sur les `weeksCount` dernières semaines
+ * (lundi-dimanche), la semaine en cours incluse.
+ */
+export async function loadWeeklyVolume(
+  weeksCount = 12,
+): Promise<Array<{ weekStart: Day; runKm: number; rideKm: number }>> {
+  const currentWeekStart = mondayOf(today());
+  const from = addDays(currentWeekStart, -(weeksCount - 1) * 7);
+
+  const activities = await prisma.activity.findMany({
+    where: { startDay: { gte: from } },
+    select: { startDay: true, distanceM: true, type: true },
+  });
+
+  const byWeek = computeWeeklyVolume(
+    activities.map((a) => ({ day: a.startDay, distanceM: a.distanceM, type: a.type })),
+  );
+
+  const weeks: Array<{ weekStart: Day; runKm: number; rideKm: number }> = [];
+  for (let i = 0; i < weeksCount; i++) {
+    const weekStart = addDays(from, i * 7);
+    const entry = byWeek.get(weekStart) ?? { runM: 0, rideM: 0 };
+    weeks.push({ weekStart, runKm: entry.runM / 1000, rideKm: entry.rideM / 1000 });
+  }
+  return weeks;
+}
+
+/** Jalons détectés automatiquement depuis l'historique complet. */
+export async function loadMilestones(): Promise<Milestone[]> {
+  const [activities, plannedWorkouts] = await Promise.all([
+    prisma.activity.findMany({ select: { startDay: true, distanceM: true, type: true } }),
+    prisma.plannedWorkout.findMany({
+      where: { status: "done" },
+      select: { day: true, type: true, status: true },
+    }),
+  ]);
+
+  return detectMilestones(
+    activities.map((a) => ({ day: a.startDay, distanceM: a.distanceM, type: a.type })),
+    plannedWorkouts,
+  );
 }
