@@ -20,23 +20,24 @@ import { cn } from "@/lib/utils.ts";
 import { TRANSITION } from "@/lib/motion.ts";
 
 const LINKS = [
-  { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
-  { href: "/activites", label: "Activités", icon: Activity },
-  { href: "/plan", label: "Mon plan", icon: Target },
-  { href: "/journal", label: "Journal", icon: NotebookPen },
-  { href: "/simulateur", label: "Simulateur", icon: Gauge },
-  { href: "/analyses", label: "Analyses", icon: LineChart },
-  { href: "/reglages", label: "Réglages", icon: Settings },
+  { href: "/", label: "Tableau de bord", mobileLabel: "Accueil", icon: LayoutDashboard },
+  { href: "/activites", label: "Activités", mobileLabel: "Activités", icon: Activity },
+  { href: "/calendrier", label: "Calendrier", mobileLabel: "Calendrier", icon: CalendarDays },
+  { href: "/analyses", label: "Analyses", mobileLabel: "Progression", icon: LineChart },
+  { href: "/plan", label: "Mon plan", mobileLabel: "Plan", icon: Target },
+  { href: "/journal", label: "Journal", mobileLabel: "Journal", icon: NotebookPen },
+  { href: "/simulateur", label: "Simulateur", mobileLabel: "Simulateur", icon: Gauge },
+  { href: "/reglages", label: "Réglages", mobileLabel: "Réglages", icon: Settings },
 ] as const;
 
 /**
  * Cinq onglets pouce-atteignables sur mobile : les quatre plus consultés au
- * quotidien, plus « Plus » qui ouvre le reste. Auparavant la barre tronquait
- * silencieusement à `LINKS.slice(0, 5)` — Simulateur, Analyses et Réglages
- * n'étaient tout simplement pas accessibles depuis le téléphone.
+ * quotidien (Accueil, Activités, Calendrier, Progression), plus « Plus » qui
+ * ouvre le reste. Auparavant la barre tronquait silencieusement à
+ * `LINKS.slice(0, 5)` — Simulateur, Analyses et Réglages n'étaient tout
+ * simplement pas accessibles depuis le téléphone.
  */
-const PRIMARY_HREFS = ["/", "/calendrier", "/plan", "/analyses"];
+const PRIMARY_HREFS = ["/", "/activites", "/calendrier", "/analyses"];
 const PRIMARY_LINKS = LINKS.filter((l) => PRIMARY_HREFS.includes(l.href));
 const MORE_LINKS = LINKS.filter((l) => !PRIMARY_HREFS.includes(l.href));
 
@@ -86,7 +87,7 @@ export function AppNav() {
       </nav>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-[var(--color-border)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] md:hidden">
-        {PRIMARY_LINKS.map(({ href, label, icon: Icon }) => (
+        {PRIMARY_LINKS.map(({ href, label, mobileLabel, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -97,7 +98,7 @@ export function AppNav() {
             )}
           >
             <Icon size={18} aria-hidden />
-            {label.split(" ")[0]}
+            {mobileLabel}
           </Link>
         ))}
         <button
