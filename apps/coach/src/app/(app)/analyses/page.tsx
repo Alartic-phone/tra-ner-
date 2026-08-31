@@ -169,7 +169,13 @@ export default async function AnalyticsPage({
           {snapshot.series.length > 0 ? (
             <FitnessChart rows={snapshot.series} raceDay={nextGoal?.day} />
           ) : (
-            <p className="text-xs text-[var(--color-muted)]">Aucune donnée sur la période.</p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Aucune charge calculée sur {range.label}. Connecter Strava depuis les{" "}
+              <Link href="/reglages" className="text-[var(--color-accent)] hover:underline">
+                réglages
+              </Link>{" "}
+              pour importer l&apos;historique.
+            </p>
           )}
         </CardBody>
       </Card>
@@ -184,7 +190,10 @@ export default async function AnalyticsPage({
             {snapshot.series.length > 0 ? (
               <FormChart rows={snapshot.series} />
             ) : (
-              <p className="text-xs text-[var(--color-muted)]">Aucune donnée.</p>
+              <p className="text-xs text-[var(--color-muted)]">
+                La forme se déduit de la charge : encore aucune séance calculée sur{" "}
+                {range.label}.
+              </p>
             )}
           </CardBody>
         </Card>
@@ -198,7 +207,10 @@ export default async function AnalyticsPage({
             {snapshot.acwrSeries.length > 0 ? (
               <AcwrChart rows={snapshot.acwrSeries} />
             ) : (
-              <p className="text-xs text-[var(--color-muted)]">Aucune donnée.</p>
+              <p className="text-xs text-[var(--color-muted)]">
+                Le ratio se déduit de la charge : encore aucune séance calculée sur{" "}
+                {range.label}.
+              </p>
             )}
           </CardBody>
         </Card>
