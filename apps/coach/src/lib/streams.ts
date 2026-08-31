@@ -33,6 +33,35 @@ export async function loadStreams(activityId: string): Promise<StreamData | null
   return parsed.success ? parsed.data : null;
 }
 
+export type LatLng = [number, number];
+
+const latlngOnlySchema = streamDataSchema.pick({ latlng: true });
+
+/**
+ * Ne charge que le tracé GPS, pour les vignettes du fil d'activités : décoder
+ * un blob par activité reste nécessaire (les flux ne sont pas indexables
+ * champ par champ), mais une seule requête pour tout le lot évite un
+ * aller-retour base par activité.
+ */
+export async function loadRoutePreviews(
+  activityIds: readonly string[],
+): Promise<Map<string, ReadonlyArray<LatLng | null> | null>> {
+  const out = new Map<string, ReadonlyArray<LatLng | null> | null>();
+  if (activityIds.length === 0) return out;
+
+  const rows = await prisma.activityStream.findMany({
+    where: { activityId: { in: [...activityIds] } },
+    select: { activityId: true, data: true },
+  });
+
+  for (const row of rows) {
+    const json: unknown = JSON.parse(gunzipSync(Buffer.from(row.data)).toString("utf8"));
+    const parsed = latlngOnlySchema.safeParse(json);
+    out.set(row.activityId, parsed.success ? (parsed.data.latlng ?? null) : null);
+  }
+  return out;
+}
+
 export type ChartPoint = {
   t: number;
   distanceKm: number | null;

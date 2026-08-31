@@ -1,4 +1,5 @@
 import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
+import { cn } from "@/lib/utils.ts";
 
 /**
  * Fine barre horizontale segmentée par zone FC — l'information la plus
@@ -17,7 +18,7 @@ export function ZoneBar({
   if (!secondsByZone || total === 0) return null;
 
   return (
-    <div className={`flex h-1.5 w-full overflow-hidden rounded-[var(--radius-pill)] ${className ?? ""}`}>
+    <div className={cn("flex h-1.5 w-full overflow-hidden rounded-[var(--radius-pill)]", className)}>
       {secondsByZone.map((seconds, i) =>
         seconds > 0 ? (
           <div
