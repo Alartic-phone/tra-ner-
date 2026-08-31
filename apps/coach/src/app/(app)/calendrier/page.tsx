@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/db.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
-import { addDays, mondayOf, type Day } from "@/lib/shifts/day.ts";
+import { addDays, isValidDay, mondayOf, type Day } from "@/lib/shifts/day.ts";
 import { formatMonth, today } from "@/lib/time.ts";
 import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
@@ -19,10 +19,11 @@ function monthBounds(year: number, month: number): { first: Day; last: Day } {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; jour?: string }>;
 }) {
-  const { m } = await searchParams;
+  const { m, jour } = await searchParams;
   const now = today();
+  const autoOpenDay = jour && isValidDay(jour) ? jour : undefined;
   const [defaultYear, defaultMonth] = [Number(now.slice(0, 4)), Number(now.slice(5, 7))];
 
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
@@ -152,7 +153,7 @@ export default async function CalendarPage({
       </header>
 
       <div className="mt-4">
-        <MonthGrid days={days} timings={range.timings} />
+        <MonthGrid days={days} timings={range.timings} autoOpenDay={autoOpenDay} />
       </div>
 
       <Card className="mt-6">

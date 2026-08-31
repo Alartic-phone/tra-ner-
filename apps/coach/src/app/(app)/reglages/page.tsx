@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { getEnv, isCoachConfigured, isStravaConfigured, isWebhookCapable } from "@/lib/env.ts";
 import { getSyncStatus } from "@/lib/strava/sync.ts";
+import { getSyncFreshness } from "@/lib/sync-status.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { SyncPanel } from "@/components/strava/sync-panel.tsx";
+import { QuickSyncButton } from "@/components/reglages/quick-sync-button.tsx";
 import { connectStrava, disconnectStrava, logout } from "./actions.ts";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +35,7 @@ export default async function SettingsPage({
 }) {
   const { strava, detail } = await searchParams;
   const env = getEnv();
-  const status = await getSyncStatus();
+  const [status, freshness] = await Promise.all([getSyncStatus(), getSyncFreshness()]);
   const message = strava ? MESSAGES[strava] : undefined;
 
   return (
@@ -68,6 +70,43 @@ export default async function SettingsPage({
       ) : null}
 
       <div className="mt-5 max-w-2xl space-y-5">
+        <Card elevated>
+          <CardHeader
+            title="Synchronisation"
+            hint="Strava se synchronise automatiquement (webhook ou bouton) ; la COROS n'expose aucune API publique aux particuliers et s'importe à la main."
+          />
+          <CardBody>
+            <dl className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <dt className="text-[var(--color-muted)]">Strava</dt>
+                <dd className="mt-0.5">
+                  {freshness.stravaLastSyncAt ? (
+                    formatInstant(freshness.stravaLastSyncAt)
+                  ) : (
+                    <Unavailable reason="Jamais synchronisé" />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[var(--color-muted)]">COROS (import manuel)</dt>
+                <dd className="mt-0.5">
+                  {freshness.corosLastImportAt ? (
+                    formatInstant(freshness.corosLastImportAt)
+                  ) : (
+                    <Unavailable reason="Aucun import effectué" />
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-2 text-[11px] text-[var(--color-faint)]">
+              npm run import:coros puis import:coros:fit, depuis un export manuel COROS.
+            </p>
+            <div className="mt-4">
+              <QuickSyncButton />
+            </div>
+          </CardBody>
+        </Card>
+
         <Card elevated>
           <CardHeader
             title="Strava"

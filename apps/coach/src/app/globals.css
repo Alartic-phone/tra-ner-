@@ -236,7 +236,12 @@
     color: var(--color-text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    /* Zone sûre iOS : l'app est consultée depuis le téléphone, installée en PWA. */
+    /* Zones sûres iOS : l'app est consultée depuis le téléphone, installée en
+       PWA en mode standalone avec une barre de statut translucide (cf.
+       `appleWebApp.statusBarStyle` dans layout.tsx) — le contenu passe donc
+       sous l'encoche/l'île dynamique sans ce padding. Le bas protège en plus
+       la nav (qui ajoute elle-même sa propre zone sûre par-dessus). */
+    padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
 

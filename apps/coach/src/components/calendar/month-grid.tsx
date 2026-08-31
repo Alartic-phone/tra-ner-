@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
@@ -49,19 +49,42 @@ const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
  * appuis (la case, puis le type de poste). Aucun formulaire, aucune page
  * dédiée. La sélection de plage est un mode explicite, pour rester
  * découvrable sans dépendre d'un appui long.
+ *
+ * `autoOpenDay` (query `?jour=` de la page) pré-sélectionne un jour et ouvre
+ * directement la feuille : depuis le tableau de bord, le raccourci
+ * « Remplacement » y mène déjà sélectionné, ce qui ramène toute la saisie à
+ * deux appuis même en partant de l'accueil (case déjà choisie, puis type de
+ * poste — cf. CLAUDE.md « deux appuis depuis le téléphone »).
  */
 export function MonthGrid({
   days,
   timings,
+  autoOpenDay,
 }: {
   days: CalendarDay[];
   timings: ShiftTiming[];
+  autoOpenDay?: string;
 }) {
-  const [selection, setSelection] = useState<{ from: string; to: string } | null>(null);
+  const [selection, setSelection] = useState<{ from: string; to: string } | null>(() =>
+    autoOpenDay ? { from: autoOpenDay, to: autoOpenDay } : null,
+  );
   const [rangeMode, setRangeMode] = useState(false);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Nettoie `?jour=` de la barre d'adresse une fois la feuille ouverte, sans
+  // passer par le routeur Next : `router.replace` re-fetch la page (elle lit
+  // `searchParams`), ce qui remonte `MonthGrid` avec `autoOpenDay` redevenu
+  // vide et referme la feuille toute seule quelques centaines de ms après
+  // l'avoir ouverte — silencieusement, sans erreur, juste sous les yeux de
+  // l'utilisateur en plein deuxième appui. `history.replaceState` ne
+  // déclenche aucune navigation React : la barre d'adresse change, l'état
+  // du composant reste intact.
+  useEffect(() => {
+    if (autoOpenDay) window.history.replaceState(null, "", "/calendrier");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const byCode = new Map(timings.map((t) => [t.code, t]));
 

@@ -9,6 +9,7 @@ import { RouteMap } from "@/components/activities/route-map.tsx";
 import { ReadinessBanner } from "@/components/dashboard/readiness-banner.tsx";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card.tsx";
 import { RecordProgressBar } from "@/components/dashboard/record-progress-bar.tsx";
+import { QuickReplacementFab } from "@/components/dashboard/quick-replacement-fab.tsx";
 import { loadStreams } from "@/lib/streams.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
@@ -26,7 +27,9 @@ import {
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { computeWeekStreak } from "@/lib/metrics/streak.ts";
 import { formatClock, formatDistance } from "@/lib/utils.ts";
-import { Flame } from "lucide-react";
+import { getSyncFreshness, isSyncStale, overallLastSyncAt } from "@/lib/sync-status.ts";
+import { formatInstant } from "@/lib/time.ts";
+import { Flame, RefreshCw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +50,7 @@ export default async function DashboardPage() {
     weeklyVolumeTargetKm,
     longestRunProgression,
     profileStatus,
+    syncFreshness,
   ] = await Promise.all([
     loadShiftRange(now, addDays(now, 6), rules),
     loadReplacementStats(addDays(now, -90), now),
@@ -67,7 +71,11 @@ export default async function DashboardPage() {
     loadWeeklyVolumeTargetKm(now),
     loadLongestRunProgression(),
     getProfileStatus(),
+    getSyncFreshness(),
   ]);
+
+  const lastSyncAt = overallLastSyncAt(syncFreshness);
+  const syncStale = isSyncStale(lastSyncAt);
 
   const weekStreak = computeWeekStreak(
     streakDays.map((a) => a.startDay),
@@ -115,12 +123,27 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6">
+      <QuickReplacementFab today={now} />
+
       <header>
         <h1 className="text-lg font-semibold">Tableau de bord</h1>
         <p className="mt-0.5 text-xs capitalize text-[var(--color-muted)]">
           {formatDayLong(now)}
         </p>
       </header>
+
+      {syncStale ? (
+        <Link
+          href="/reglages"
+          className="mt-3 flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 bg-[var(--color-warn)]/10 px-3 py-2 text-xs text-[var(--color-warn)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-warn)]/15"
+        >
+          <RefreshCw size={14} aria-hidden />
+          {lastSyncAt
+            ? `Dernière synchro le ${formatInstant(lastSyncAt)}`
+            : "Aucune synchronisation connue"}{" "}
+          — synchroniser →
+        </Link>
+      ) : null}
 
       <div className="mt-4">
         <ReadinessBanner data={readiness} />

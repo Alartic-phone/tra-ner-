@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
-import { resumeBackfill, syncNow, type SyncResult } from "@/app/(app)/reglages/actions.ts";
+import { resumeBackfill, type SyncResult } from "@/app/(app)/reglages/actions.ts";
 import { Button } from "@/components/ui/button.tsx";
 
 /**
- * Déclenchement manuel de la synchronisation. Le compte rendu est explicite,
- * y compris quand le quota Strava impose une pause : une file qui attend
- * n'est pas une file en échec, et l'interface doit le dire.
+ * Reprise de l'import de l'historique. La synchronisation courante a son
+ * propre bouton (`QuickSyncButton`, en tête de page) : ce panneau ne gère
+ * plus que le cas plus rare de l'historique interrompu, pour éviter deux
+ * boutons « Synchroniser » qui feraient la même chose à deux endroits.
  */
 export function SyncPanel({
   backfillDone,
@@ -22,26 +22,18 @@ export function SyncPanel({
   const [pendingTransition, startTransition] = useTransition();
   const [result, setResult] = useState<SyncResult | null>(null);
 
-  function run(action: () => Promise<SyncResult>) {
-    startTransition(async () => setResult(await action()));
-  }
+  if (backfillDone && pending === 0 && failed === 0) return null;
 
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={pendingTransition} onClick={() => run(syncNow)}>
-          <RefreshCw
-            size={14}
-            className={pendingTransition ? "animate-spin" : undefined}
-            aria-hidden
-          />
-          Synchroniser
-        </Button>
         {!backfillDone || pending > 0 ? (
           <Button
             variant="outline"
             disabled={pendingTransition}
-            onClick={() => run(resumeBackfill)}
+            onClick={() =>
+              startTransition(async () => setResult(await resumeBackfill()))
+            }
           >
             Reprendre l&apos;import de l&apos;historique
           </Button>
@@ -65,7 +57,7 @@ export function SyncPanel({
   );
 }
 
-function describeReport(
+export function describeReport(
   stoppedBy: string,
   processed: number,
   failed: number,
