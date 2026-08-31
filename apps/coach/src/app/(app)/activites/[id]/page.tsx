@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db.ts";
 import { availableStreams, loadStreams, toChartPoints } from "@/lib/streams.ts";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
-import { ActivityCharts } from "@/components/activities/activity-charts.tsx";
+import { ActivityCharts } from "@/components/activities/activity-charts-lazy.tsx";
 import { RouteMap } from "@/components/activities/route-map.tsx";
 import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
 import { formatClock, formatDistance, formatPace, formatSpeed, paceFromSpeed } from "@/lib/utils.ts";
