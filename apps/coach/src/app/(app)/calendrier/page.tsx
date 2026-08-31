@@ -3,9 +3,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/db.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
-import { addDays, mondayOf, type Day } from "@/lib/shifts/day.ts";
-import { formatMonth, today } from "@/lib/time.ts";
-import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
+import { addDays, mondayOf, timeToMinutes, type Day } from "@/lib/shifts/day.ts";
+import { formatMonth, today, toLocalTime } from "@/lib/time.ts";
+import { CalendarView, type CalendarDay } from "@/components/calendar/calendar-view.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,15 @@ export default async function CalendarPage({
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({
       where: { startDay: { gte: gridFrom, lte: gridTo } },
-      select: { id: true, startDay: true, distanceM: true, movingTimeS: true, name: true },
+      select: {
+        id: true,
+        startDay: true,
+        startedAt: true,
+        distanceM: true,
+        movingTimeS: true,
+        name: true,
+        type: true,
+      },
       orderBy: { startedAt: "asc" },
     }),
     prisma.plannedWorkout.findMany({
@@ -54,6 +62,7 @@ export default async function CalendarPage({
         status: true,
         isProvisional: true,
         isKeySession: true,
+        activityId: true,
       },
       orderBy: { orderInDay: "asc" },
     }),
@@ -88,10 +97,15 @@ export default async function CalendarPage({
       isFreed: resolved.isFreed,
       inMonth: resolved.day >= first && resolved.day <= last,
       isToday: resolved.day === now,
+      isPast: resolved.day < now,
       maxSessionMin: availability.maxSessionMin,
       allowsQuality: availability.allowsQuality,
       allowsLongRun: availability.allowsLongRun,
       blockers: availability.blockers,
+      // Créneaux réellement disponibles (minutes depuis minuit) — sert au
+      // fond vert de la vue semaine. Jamais recalculé côté client : c'est la
+      // même sortie que celle qui alimente les garde-fous du coach.
+      windows: availability.windows.map((w) => ({ startMin: w.startMin, endMin: w.endMin })),
       isRaceDay: raceDays.has(resolved.day),
       weeklyVolumeTargetKm: weeklyVolumeTargetFor(resolved.day),
       activities: activities
@@ -101,6 +115,10 @@ export default async function CalendarPage({
           name: a.name,
           distanceM: a.distanceM,
           movingTimeS: a.movingTimeS,
+          type: a.type,
+          // Heure réelle de départ (Europe/Paris) : seule donnée qui autorise
+          // à positionner une activité sur l'axe horaire de la vue semaine.
+          startMin: timeToMinutes(toLocalTime(a.startedAt)),
         })),
       planned: planned
         .filter((p) => p.day === resolved.day)
@@ -111,6 +129,7 @@ export default async function CalendarPage({
           status: p.status,
           isProvisional: p.isProvisional,
           isKeySession: p.isKeySession,
+          activityId: p.activityId,
         })),
     };
   });
@@ -152,7 +171,7 @@ export default async function CalendarPage({
       </header>
 
       <div className="mt-4">
-        <MonthGrid days={days} timings={range.timings} />
+        <CalendarView days={days} timings={range.timings} today={now} />
       </div>
 
       <Card className="mt-6">
