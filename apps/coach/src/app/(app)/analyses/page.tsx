@@ -10,6 +10,7 @@ import {
 } from "@/components/analytics/fitness-chart.tsx";
 import { ZoneChart } from "@/components/analytics/zone-chart.tsx";
 import { RecomputeButton } from "@/components/analytics/recompute-button.tsx";
+import { AnalysesTabs } from "@/components/analytics/analyses-tabs.tsx";
 import {
   loadBestEfforts,
   loadFitnessSnapshot,
@@ -65,6 +66,8 @@ export default async function AnalyticsPage({
         </div>
         <RecomputeButton pending={pendingMetrics} />
       </header>
+
+      <AnalysesTabs active="charge" />
 
       {snapshot.profileMissing.length > 0 ? (
         <p className="mt-4 rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">

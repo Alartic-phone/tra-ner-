@@ -49,6 +49,7 @@ import {
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeWeekStreak } from "./streak.ts";
+import { computeKmSplits } from "./splits.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -929,5 +930,59 @@ describe("fraîcheur du jour (readiness)", () => {
       restingHrBaselineMean: 55,
     });
     expect(result.status).toBe("correct");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("splits kilométriques", () => {
+  // 3 km à allure constante 5 min/km (300 s/km), FC montant linéairement.
+  function steadyRun(km: number) {
+    const time: number[] = [];
+    const distance: number[] = [];
+    const heartrate: number[] = [];
+    const altitude: number[] = [];
+    const totalS = km * 300;
+    for (let t = 0; t <= totalS; t += 10) {
+      time.push(t);
+      distance.push((t / 300) * 1000);
+      heartrate.push(140 + t / 100);
+      altitude.push(100 + Math.sin(t / 200) * 10);
+    }
+    return { time, distance, heartrate, altitude };
+  }
+
+  it("découpe en kilomètres pleins quand la distance tombe juste", () => {
+    const { time, distance, heartrate, altitude } = steadyRun(3);
+    const splits = computeKmSplits(time, distance, heartrate, altitude);
+    expect(splits).toHaveLength(3);
+    for (const split of splits) {
+      expect(split.distanceM).toBeCloseTo(1000, 0);
+      expect(split.paceSPerKm).toBeCloseTo(300, 0);
+      expect(split.partial).toBe(false);
+      expect(split.avgHr).not.toBeNull();
+    }
+  });
+
+  it("marque le dernier split comme partiel s'il ne fait pas 1 km", () => {
+    const { time, distance, heartrate, altitude } = steadyRun(3.4);
+    const splits = computeKmSplits(time, distance, heartrate, altitude);
+    expect(splits).toHaveLength(4);
+    expect(splits[3]!.partial).toBe(true);
+    expect(splits[3]!.distanceM).toBeCloseTo(400, 0);
+    expect(splits[0]!.partial).toBe(false);
+  });
+
+  it("ne calcule pas de FC moyenne sans flux cardiaque", () => {
+    const { time, distance } = steadyRun(1);
+    const splits = computeKmSplits(time, distance, undefined, undefined);
+    expect(splits).toHaveLength(1);
+    expect(splits[0]!.avgHr).toBeNull();
+    expect(splits[0]!.elevGainM).toBeNull();
+  });
+
+  it("renvoie un tableau vide sans distance exploitable", () => {
+    expect(computeKmSplits([0, 10], [null, null], [140, 141], undefined)).toEqual([]);
+    expect(computeKmSplits([], [], undefined, undefined)).toEqual([]);
   });
 });
