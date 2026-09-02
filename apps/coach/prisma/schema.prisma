@@ -143,6 +143,10 @@ model Activity {
   /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
   rawSummaryJson String?
 
+  /// Notes libres saisies sur la page activité. Jamais générées ni suggérées :
+  /// uniquement ce que l'utilisateur écrit.
+  notes String?
+
   stream       ActivityStream?
   laps         Lap[]
   bestEfforts  BestEffort[]
@@ -179,6 +183,14 @@ model ActivityStream {
   availableStreamsJson String
   pointCount           Int
   fetchedAt            DateTime @default(now())
+
+  /// Tracé GPS mis en cache : attribut `d` du `<path>` SVG déjà projeté et
+  /// décimé (lib/trace.ts), plus son `viewBox`. Calculé une fois à l'import
+  /// et réutilisé par toute vignette de liste — sans ce cache, afficher un
+  /// fil d'activités obligerait à décompresser `data` pour chaque ligne.
+  /// `null` sans position GPS pour cette activité.
+  tracePath    String?
+  traceViewBox String?
 }
 
 /// Meilleurs efforts extraits d'une activité : plus grande distance couverte

@@ -1,4 +1,4 @@
-import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
+import { ZONE_RAMP } from "@/lib/zone-colors.ts";
 
 /**
  * Fine barre horizontale segmentée par zone FC — l'information la plus

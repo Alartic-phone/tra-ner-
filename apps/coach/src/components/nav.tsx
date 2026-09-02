@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   Activity,
   CalendarDays,
@@ -13,14 +14,17 @@ import {
   NotebookPen,
   Settings,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
+import { TRANSITION } from "@/lib/motion.ts";
 
 const LINKS = [
-  { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
+  { href: "/", label: "Accueil", icon: LayoutDashboard },
   { href: "/activites", label: "Activités", icon: Activity },
+  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/plan", label: "Mon plan", icon: Target },
   { href: "/journal", label: "Journal", icon: NotebookPen },
   { href: "/simulateur", label: "Simulateur", icon: Gauge },
@@ -30,11 +34,10 @@ const LINKS = [
 
 /**
  * Cinq onglets pouce-atteignables sur mobile : les quatre plus consultés au
- * quotidien, plus « Plus » qui ouvre le reste. Auparavant la barre tronquait
- * silencieusement à `LINKS.slice(0, 5)` — Simulateur, Analyses et Réglages
- * n'étaient tout simplement pas accessibles depuis le téléphone.
+ * quotidien (Accueil, Activités, Calendrier, Progression), plus « Plus » qui
+ * ouvre le reste.
  */
-const PRIMARY_HREFS = ["/", "/calendrier", "/plan", "/analyses"];
+const PRIMARY_HREFS = ["/", "/activites", "/calendrier", "/progression"];
 const PRIMARY_LINKS = LINKS.filter((l) => PRIMARY_HREFS.includes(l.href));
 const MORE_LINKS = LINKS.filter((l) => !PRIMARY_HREFS.includes(l.href));
 
@@ -56,14 +59,21 @@ export function AppNav() {
               <Link
                 href={href}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
+                  "relative flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
                   isActive(href)
-                    ? "bg-[var(--color-accent-soft)] text-[var(--color-text)]"
+                    ? "text-[var(--color-text)]"
                     : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
                 )}
               >
-                <Icon size={16} aria-hidden />
-                {label}
+                {isActive(href) ? (
+                  <motion.span
+                    layoutId="nav-active-desktop"
+                    className="absolute inset-0 rounded-[var(--radius-card)] bg-[var(--color-accent-soft)]"
+                    transition={TRANSITION.base}
+                  />
+                ) : null}
+                <Icon size={16} className="relative" aria-hidden />
+                <span className="relative">{label}</span>
               </Link>
             </li>
           ))}
@@ -77,10 +87,17 @@ export function AppNav() {
             href={href}
             aria-label={label}
             className={cn(
-              "flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors duration-[var(--duration-fast)]",
+              "relative flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors duration-[var(--duration-fast)]",
               isActive(href) ? "text-[var(--color-accent)]" : "text-[var(--color-muted)]",
             )}
           >
+            {isActive(href) ? (
+              <motion.span
+                layoutId="nav-active-mobile"
+                className="absolute top-0 h-0.5 w-8 rounded-full bg-[var(--color-accent)]"
+                transition={TRANSITION.base}
+              />
+            ) : null}
             <Icon size={18} aria-hidden />
             {label.split(" ")[0]}
           </Link>

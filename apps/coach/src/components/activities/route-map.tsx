@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { computeTracePath } from "@/lib/trace.ts";
 
 /**
  * Tracé GPS d'une activité, deux rendus possibles :
@@ -31,30 +32,15 @@ const MAPTILER_STYLE = "dataviz-dark";
 
 type LatLng = [number, number];
 
-/** Réduit à ~maxPoints par prélèvement régulier — un tracé n'a pas besoin
- * de plus de points que de pixels pour rester fidèle à l'œil. */
-function decimate<T>(points: readonly T[], maxPoints: number): T[] {
-  if (points.length <= maxPoints) return [...points];
-  const step = points.length / maxPoints;
-  const out: T[] = [];
-  for (let i = 0; i < maxPoints; i++) {
-    out.push(points[Math.floor(i * step)]!);
-  }
-  return out;
-}
-
-function project(points: LatLng[]): Array<{ x: number; y: number }> {
-  const avgLat = points.reduce((sum, [lat]) => sum + lat, 0) / points.length;
-  const cosLat = Math.cos((avgLat * Math.PI) / 180);
-  return points.map(([lat, lng]) => ({ x: lng * cosLat, y: -lat }));
-}
-
 function SvgRouteMap({
   points,
   width,
   height,
   strokeWidth,
   showMarkers,
+  highlight,
+  fill = false,
+  drawMs = 900,
   className,
 }: {
   points: LatLng[];
@@ -62,64 +48,45 @@ function SvgRouteMap({
   height: number;
   strokeWidth: number;
   showMarkers: boolean;
+  /** Position survolée dans les graphiques synchronisés — `null` = aucun survol en cours. */
+  highlight?: LatLng | null;
+  /** Remplit le cadre du conteneur (recadré, façon `object-fit: cover`) plutôt
+   * que de dicter sa propre hauteur selon le ratio du tracé — pour le héros
+   * de la page activité, dont le cadre est fixé en `vh` par la page. */
+  fill?: boolean;
+  /** Durée du tracé qui se dessine, en ms. */
+  drawMs?: number;
   className?: string;
 }) {
-  const decimated = decimate(points, 500);
-  const projected = project(decimated);
+  const trace = computeTracePath(points, { width, height, strokeWidth, maxPoints: 500 });
+  if (!trace) return null;
 
-  const xs = projected.map((p) => p.x);
-  const ys = projected.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-
-  const padding = strokeWidth * 3;
-  const spanX = Math.max(maxX - minX, 1e-9);
-  const spanY = Math.max(maxY - minY, 1e-9);
-  const scale = Math.min((width - 2 * padding) / spanX, (height - 2 * padding) / spanY);
-
-  const midX = (minX + maxX) / 2;
-  const midY = (minY + maxY) / 2;
-  const toSvg = (p: { x: number; y: number }) => ({
-    x: width / 2 + (p.x - midX) * scale,
-    y: height / 2 + (p.y - midY) * scale,
-  });
-
-  const svgPoints = projected.map(toSvg);
-  const pathD = svgPoints
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-    .join(" ");
-  // Longueur approximative du tracé projeté, pour l'animation de dessin.
-  const pathLength = svgPoints.reduce((sum, p, i) => {
-    if (i === 0) return sum;
-    const prev = svgPoints[i - 1]!;
-    return sum + Math.hypot(p.x - prev.x, p.y - prev.y);
-  }, 0);
-
-  const start = svgPoints[0]!;
-  const end = svgPoints[svgPoints.length - 1]!;
+  const start = trace.projectPoint(points[0]!);
+  const end = trace.projectPoint(points[points.length - 1]!);
+  const highlightPoint = highlight ? trace.projectPoint(highlight) : null;
 
   return (
     <svg
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={trace.viewBox}
       width="100%"
-      style={{ height: "auto" }}
+      height={fill ? "100%" : undefined}
+      preserveAspectRatio={fill ? "xMidYMid slice" : undefined}
+      style={fill ? undefined : { height: "auto" }}
       className={className}
     >
       <path
-        d={pathD}
+        d={trace.pathD}
         fill="none"
         stroke="var(--color-accent)"
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={pathLength}
+        strokeDasharray={trace.pathLength}
         strokeDashoffset={0}
         style={
           {
-            "--ring-circumference": pathLength,
-            animation: "ring-fill 900ms var(--ease-standard) forwards",
+            "--ring-circumference": trace.pathLength,
+            animation: `ring-fill ${drawMs}ms var(--ease-standard) forwards`,
           } as React.CSSProperties
         }
       />
@@ -135,6 +102,16 @@ function SvgRouteMap({
             strokeWidth={strokeWidth * 0.8}
           />
         </>
+      ) : null}
+      {highlightPoint ? (
+        <circle
+          cx={highlightPoint.x}
+          cy={highlightPoint.y}
+          r={strokeWidth * 2.2}
+          fill="var(--color-text)"
+          stroke="var(--color-bg)"
+          strokeWidth={strokeWidth * 0.6}
+        />
       ) : null}
     </svg>
   );
@@ -153,6 +130,8 @@ function MapLibreRouteMap({
   height,
   strokeWidth,
   showMarkers,
+  highlight,
+  fill = false,
   className,
 }: {
   points: LatLng[];
@@ -161,6 +140,11 @@ function MapLibreRouteMap({
   height: number;
   strokeWidth: number;
   showMarkers: boolean;
+  /** NON supporté sur le fond de carte MapLibre (limitation connue) : le
+   * marqueur de survol synchronisé n'existe que sur le repli SVG, qui est
+   * de toute façon le rendu par défaut sans clé MapTiler configurée. */
+  highlight?: LatLng | null;
+  fill?: boolean;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -250,6 +234,8 @@ function MapLibreRouteMap({
         height={height}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
+        highlight={highlight}
+        fill={fill}
         className={className}
       />
     );
@@ -259,7 +245,11 @@ function MapLibreRouteMap({
     <div
       ref={containerRef}
       className={className}
-      style={{ width, height, maxWidth: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }}
+      style={
+        fill
+          ? { width: "100%", height: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }
+          : { width, height, maxWidth: "100%", borderRadius: "var(--radius-card)", overflow: "hidden" }
+      }
     />
   );
 }
@@ -271,6 +261,9 @@ export function RouteMap({
   height = 220,
   strokeWidth = 3,
   showMarkers = true,
+  highlight = null,
+  fill = false,
+  drawMs = 900,
   className,
 }: {
   latlng: ReadonlyArray<LatLng | null>;
@@ -280,6 +273,13 @@ export function RouteMap({
   height?: number;
   strokeWidth?: number;
   showMarkers?: boolean;
+  /** Position survolée dans les graphiques synchronisés de la page activité. */
+  highlight?: LatLng | null;
+  /** Remplit son conteneur (recadré) plutôt que d'imposer son propre ratio —
+   * pour un héros plein cadre en hauteur fixée par la page (vh). */
+  fill?: boolean;
+  /** Durée du tracé qui se dessine, en ms (héros : 1200, vignettes : 900 par défaut). */
+  drawMs?: number;
   className?: string;
 }) {
   const valid = latlng.filter((p): p is LatLng => p != null);
@@ -294,6 +294,8 @@ export function RouteMap({
         height={height}
         strokeWidth={strokeWidth}
         showMarkers={showMarkers}
+        highlight={highlight}
+        fill={fill}
         className={className}
       />
     );
@@ -306,6 +308,9 @@ export function RouteMap({
       height={height}
       strokeWidth={strokeWidth}
       showMarkers={showMarkers}
+      highlight={highlight}
+      fill={fill}
+      drawMs={drawMs}
       className={className}
     />
   );

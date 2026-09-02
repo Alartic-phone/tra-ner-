@@ -16,6 +16,7 @@ import { join, basename } from "node:path";
 import FitParser from "fit-file-parser";
 import { prisma } from "../src/lib/db.ts";
 import { recomputeMetrics } from "../src/lib/metrics/repository.ts";
+import { buildCachedTrace } from "../src/lib/trace.ts";
 
 const FIT_DIR = join(import.meta.dirname, "..", "data", "coros-raw", "fit");
 
@@ -96,6 +97,7 @@ async function importOne(filePath: string): Promise<"ok" | "sans_activite" | "vi
 
   const payload = gzipSync(Buffer.from(JSON.stringify(streams)));
   const available = availableKeys(streams);
+  const { tracePath, traceViewBox } = buildCachedTrace(streams.latlng);
 
   await prisma.activityStream.upsert({
     where: { activityId: activity.id },
@@ -104,11 +106,15 @@ async function importOne(filePath: string): Promise<"ok" | "sans_activite" | "vi
       data: payload,
       availableStreamsJson: JSON.stringify(available),
       pointCount: streams.time.length,
+      tracePath,
+      traceViewBox,
     },
     update: {
       data: payload,
       availableStreamsJson: JSON.stringify(available),
       pointCount: streams.time.length,
+      tracePath,
+      traceViewBox,
       fetchedAt: new Date(),
     },
   });

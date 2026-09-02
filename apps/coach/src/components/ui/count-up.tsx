@@ -10,10 +10,13 @@ export function CountUp({
   value,
   durationMs = 700,
   decimals = 0,
+  delayMs = 0,
 }: {
   value: number;
   durationMs?: number;
   decimals?: number;
+  /** Décalage de départ, pour une cascade entre plusieurs chiffres héros du même écran. */
+  delayMs?: number;
 }) {
   const [display, setDisplay] = useState(0);
   const started = useRef(false);
@@ -28,16 +31,23 @@ export function CountUp({
     }
 
     let frame: number;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - start) / durationMs);
-      // Ease-out cubique : rapide au début, se pose en douceur sur la valeur finale.
-      const eased = 1 - (1 - progress) ** 3;
-      setDisplay(value * eased);
-      if (progress < 1) frame = requestAnimationFrame(tick);
+    let timeout: ReturnType<typeof setTimeout>;
+    const run = () => {
+      const start = performance.now();
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - start) / durationMs);
+        // Ease-out cubique : rapide au début, se pose en douceur sur la valeur finale.
+        const eased = 1 - (1 - progress) ** 3;
+        setDisplay(value * eased);
+        if (progress < 1) frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    timeout = setTimeout(run, delayMs);
+    return () => {
+      clearTimeout(timeout);
+      cancelAnimationFrame(frame);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 

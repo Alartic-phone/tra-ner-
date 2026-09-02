@@ -40,6 +40,10 @@ export type ChartPoint = {
   paceSPerKm: number | null;
   altitude: number | null;
   cadence: number | null;
+  /** Position au DÉBUT de la fenêtre de sous-échantillonnage — jamais une
+   * moyenne de coordonnées, qui n'aurait aucun sens géographique. Sert au
+   * marqueur de position synchronisé avec les graphiques sur la carte. */
+  latlng: [number, number] | null;
 };
 
 /**
@@ -74,6 +78,7 @@ export function toChartPoints(streams: StreamData, maxPoints = 600): ChartPoint[
         // Strava renvoie la cadence d'une seule jambe en course à pied.
         return c === null ? null : c * 2;
       })(),
+      latlng: streams.latlng?.[i] ?? null,
     });
   }
   return points;

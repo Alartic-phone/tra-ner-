@@ -7,7 +7,7 @@ import {
   AcwrChart,
   FitnessChart,
   FormChart,
-} from "@/components/analytics/fitness-chart.tsx";
+} from "@/components/analytics/fitness-chart-lazy.tsx";
 import { ZoneChart } from "@/components/analytics/zone-chart.tsx";
 import { RecomputeButton } from "@/components/analytics/recompute-button.tsx";
 import { AnalysesTabs } from "@/components/analytics/analyses-tabs.tsx";

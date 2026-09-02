@@ -78,10 +78,7 @@ export function HeroStat({
       </div>
       <div className="tabular mt-1 flex items-baseline gap-1.5">
         <span
-          className={cn(
-            SIZE_CLASSES[size],
-            "font-[family-name:var(--font-display)] font-bold",
-          )}
+          className={cn(SIZE_CLASSES[size], "hero-numeral")}
           style={{ color: TONE_VARS[tone] }}
         >
           {value}

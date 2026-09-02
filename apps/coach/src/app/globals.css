@@ -8,11 +8,16 @@
  */
 
 @theme {
-  --color-bg: #0b0e14;
-  --color-surface: #11151d;
-  --color-surface-2: #171c26;
-  --color-border: #232a37;
-  --color-border-strong: #303949;
+  /*
+   * « Poste de nuit » : le fond neutre part vers un bleu de nuit plus
+   * profond et légèrement chaud en surface, pour sortir du gris-noir
+   * générique — c'est l'heure à laquelle l'app se consulte le plus souvent.
+   */
+  --color-bg: #080b12;
+  --color-surface: #101623;
+  --color-surface-2: #18202f;
+  --color-border: #232d3f;
+  --color-border-strong: #303c53;
 
   --color-text: #e6eaf2;
   --color-muted: #8b95a7;
@@ -20,6 +25,16 @@
 
   --color-accent: #5b9cf6;
   --color-accent-soft: #1d3a5f;
+
+  /*
+   * Second accent : un ambre de lampe à sodium, la couleur d'un lampadaire à
+   * 5 h du matin. RARE par construction — trois usages seulement dans toute
+   * l'app : un record battu, une alerte de règle d'arrêt (aux côtés du
+   * rouge existant), et la séance du jour quand elle est à faire. Jamais sur
+   * un bouton ordinaire, jamais un aplat de fond.
+   */
+  --color-signal: #f5a524;
+  --color-signal-soft: #3d2a10;
 
   /*
    * Couleurs de statut. Jeu fixe, validé sur la surface sombre de
@@ -102,33 +117,36 @@
   --sport-swim: #33c2c2;
   --sport-other: #8b95a7;
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-  --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
-    monospace;
-
   /*
-   * Familles pour les gros chiffres et les titres de page vs. le corps de
-   * texte (système de design v2). Repliées sur --font-sans tant que la paire
-   * typographique n'est pas choisie sur /debug/typo : le jour du choix, ces
-   * deux tokens sont les seuls à changer, HeroStat n'a rien à savoir de plus.
+   * Une seule famille variable pour toute l'application (direction « poste
+   * de nuit ») : Archivo, exploitée sur son axe de largeur pour les chiffres
+   * héros (voir `.hero-numeral` plus bas) plutôt qu'appairée à une police
+   * sans rapport. `--font-sans` et `--font-display` pointent donc vers la
+   * même police — c'est l'usage (poids, largeur, chasse) qui les distingue,
+   * pas la famille. La pile système reste en repli si la police locale
+   * n'a pas encore chargé.
    */
+  --font-sans:
+    var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-sans);
   --font-body: var(--font-sans);
 
+  /* Tableaux de données uniquement (splits, tours, export) — jamais le reste de l'interface. */
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
   /*
-   * Échelle des « hero numbers » (distance, allure, FC…) — ratio constant
-   * ×1.5, indépendante des tailles de texte Tailwind par défaut. Interligne
-   * resserré : ce sont des chiffres à lire d'un coup d'œil, pas du texte
-   * courant.
+   * Échelle des « hero numbers » (distance, allure, FC…), indépendante des
+   * tailles de texte Tailwind par défaut. Interligne resserré : ce sont des
+   * chiffres à lire d'un coup d'œil, pas du texte courant.
    */
-  --text-hero-md: 2rem;
+  --text-hero-md: 1.5rem;
   --text-hero-md--line-height: 1.1;
-  --text-hero-lg: 3rem;
+  --text-hero-lg: 2.25rem;
   --text-hero-lg--line-height: 1.05;
-  --text-hero-xl: 4.5rem;
+  --text-hero-xl: 3.5rem;
   --text-hero-xl--line-height: 1;
 
   /*
@@ -212,6 +230,37 @@
   border: 1px solid transparent;
 }
 
+/*
+ * Chiffres héros (distance, allure, FC…) : Archivo sur son axe de largeur
+ * (`font-stretch` pilote l'axe variable `wdth` du fichier — pas besoin de
+ * `font-variation-settings` séparé), graisse 600, interlettrage resserré.
+ * `font-stretch` en pourcentage sur une police statique n'a aucun effet :
+ * repli silencieux et sans dommage sur les navigateurs qui ne le
+ * supportent pas pour les fontes variables.
+ */
+.hero-numeral {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-stretch: 112%;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Même échelle de taille (--text-hero-*) mais pour un LIBELLÉ, pas un
+   chiffre : largeur normale, pas d'interlettrage resserré — l'axe de
+   largeur étendue est réservé aux chiffres (cf. .hero-numeral ci-dessus). */
+.hero-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+/* Tableaux de données (splits, tours, export) — jamais le reste de l'interface. */
+.data-table {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -236,11 +285,16 @@
     color: var(--color-text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    /* Tout chiffre affiché est tabulaire, sans exception : un chiffre qui
+       saute quand la valeur change est le défaut le plus visible d'un
+       tableau de bord. Posé globalement plutôt que sur chaque usage. */
+    font-variant-numeric: tabular-nums;
     /* Zone sûre iOS : l'app est consultée depuis le téléphone, installée en PWA. */
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Chiffres alignés en colonne dans les tableaux de données. */
+  /* Conservée pour compatibilité avec les usages existants — redondante
+     avec le réglage global ci-dessus, mais sans effet de bord. */
   .tabular {
     font-variant-numeric: tabular-nums;
   }

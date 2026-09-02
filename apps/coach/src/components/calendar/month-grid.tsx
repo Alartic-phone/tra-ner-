@@ -2,8 +2,9 @@
 
 import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
+import { ActivityTypeIcon, sportColor } from "@/components/activities/activity-icon.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { cn, formatDistance } from "@/lib/utils.ts";
@@ -28,7 +29,7 @@ export type CalendarDay = {
   /** Volume cible (km) de la phase de plan actif couvrant la semaine de ce
    * jour, si elle en chiffre un. `null` sinon — jamais une cible inventée. */
   weeklyVolumeTargetKm: number | null;
-  activities: { id: string; name: string; distanceM: number; movingTimeS: number }[];
+  activities: { id: string; name: string; type: string; distanceM: number; movingTimeS: number }[];
   planned: {
     id: string;
     type: string;
@@ -151,17 +152,18 @@ export function MonthGrid({
                   onClick={() => onDayClick(d.day)}
                   aria-label={`${formatDayLong(d.day)} — ${timing?.label ?? "repos"}${d.isRaceDay ? " — jour de course" : ""}`}
                   className={cn(
-                    "relative min-h-[74px] overflow-hidden bg-[var(--color-surface)] p-1 pl-2 text-left transition-colors md:min-h-[96px]",
+                    "relative min-h-[74px] overflow-hidden bg-[var(--color-surface)] p-1 pt-2 text-left transition-colors md:min-h-[96px]",
                     !d.inMonth && "opacity-40",
                     (isSelected || isRangeAnchor) && "ring-2 ring-inset ring-[var(--color-accent)]",
                     d.isRaceDay && "ring-1 ring-inset ring-[var(--color-warn)]",
                     "hover:bg-[var(--color-surface-2)]",
                   )}
                 >
-                  {/* Bandeau de poste : la rythmique du cycle se lit d'un
-                      regard sur toute la grille, pas seulement case par case. */}
+                  {/* Bandeau de poste plein en haut de cellule : la rythmique
+                      du cycle se lit d'un regard sur toute la grille, pas
+                      seulement case par case. */}
                   <span
-                    className="absolute inset-y-0 left-0 w-1"
+                    className="absolute inset-x-0 top-0 h-1"
                     style={{ backgroundColor: stripeColor }}
                     aria-hidden
                   />
@@ -220,16 +222,20 @@ export function MonthGrid({
                         {p.title}
                       </div>
                     ))}
-                    {d.activities.map((a) => (
-                      <div
-                        key={a.id}
-                        className="tabular truncate rounded-[var(--radius-pill)] bg-[var(--color-ok)]/15 px-1.5 text-[10px] leading-4 text-[var(--color-ok)]"
-                        title={a.name}
-                      >
-                        <Check size={9} className="mr-0.5 inline" aria-hidden />
-                        {formatDistance(a.distanceM)}
-                      </div>
-                    ))}
+                    {d.activities.map((a) => {
+                      const color = sportColor(a.type);
+                      return (
+                        <div
+                          key={a.id}
+                          className="tabular flex items-center gap-1 truncate rounded-[var(--radius-pill)] px-1.5 text-[10px] leading-4"
+                          style={{ backgroundColor: `color-mix(in oklab, ${color} 18%, transparent)`, color }}
+                          title={a.name}
+                        >
+                          <ActivityTypeIcon type={a.type} size={9} />
+                          {formatDistance(a.distanceM)}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {!d.allowsLongRun && d.code === null ? (

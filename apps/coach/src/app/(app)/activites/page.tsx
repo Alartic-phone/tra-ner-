@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db.ts";
 import { Card, CardHeader } from "@/components/ui/card.tsx";
-import { ActivityCard } from "@/components/activities/activity-card.tsx";
+import { ActivityFeedRow } from "@/components/activities/activity-feed-row.tsx";
 import { sportColor } from "@/components/activities/activity-icon.tsx";
 import { loadPersonalRecordsByActivity, loadZoneSecondsByActivity } from "@/lib/metrics/repository.ts";
+import { mondayOf } from "@/lib/shifts/day.ts";
+import { formatDayShort } from "@/lib/time.ts";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 30;
 
 export default async function ActivitiesPage({
   searchParams,
@@ -24,6 +26,7 @@ export default async function ActivitiesPage({
       orderBy: { startedAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
+      include: { stream: { select: { tracePath: true, traceViewBox: true } } },
     }),
     prisma.activity.count({ where }),
     prisma.activity.groupBy({ by: ["type"], _count: { type: true } }),
@@ -37,8 +40,24 @@ export default async function ActivitiesPage({
     loadPersonalRecordsByActivity(activityIds),
   ]);
 
+  // Groupé par semaine (lundi -> dimanche), dans l'ordre où les activités
+  // arrivent déjà (décroissant) : chaque nouvelle semaine rencontrée ouvre
+  // un nouveau groupe, un seul passage suffit.
+  const weeks: Array<{ weekStart: string; activities: typeof activities }> = [];
+  for (const a of activities) {
+    const weekStart = mondayOf(a.startDay);
+    const current = weeks[weeks.length - 1];
+    if (current && current.weekStart === weekStart) {
+      current.activities.push(a);
+    } else {
+      weeks.push({ weekStart, activities: [a] });
+    }
+  }
+
+  let rowIndex = 0;
+
   return (
-    <div className="p-4 md:p-6">
+    <div className="mx-auto max-w-[1100px] p-4 md:p-6">
       <header>
         <h1 className="text-lg font-semibold">Activités</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -89,21 +108,51 @@ export default async function ActivitiesPage({
           />
         </Card>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {activities.map((a, i) => (
-            <ActivityCard
-              key={a.id}
-              activity={a}
-              secondsByZone={zonesByActivity.get(a.id) ?? null}
-              isPersonalRecord={(recordsByActivity.get(a.id) ?? []).length > 0}
-              staggerIndex={i}
-            />
-          ))}
+        <div className="mt-4 space-y-6">
+          {weeks.map((week) => {
+            const km = week.activities.reduce((sum, a) => sum + a.distanceM, 0) / 1000;
+            return (
+              <div key={week.weekStart}>
+                <div className="tabular flex items-baseline justify-between px-3 text-xs text-[var(--color-muted)]">
+                  <span className="font-medium text-[var(--color-text)]">
+                    Semaine du {formatDayShort(week.weekStart)}
+                  </span>
+                  <span>
+                    {week.activities.length} séance{week.activities.length > 1 ? "s" : ""} ·{" "}
+                    {km.toFixed(1)} km
+                  </span>
+                </div>
+                <div className="mt-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  {week.activities.map((a) => (
+                    <ActivityFeedRow
+                      key={a.id}
+                      activity={{
+                        id: a.id,
+                        name: a.name,
+                        type: a.type,
+                        startedAt: a.startedAt,
+                        startDay: a.startDay,
+                        distanceM: a.distanceM,
+                        movingTimeS: a.movingTimeS,
+                        avgSpeedMps: a.avgSpeedMps,
+                        avgHr: a.avgHr,
+                        tracePath: a.stream?.tracePath ?? null,
+                        traceViewBox: a.stream?.traceViewBox ?? null,
+                      }}
+                      secondsByZone={zonesByActivity.get(a.id) ?? null}
+                      isPersonalRecord={(recordsByActivity.get(a.id) ?? []).length > 0}
+                      staggerIndex={rowIndex++}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {pages > 1 ? (
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-4 flex items-center justify-between text-xs">
           {page > 1 ? (
             <Link
               href={{ pathname: "/activites", query: { page: page - 1, ...(type ? { type } : {}) } }}

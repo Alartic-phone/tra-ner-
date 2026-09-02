@@ -10,6 +10,7 @@ import {
   quotaExhausted,
 } from "./client.ts";
 import { isRun, toActivityData } from "./mapping.ts";
+import { buildCachedTrace } from "../trace.ts";
 import { getProfileStatus, persistActivityMetrics } from "../metrics/repository.ts";
 import {
   STREAM_KEYS,
@@ -240,6 +241,9 @@ async function runActivityStreams(payload: unknown): Promise<void> {
   );
   const compressed = gzipSync(Buffer.from(payloadJson, "utf8"));
   const pointCount = streams.time?.data.length ?? 0;
+  // Calculé une fois ici plutôt qu'à chaque vignette de liste, qui devrait
+  // sinon décompresser `data` pour un simple aperçu du tracé.
+  const { tracePath, traceViewBox } = buildCachedTrace(streams.latlng?.data ?? []);
 
   await prisma.activityStream.upsert({
     where: { activityId: activity.id },
@@ -248,11 +252,15 @@ async function runActivityStreams(payload: unknown): Promise<void> {
       data: compressed,
       availableStreamsJson: JSON.stringify(available),
       pointCount,
+      tracePath,
+      traceViewBox,
     },
     update: {
       data: compressed,
       availableStreamsJson: JSON.stringify(available),
       pointCount,
+      tracePath,
+      traceViewBox,
       fetchedAt: new Date(),
     },
   });

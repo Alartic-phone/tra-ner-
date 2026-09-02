@@ -10,6 +10,7 @@ import {
   loadFitnessSnapshot,
   loadLongestRunProgression,
   loadPaceZones,
+  loadRecordsWall,
   loadZoneDistribution,
 } from "../metrics/repository.ts";
 import { computeHeartRateZones, timeInZones } from "../metrics/zones.ts";
@@ -433,28 +434,17 @@ async function collectHealth(
 // ---------------------------------------------------------------------------
 
 async function collectRecords(): Promise<ExportRecords> {
-  const grouped = await prisma.bestEffort.groupBy({ by: ["durationS"], _max: { distanceM: true } });
+  const [wall, longestRunProgression] = await Promise.all([
+    loadRecordsWall(),
+    loadLongestRunProgression(),
+  ]);
 
-  const byDuration = await Promise.all(
-    grouped
-      .filter((g) => g._max.distanceM != null)
-      .sort((a, b) => a.durationS - b.durationS)
-      .map(async (g) => {
-        const row = await prisma.bestEffort.findFirst({
-          where: { durationS: g.durationS, distanceM: g._max.distanceM! },
-          orderBy: { day: "asc" },
-          select: { day: true, activityId: true },
-        });
-        return {
-          durationS: g.durationS,
-          distanceM: g._max.distanceM!,
-          day: row?.day ?? "",
-          activityId: row?.activityId ?? "",
-        };
-      }),
-  );
-
-  const longestRunProgression = await loadLongestRunProgression();
+  const byDuration = wall.map((e) => ({
+    durationS: e.durationS,
+    distanceM: e.distanceM,
+    day: e.day,
+    activityId: e.activityId,
+  }));
 
   return { byDuration, longestRunProgression };
 }

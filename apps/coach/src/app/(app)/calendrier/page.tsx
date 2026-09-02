@@ -3,10 +3,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/db.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
-import { addDays, mondayOf, type Day } from "@/lib/shifts/day.ts";
-import { formatMonth, today } from "@/lib/time.ts";
+import { addDays, isValidDay, maxDay, minDay, mondayOf, type Day } from "@/lib/shifts/day.ts";
+import { formatDayShort, formatMonth, today, toMinutesOfDay } from "@/lib/time.ts";
 import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
+import { WeekGrid, type WeekDayData } from "@/components/calendar/week-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
+import { cn } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +21,17 @@ function monthBounds(year: number, month: number): { first: Day; last: Day } {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; jour?: string; v?: string }>;
 }) {
-  const { m } = await searchParams;
+  const { m, jour, v } = await searchParams;
   const now = today();
-  const [defaultYear, defaultMonth] = [Number(now.slice(0, 4)), Number(now.slice(5, 7))];
+  // Un jour transmis (ex. clic depuis le ruban de cycle) prime sur le
+  // paramètre de mois : c'est ce mois-là qu'on veut voir, pas celui en cours.
+  const jourValid = jour && isValidDay(jour) ? jour : null;
+  const view = v === "semaine" ? "semaine" : "mois";
+  const [defaultYear, defaultMonth] = jourValid
+    ? [Number(jourValid.slice(0, 4)), Number(jourValid.slice(5, 7))]
+    : [Number(now.slice(0, 4)), Number(now.slice(5, 7))];
 
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const year = match ? Number(match[1]) : defaultYear;
@@ -32,8 +40,17 @@ export default async function CalendarPage({
   const { first, last } = monthBounds(year, month);
   // La grille affiche des semaines complètes : on élargit au lundi précédent
   // et au dimanche suivant.
-  const gridFrom = mondayOf(first);
-  const gridTo = addDays(mondayOf(addDays(last, 7)), -1);
+  const monthGridFrom = mondayOf(first);
+  const monthGridTo = addDays(mondayOf(addDays(last, 7)), -1);
+
+  const weekStart = jourValid ? mondayOf(jourValid) : mondayOf(now);
+  const weekEnd = addDays(weekStart, 6);
+
+  // Les deux vues partagent les mêmes requêtes : la plage chargée couvre
+  // large de la grille mois ET de la semaine ciblée, jamais une requête de
+  // plus pour basculer de vue.
+  const gridFrom = minDay(monthGridFrom, weekStart);
+  const gridTo = maxDay(monthGridTo, weekEnd);
 
   const rules = await getAvailabilityRules();
   const [range, stats, activities, planned, raceGoals, activePlans] = await Promise.all([
@@ -41,7 +58,7 @@ export default async function CalendarPage({
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({
       where: { startDay: { gte: gridFrom, lte: gridTo } },
-      select: { id: true, startDay: true, distanceM: true, movingTimeS: true, name: true },
+      select: { id: true, startDay: true, startedAt: true, distanceM: true, movingTimeS: true, name: true, type: true },
       orderBy: { startedAt: "asc" },
     }),
     prisma.plannedWorkout.findMany({
@@ -99,6 +116,7 @@ export default async function CalendarPage({
         .map((a) => ({
           id: a.id,
           name: a.name,
+          type: a.type,
           distanceM: a.distanceM,
           movingTimeS: a.movingTimeS,
         })),
@@ -118,41 +136,105 @@ export default async function CalendarPage({
   const prev = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
   const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
 
+  const weekDays: WeekDayData[] = [];
+  for (let d = weekStart; d <= weekEnd; d = addDays(d, 1)) {
+    const entry = range.byDay.get(d);
+    weekDays.push({
+      day: d,
+      code: entry?.resolved.code ?? null,
+      isToday: d === now,
+      windows: entry?.availability.windows.map((w) => ({ startMin: w.startMin, endMin: w.endMin })) ?? [],
+      activities: activities
+        .filter((a) => a.startDay === d)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          startMin: toMinutesOfDay(a.startedAt),
+          movingTimeS: a.movingTimeS,
+          distanceM: a.distanceM,
+        })),
+    });
+  }
+  const prevWeek = addDays(weekStart, -7);
+  const nextWeek = addDays(weekStart, 7);
+
   return (
-    <div className="p-4 md:p-6">
+    <div className="mx-auto max-w-[1100px] p-4 md:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold capitalize">{formatMonth(year, month)}</h1>
+          <h1 className="text-lg font-semibold capitalize">
+            {view === "mois" ? formatMonth(year, month) : `Semaine du ${formatDayShort(weekStart)}`}
+          </h1>
           <p className="text-xs text-[var(--color-muted)]">
             Postes, séances planifiées et séances réalisées.
           </p>
         </div>
-        <div className="flex items-center gap-1">
-          <Link
-            href={{ pathname: "/calendrier", query: { m: prev } }}
-            aria-label="Mois précédent"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
-          >
-            <ChevronLeft size={16} />
-          </Link>
-          <Link
-            href="/calendrier"
-            className="flex h-9 items-center rounded-lg border border-[var(--color-border-strong)] px-3 text-xs transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
-          >
-            Aujourd&apos;hui
-          </Link>
-          <Link
-            href={{ pathname: "/calendrier", query: { m: next } }}
-            aria-label="Mois suivant"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
-          >
-            <ChevronRight size={16} />
-          </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-[var(--color-border-strong)] p-0.5 text-xs">
+            <Link
+              href={{ pathname: "/calendrier", query: { v: "mois" } }}
+              className={cn(
+                "rounded px-2.5 py-1 transition-colors duration-[var(--duration-fast)]",
+                view === "mois"
+                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+                  : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
+              )}
+            >
+              Mois
+            </Link>
+            <Link
+              href={{ pathname: "/calendrier", query: { v: "semaine" } }}
+              className={cn(
+                "rounded px-2.5 py-1 transition-colors duration-[var(--duration-fast)]",
+                view === "semaine"
+                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+                  : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
+              )}
+            >
+              Semaine
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Link
+              href={
+                view === "mois"
+                  ? { pathname: "/calendrier", query: { m: prev } }
+                  : { pathname: "/calendrier", query: { v: "semaine", jour: prevWeek } }
+              }
+              aria-label={view === "mois" ? "Mois précédent" : "Semaine précédente"}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
+            >
+              <ChevronLeft size={16} />
+            </Link>
+            <Link
+              href={{ pathname: "/calendrier", query: { v: view === "semaine" ? "semaine" : undefined } }}
+              className="flex h-9 items-center rounded-lg border border-[var(--color-border-strong)] px-3 text-xs transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
+            >
+              Aujourd&apos;hui
+            </Link>
+            <Link
+              href={
+                view === "mois"
+                  ? { pathname: "/calendrier", query: { m: next } }
+                  : { pathname: "/calendrier", query: { v: "semaine", jour: nextWeek } }
+              }
+              aria-label={view === "mois" ? "Mois suivant" : "Semaine suivante"}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
+            >
+              <ChevronRight size={16} />
+            </Link>
+          </div>
         </div>
       </header>
 
       <div className="mt-4">
-        <MonthGrid days={days} timings={range.timings} />
+        {view === "mois" ? (
+          <MonthGrid days={days} timings={range.timings} />
+        ) : (
+          <WeekGrid days={weekDays} timings={range.timings} />
+        )}
       </div>
 
       <Card className="mt-6">

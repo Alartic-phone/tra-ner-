@@ -485,9 +485,16 @@ export async function loadPaceZones() {
  * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
  * sur une base insuffisante.
  */
-export async function loadReadiness(
-  day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
+export type ReadinessSnapshot = {
+  result: ReadinessResult;
+  hrv: number;
+  restingHr: number;
+  /** Plage habituelle (moyenne ± écart-type des jours précédents), pour la jauge. */
+  hrvBaseline: { mean: number; sd: number };
+  restingHrBaseline: { mean: number; sd: number };
+};
+
+export async function loadReadiness(day: Day): Promise<ReadinessSnapshot | null> {
   const BASELINE_DAYS = 30;
   const MIN_SAMPLES = 7;
 
@@ -516,7 +523,13 @@ export async function loadReadiness(
     restingHrBaselineMean: restingHrBaseline.mean,
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  return {
+    result,
+    hrv: todayMetric.hrv,
+    restingHr: todayMetric.restingHr,
+    hrvBaseline,
+    restingHrBaseline,
+  };
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */
@@ -563,6 +576,48 @@ export async function loadNextGoal() {
  * Sert à la barre de progression des records du tableau de bord — jamais un
  * record affiché s'il n'a pas réellement été battu par une activité.
  */
+export type RecordWallEntry = {
+  durationS: number;
+  distanceM: number;
+  day: Day;
+  activityId: string;
+  activityName: string;
+};
+
+/**
+ * Records all-time par durée de référence, avec la date et l'activité qui
+ * les a établis — le « mur des records ». Utilisé par `/progression` et par
+ * la section 7 de l'export coach : une seule source, jamais deux calculs
+ * susceptibles de diverger.
+ */
+export async function loadRecordsWall(): Promise<RecordWallEntry[]> {
+  const grouped = await prisma.bestEffort.groupBy({ by: ["durationS"], _max: { distanceM: true } });
+
+  const entries = await Promise.all(
+    grouped
+      .filter((g) => g._max.distanceM != null)
+      .sort((a, b) => a.durationS - b.durationS)
+      .map(async (g) => {
+        const row = await prisma.bestEffort.findFirst({
+          where: { durationS: g.durationS, distanceM: g._max.distanceM! },
+          orderBy: { day: "asc" },
+          select: { day: true, activityId: true, activity: { select: { name: true } } },
+        });
+        return row
+          ? {
+              durationS: g.durationS,
+              distanceM: g._max.distanceM!,
+              day: row.day,
+              activityId: row.activityId,
+              activityName: row.activity.name,
+            }
+          : null;
+      }),
+  );
+
+  return entries.filter((e): e is RecordWallEntry => e !== null);
+}
+
 export async function loadLongestRunProgression(): Promise<
   { day: Day; distanceM: number }[]
 > {

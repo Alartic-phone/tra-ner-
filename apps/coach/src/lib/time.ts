@@ -38,6 +38,21 @@ export function toLocalTime(instant: Date): string {
   return timeFormatter.format(instant);
 }
 
+const hourMinuteFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: APP_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/** Minutes depuis minuit Europe/Paris — pour positionner un instant sur un axe horaire. */
+export function toMinutesOfDay(instant: Date): number {
+  const parts = hourMinuteFormatter.formatToParts(instant);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
+}
+
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
   timeZone: APP_TIMEZONE,
   weekday: "short",

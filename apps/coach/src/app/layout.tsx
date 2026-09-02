@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { fontArchivo, fontJetBrainsMono } from "@/lib/fonts.ts";
+import { cn } from "@/lib/utils.ts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0e14",
+  themeColor: "#080b12",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -21,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" className={cn(fontArchivo.variable, fontJetBrainsMono.variable)}>
       <body>{children}</body>
     </html>
   );

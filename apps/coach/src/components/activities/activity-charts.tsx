@@ -15,7 +15,7 @@ import type { ReactElement } from "react";
 import type { ChartPoint } from "@/lib/streams.ts";
 import { formatClock, formatPace } from "@/lib/utils.ts";
 import { zoneForHeartRate, type HeartRateZone } from "@/lib/metrics/zones.ts";
-import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
+import { ZONE_RAMP } from "@/lib/zone-colors.ts";
 
 /** Tracé progressif de gauche à droite au chargement, comme les autres
  * graphiques temporels de l'app — jamais une courbe qui apparaît d'un coup. */
@@ -29,10 +29,20 @@ const DRAW_IN = { isAnimationActive: true, animationDuration: 800, animationEasi
  * est inversé (une allure plus basse est plus rapide) pour que la lecture
  * corresponde à l'intuition sans déformer les écarts.
  */
+/**
+ * `syncId` (recharts) synchronise le curseur ET l'infobulle entre les
+ * quatre graphiques automatiquement — aucun état levé n'est nécessaire pour
+ * ça. Seul le marqueur sur la carte a besoin qu'on lui transmette l'index
+ * survolé explicitement, via `onHover`, puisque la carte n'est pas un
+ * graphique recharts.
+ */
+const SYNC_ID = "activity-charts";
+
 export function ActivityCharts({
   points,
   hasHr,
   hrZones,
+  onHover,
 }: {
   points: ChartPoint[];
   hasHr: boolean;
@@ -40,7 +50,15 @@ export function ActivityCharts({
    * l'intensité — `null`/absent si le profil n'est pas configuré : le tracé
    * revient alors à une seule couleur plutôt que d'inventer des zones. */
   hrZones?: HeartRateZone[] | null;
+  /** Point survolé (ou `null` en sortie de survol), pour le marqueur carte. */
+  onHover?: (point: ChartPoint | null) => void;
 }) {
+  const handleMove = (state: { activeTooltipIndex?: number }) => {
+    if (!onHover) return;
+    const point = state.activeTooltipIndex != null ? (points[state.activeTooltipIndex] ?? null) : null;
+    onHover(point);
+  };
+  const handleLeave = () => onHover?.(null);
   const hrValues = points.map((p) => p.hr).filter((v): v is number => v != null);
   const hrDomain: [number, number] =
     hrValues.length > 0
@@ -68,6 +86,7 @@ export function ActivityCharts({
       : [180, 600];
 
   const altValues = points.map((p) => p.altitude).filter((v): v is number => v != null);
+  const cadenceValues = points.map((p) => p.cadence).filter((v): v is number => v != null);
 
   const axis = {
     stroke: "var(--color-faint)",
@@ -80,7 +99,13 @@ export function ActivityCharts({
     <div className="space-y-5">
       {hasHr ? (
         <Chart title="Fréquence cardiaque" unit="bpm">
-          <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+          <AreaChart
+            data={points}
+            margin={{ top: 4, right: 4, bottom: 0, left: -12 }}
+            syncId={SYNC_ID}
+            onMouseMove={handleMove}
+            onMouseLeave={handleLeave}
+          >
             <defs>
               <linearGradient id="hrStroke" x1="0" y1="0" x2="0" y2="1">
                 {(hrGradientStops ?? [
@@ -130,7 +155,13 @@ export function ActivityCharts({
 
       {paceValues.length > 0 ? (
         <Chart title="Allure" unit="min/km — axe inversé, le haut est plus rapide">
-          <LineChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -4 }}>
+          <LineChart
+            data={points}
+            margin={{ top: 4, right: 4, bottom: 0, left: -4 }}
+            syncId={SYNC_ID}
+            onMouseMove={handleMove}
+            onMouseLeave={handleLeave}
+          >
             <CartesianGrid stroke="var(--color-border)" vertical={false} />
             <XAxis dataKey="t" tickFormatter={(t: number) => formatClock(t)} {...axis} />
             <YAxis
@@ -159,7 +190,13 @@ export function ActivityCharts({
 
       {altValues.length > 0 ? (
         <Chart title="Altitude" unit="m">
-          <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+          <AreaChart
+            data={points}
+            margin={{ top: 4, right: 4, bottom: 0, left: -12 }}
+            syncId={SYNC_ID}
+            onMouseMove={handleMove}
+            onMouseLeave={handleLeave}
+          >
             <CartesianGrid stroke="var(--color-border)" vertical={false} />
             <XAxis dataKey="t" tickFormatter={(t: number) => formatClock(t)} {...axis} />
             <YAxis
@@ -182,6 +219,39 @@ export function ActivityCharts({
               {...DRAW_IN}
             />
           </AreaChart>
+        </Chart>
+      ) : null}
+
+      {cadenceValues.length > 0 ? (
+        <Chart title="Cadence" unit="pas/min">
+          <LineChart
+            data={points}
+            margin={{ top: 4, right: 4, bottom: 0, left: -4 }}
+            syncId={SYNC_ID}
+            onMouseMove={handleMove}
+            onMouseLeave={handleLeave}
+          >
+            <CartesianGrid stroke="var(--color-border)" vertical={false} />
+            <XAxis dataKey="t" tickFormatter={(t: number) => formatClock(t)} {...axis} />
+            <YAxis
+              domain={[Math.floor(Math.min(...cadenceValues) / 5) * 5, Math.ceil(Math.max(...cadenceValues) / 5) * 5]}
+              {...axis}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={(t: number) => formatClock(t)}
+              formatter={(v: number) => [`${Math.round(v)} pas/min`, "Cadence"]}
+            />
+            <Line
+              type="monotone"
+              dataKey="cadence"
+              stroke="var(--chart-seq-3)"
+              dot={false}
+              strokeWidth={1.3}
+              connectNulls={false}
+              {...DRAW_IN}
+            />
+          </LineChart>
         </Chart>
       ) : null}
     </div>
