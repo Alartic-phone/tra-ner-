@@ -250,10 +250,44 @@ export function predictTimeFromCriticalSpeed(
 
 export type PredictionSource = "riegel" | "vdot" | "vitesse_critique";
 
+/**
+ * Domaine de plausibilité d'une allure de course à pied. En-deçà de 3'00/km,
+ * c'est un sprint qu'aucun modèle de fond n'a vocation à prédire ; au-delà de
+ * 12'00/km, ce n'est plus de la course. Un modèle dont la sortie tombe hors
+ * de cette plage n'est pas « une estimation prudente », c'est le symptôme
+ * d'un modèle mal alimenté (confusion d'unité, extrapolation dégénérée) — il
+ * ne doit jamais polluer l'agrégat.
+ */
+export const PLAUSIBLE_PACE_S_PER_KM = { min: 180, max: 720 } as const;
+
+export function isPlausiblePrediction(timeS: number, distanceM: number): boolean {
+  if (distanceM <= 0) return false;
+  const paceSPerKm = timeS / (distanceM / 1000);
+  return paceSPerKm >= PLAUSIBLE_PACE_S_PER_KM.min && paceSPerKm <= PLAUSIBLE_PACE_S_PER_KM.max;
+}
+
+export const SOURCE_LABELS: Record<PredictionSource, string> = {
+  riegel: "Riegel",
+  vdot: "VDOT (Daniels)",
+  vitesse_critique: "Vitesse critique",
+};
+
+function formatPaceLabel(timeS: number, distanceM: number): string {
+  const paceSPerKm = timeS / (distanceM / 1000);
+  const m = Math.floor(paceSPerKm / 60);
+  const s = Math.round(paceSPerKm % 60);
+  return `${m}'${String(s).padStart(2, "0")}/km`;
+}
+
 export type Prediction = {
   distanceM: number;
-  /** Estimations retenues, par modèle. */
+  /** Estimations retenues (plausibles), par modèle. */
   bySource: Array<{ source: PredictionSource; timeS: number }>;
+  /**
+   * Modèles exclus de l'agrégat car hors du domaine de plausibilité —
+   * affichés à part, jamais mélangés à la fourchette.
+   */
+  excluded: Array<{ source: PredictionSource; timeS: number }>;
   /** Médiane des modèles disponibles. */
   medianTimeS: number;
   /** Bornes de la fourchette affichée. */
@@ -280,11 +314,24 @@ export function buildPrediction(
   estimates: ReadonlyArray<{ source: PredictionSource; timeS: number | null }>,
   context: { sourceAgeDays: number | null; sampleCount: number },
 ): Prediction | null {
-  const valid = estimates
-    .filter((e): e is { source: PredictionSource; timeS: number } => e.timeS != null && e.timeS > 0)
+  const computed = estimates.filter(
+    (e): e is { source: PredictionSource; timeS: number } => e.timeS != null && e.timeS > 0,
+  );
+
+  // Un modèle hors du domaine de plausibilité n'est pas une estimation
+  // prudente à conserver dans l'agrégat, c'est le symptôme d'un modèle mal
+  // alimenté (référence trop courte extrapolée trop loin, régression
+  // dégénérée…). Il est écarté, affiché à part, jamais mélangé à la
+  // fourchette.
+  const excluded = computed.filter((e) => !isPlausiblePrediction(e.timeS, distanceM));
+  const valid = computed
+    .filter((e) => isPlausiblePrediction(e.timeS, distanceM))
     .sort((a, b) => a.timeS - b.timeS);
 
-  if (valid.length === 0) return null;
+  // Moins de deux modèles plausibles : pas assez pour une fourchette
+  // significative, la prédiction entière devient non disponible plutôt que
+  // de s'appuyer sur un seul modèle qui pourrait tout autant être aberrant.
+  if (valid.length < 2) return null;
 
   const times = valid.map((e) => e.timeS);
   const median =
@@ -299,11 +346,15 @@ export function buildPrediction(
   const notes: string[] = [];
   let confidence = 1;
 
-  if (valid.length === 1) {
-    confidence *= 0.6;
-    notes.push("Un seul modèle disponible : aucun recoupement possible.");
-  } else if (valid.length === 2) {
+  if (valid.length === 2) {
     confidence *= 0.85;
+  }
+
+  for (const e of excluded) {
+    notes.push(
+      `${SOURCE_LABELS[e.source]} exclu de la fourchette : allure hors du domaine de ` +
+        `plausibilité (${formatPaceLabel(e.timeS, distanceM)}).`,
+    );
   }
 
   if (spread > 0.1) {
@@ -338,6 +389,7 @@ export function buildPrediction(
   return {
     distanceM,
     bySource: valid,
+    excluded,
     medianTimeS: median,
     fastestTimeS: fastest * (1 - margin),
     slowestTimeS: slowest * (1 + margin),

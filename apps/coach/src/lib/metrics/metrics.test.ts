@@ -35,6 +35,7 @@ import {
   estimatesForDistance,
   fitRiegelExponent,
   fractionOfVo2Max,
+  isPlausiblePrediction,
   predictTimeFromCriticalSpeed,
   predictTimeFromVdot,
   riegel,
@@ -733,7 +734,10 @@ describe("synthèse des prédictions", () => {
     expect(p.confidenceNotes.some((n) => n.includes("divergent"))).toBe(true);
   });
 
-  it("signale un modèle unique sans recoupement", () => {
+  it("un seul modèle plausible ne suffit plus : la prédiction devient non disponible", () => {
+    // Avant le garde-fou de plausibilité, un modèle unique produisait quand
+    // même une fourchette (confiance dégradée). Le garde-fou est plus
+    // strict : moins de deux modèles retenus, pas de prédiction du tout.
     const p = buildPrediction(
       10000,
       [
@@ -741,10 +745,58 @@ describe("synthèse des prédictions", () => {
         { source: "vdot", timeS: null },
       ],
       { sourceAgeDays: 10, sampleCount: 5 },
-    )!;
-    expect(p.bySource).toHaveLength(1);
-    expect(p.confidence).toBeLessThan(0.7);
-    expect(p.confidenceNotes.some((n) => n.includes("seul modèle"))).toBe(true);
+    );
+    expect(p).toBeNull();
+  });
+
+  describe("garde-fou de plausibilité (allure entre 3'00 et 12'00/km)", () => {
+    it("classe correctement les bornes du domaine", () => {
+      // 12 km en 1 h -> 5'00/km : plausible.
+      expect(isPlausiblePrediction(3600, 12000)).toBe(true);
+      // 12 km en 7 h 13 -> largement hors domaine.
+      expect(isPlausiblePrediction(7 * 3600 + 13 * 60, 12000)).toBe(false);
+      // Juste sous 3'00/km et juste au-dessus de 12'00/km : exclus.
+      expect(isPlausiblePrediction(179 * 12, 12000)).toBe(false);
+      expect(isPlausiblePrediction(721 * 12, 12000)).toBe(false);
+    });
+
+    it("référence : reproduit le cas signalé — un modèle à 7h13 pollue une prédiction sur 12 km", () => {
+      // Riegel et VDOT sont sains (~1h04, cohérent avec le chrono visé du
+      // profil), la vitesse critique dérape à 7h13 (confusion probable
+      // d'unité en amont). Sans garde-fou, la médiane à trois modèles
+      // serait tirée vers le haut et la fourchette irait jusqu'à 14h00.
+      const p = buildPrediction(
+        12000,
+        [
+          { source: "riegel", timeS: 3847 }, // 1h04m07s
+          { source: "vdot", timeS: 3840 }, // 1h04m00s
+          { source: "vitesse_critique", timeS: 7 * 3600 + 13 * 60 }, // 7h13 : hors domaine
+        ],
+        { sourceAgeDays: 20, sampleCount: 6 },
+      )!;
+      expect(p).not.toBeNull();
+      expect(p.bySource).toHaveLength(2);
+      expect(p.bySource.every((e) => e.source !== "vitesse_critique")).toBe(true);
+      expect(p.excluded).toHaveLength(1);
+      expect(p.excluded[0]!.source).toBe("vitesse_critique");
+      // La fourchette reste sur les deux modèles sains, jamais étirée
+      // jusqu'à 14h00 par le modèle aberrant.
+      expect(p.slowestTimeS).toBeLessThan(4200); // < 1 h 10
+      expect(p.confidenceNotes.some((n) => n.includes("hors du domaine"))).toBe(true);
+    });
+
+    it("sans garde-fou disponible (un seul modèle plausible), la prédiction est retirée plutôt que faussée", () => {
+      const p = buildPrediction(
+        12000,
+        [
+          { source: "riegel", timeS: 3847 },
+          { source: "vdot", timeS: 7 * 3600 },
+          { source: "vitesse_critique", timeS: 14 * 3600 },
+        ],
+        { sourceAgeDays: 20, sampleCount: 6 },
+      );
+      expect(p).toBeNull();
+    });
   });
 
   it("ne prédit rien sans aucune estimation valide", () => {

@@ -6,7 +6,12 @@ import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { ProgressRing } from "@/components/ui/progress-ring.tsx";
 import { loadBestEfforts, predictDistance } from "@/lib/metrics/repository.ts";
 import { DEFAULT_DISTANCES } from "@/lib/metrics/best-efforts.ts";
-import { classifyTrajectory, computeCriticalSpeed, predictTimeFromCriticalSpeed } from "@/lib/metrics/prediction.ts";
+import {
+  classifyTrajectory,
+  computeCriticalSpeed,
+  predictTimeFromCriticalSpeed,
+  SOURCE_LABELS,
+} from "@/lib/metrics/prediction.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { formatDayLong, today } from "@/lib/time.ts";
 import { formatClock, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
@@ -78,8 +83,10 @@ export default async function SimulatorPage() {
               </p>
             ) : !trajectory ? (
               <p className="text-xs text-[var(--color-muted)]">
-                Prédiction <Unavailable reason="Aucun meilleur effort sur les 365 derniers jours" /> —
-                aucun meilleur effort exploitable sur la période.
+                Prédiction <Unavailable reason="Aucun meilleur effort sur les 365 derniers jours" /> —{" "}
+                {efforts.length === 0
+                  ? "aucun meilleur effort exploitable sur la période."
+                  : "les modèles disponibles à partir des efforts de référence tombent hors du domaine de plausibilité (allure entre 3'00 et 12'00/km) pour cette distance."}
               </p>
             ) : (
               <div className="flex flex-wrap items-center gap-5">
@@ -122,6 +129,19 @@ export default async function SimulatorPage() {
                       ))}
                     </ul>
                   ) : null}
+                  <ul className="tabular space-y-0.5 text-[11px] text-[var(--color-muted)]">
+                    {trajectory.bySource.map((e) => (
+                      <li key={e.source}>
+                        {SOURCE_LABELS[e.source]} : {formatDuration(e.timeS)}
+                      </li>
+                    ))}
+                    {trajectory.excluded.map((e) => (
+                      <li key={e.source} className="text-[var(--color-faint)] line-through">
+                        {SOURCE_LABELS[e.source]} : {formatDuration(e.timeS)} — non applicable, hors
+                        du domaine de validité
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}
