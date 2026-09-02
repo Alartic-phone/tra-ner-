@@ -26,7 +26,7 @@ import {
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
-import { computeReadiness, meanAndStdDev } from "./readiness.ts";
+import { computeReadiness, findLatestReadinessMeasurement, meanAndStdDev } from "./readiness.ts";
 import {
   buildPrediction,
   classifyTrajectory,
@@ -1039,5 +1039,63 @@ describe("fraîcheur du jour (readiness)", () => {
       restingHrBaselineMean: 55,
     });
     expect(result.status).toBe("correct");
+  });
+});
+
+describe("dernière mesure disponible (fallback readiness)", () => {
+  // Reproduit les fichiers bruts COROS réels : VFC disponible seulement à
+  // partir du 23/08, FC de repos presque tous les jours, et le 29/08 (dernier
+  // jour importé) n'a NI VFC NI FC de repos — le capteur n'a pas encore
+  // synchronisé cette mesure au moment de l'export.
+  const HISTORY = [
+    { day: "2026-08-29", hrv: null, restingHr: null },
+    { day: "2026-08-28", hrv: 51, restingHr: 56 },
+    { day: "2026-08-27", hrv: 46, restingHr: 56 },
+    { day: "2026-08-26", hrv: 31, restingHr: 57 },
+    { day: "2026-08-25", hrv: 59, restingHr: 54 },
+    { day: "2026-08-24", hrv: 49, restingHr: 57 },
+    { day: "2026-08-23", hrv: 57, restingHr: 59 },
+    { day: "2026-08-22", hrv: null, restingHr: 57 },
+    { day: "2026-08-21", hrv: null, restingHr: 53 },
+  ];
+
+  it("remonte à la dernière mesure complète quand celle du jour manque", () => {
+    // Il n'y a que 6 jours avec VFC avant le 29/08 (23 -> 28 inclus) : pas
+    // assez pour 7 échantillons de baseline, donc pas de résultat exploitable
+    // avec seulement cet historique.
+    expect(findLatestReadinessMeasurement(HISTORY)).toBeNull();
+  });
+
+  it("expose la date de la mesure retenue dès qu'il y a assez d'historique", () => {
+    const longerHistory = [
+      ...HISTORY,
+      { day: "2026-08-20", hrv: 55, restingHr: 54 },
+      { day: "2026-08-19", hrv: 52, restingHr: 60 },
+    ];
+    const measurement = findLatestReadinessMeasurement(longerHistory);
+    expect(measurement?.measurementDay).toBe("2026-08-28");
+    expect(measurement?.hrv).toBe(51);
+    expect(measurement?.restingHr).toBe(56);
+  });
+
+  it("calcule la plage habituelle sur les jours DISPONIBLES, pas calendaires", () => {
+    // Historique plus large avec un vrai trou calendaire (rien le 17 et 18) :
+    // les 7 échantillons doivent quand même être les 7 dernières valeurs
+    // réellement mesurées avant la mesure retenue, pas une fenêtre de 7 jours
+    // calendaires qui en manquerait deux.
+    const withCalendarGap = [
+      { day: "2026-08-25", hrv: 59, restingHr: 54 },
+      { day: "2026-08-24", hrv: 49, restingHr: 57 },
+      { day: "2026-08-23", hrv: 57, restingHr: 59 },
+      { day: "2026-08-22", hrv: 50, restingHr: 57 },
+      { day: "2026-08-19", hrv: 52, restingHr: 60 }, // trou les 20 et 21
+      { day: "2026-08-18", hrv: 53, restingHr: 57 },
+      { day: "2026-08-17", hrv: 54, restingHr: 57 },
+      { day: "2026-08-16", hrv: 55, restingHr: 57 },
+    ];
+    const measurement = findLatestReadinessMeasurement(withCalendarGap);
+    expect(measurement?.measurementDay).toBe("2026-08-25");
+    // Moyenne des 7 VFC disponibles avant le 25/08 (49,57,50,52,53,54,55).
+    expect(measurement?.hrvBaseline.mean).toBeCloseTo((49 + 57 + 50 + 52 + 53 + 54 + 55) / 7, 6);
   });
 });

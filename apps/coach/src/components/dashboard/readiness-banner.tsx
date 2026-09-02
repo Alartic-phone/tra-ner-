@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import type { ReadinessResult, ReadinessStatus } from "@/lib/metrics/readiness.ts";
+import { formatDayLong } from "@/lib/time.ts";
 
 const STATUS_META: Record<
   ReadinessStatus,
@@ -37,20 +38,26 @@ const STATUS_META: Record<
 export function ReadinessBanner({
   data,
 }: {
-  data: { result: ReadinessResult; hrv: number; restingHr: number } | null;
+  data: {
+    result: ReadinessResult;
+    hrv: number;
+    restingHr: number;
+    measurementDay: string;
+    isToday: boolean;
+  } | null;
 }) {
   if (!data) {
     return (
       <div className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
         <span className="text-xs text-[var(--color-faint)]">
-          Fraîcheur du jour non disponible — nécessite le VFC et la FC de repos du jour, plus au
-          moins 7 jours de mesures antérieures pour établir une plage habituelle.
+          Fraîcheur du jour non disponible — nécessite le VFC et la FC de repos d&apos;un même
+          jour, plus au moins 7 jours DISPONIBLES antérieurs pour établir une plage habituelle.
         </span>
       </div>
     );
   }
 
-  const { result, hrv, restingHr } = data;
+  const { result, hrv, restingHr, measurementDay, isToday } = data;
   const meta = STATUS_META[result.status];
   const { Icon } = meta;
 
@@ -64,7 +71,16 @@ export function ReadinessBanner({
         <p className="text-sm font-semibold" style={{ color: meta.color }}>
           {meta.label}
         </p>
-        <p className="mt-0.5 text-xs text-[var(--color-muted)]">{meta.message}</p>
+        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+          {isToday ? (
+            meta.message
+          ) : (
+            <>
+              Dernière mesure : {formatDayLong(measurementDay)} — pas encore de mesure pour
+              aujourd&apos;hui.
+            </>
+          )}
+        </p>
       </div>
       <div className="tabular flex gap-4 text-xs text-[var(--color-muted)]">
         <span>

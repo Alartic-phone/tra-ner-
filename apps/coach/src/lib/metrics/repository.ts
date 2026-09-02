@@ -29,7 +29,11 @@ import {
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
 import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
-import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
+import {
+  computeReadiness,
+  findLatestReadinessMeasurement,
+  type ReadinessResult,
+} from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -481,43 +485,47 @@ export async function loadPaceZones() {
 }
 
 /**
- * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
- * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
- * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
- * sur une base insuffisante.
+ * Fraîcheur du jour, pour la bannière du tableau de bord. `null` seulement si
+ * aucune mesure complète (VFC + FC de repos) n'existe dans la fenêtre, ou si
+ * elle n'a pas 7 jours DISPONIBLES antérieurs pour établir une plage
+ * habituelle — jamais un statut affiché sur une base insuffisante.
+ *
+ * Si la mesure du jour n'existe pas encore (avant le réveil, en sortie de
+ * poste, capteur pas encore synchronisé), on remonte à la dernière mesure
+ * complète disponible plutôt que de perdre l'information : `measurementDay`
+ * porte sa date, et `isToday` dit si c'est bien celle du jour demandé.
  */
 export async function loadReadiness(
   day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
-  const BASELINE_DAYS = 30;
-  const MIN_SAMPLES = 7;
+): Promise<
+  { result: ReadinessResult; hrv: number; restingHr: number; measurementDay: Day; isToday: boolean } | null
+> {
+  const LOOKBACK_DAYS = 60;
 
-  const [todayMetric, history] = await Promise.all([
-    prisma.healthMetric.findUnique({ where: { day } }),
-    prisma.healthMetric.findMany({
-      where: { day: { gte: addDays(day, -BASELINE_DAYS), lt: day } },
-      select: { hrv: true, restingHr: true },
-    }),
-  ]);
-
-  if (todayMetric?.hrv == null || todayMetric.restingHr == null) return null;
-
-  const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
-  const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
-  if (hrvSamples.length < MIN_SAMPLES || restingHrSamples.length < MIN_SAMPLES) return null;
-
-  const hrvBaseline = meanAndStdDev(hrvSamples);
-  const restingHrBaseline = meanAndStdDev(restingHrSamples);
-
-  const result = computeReadiness({
-    hrv: todayMetric.hrv,
-    restingHr: todayMetric.restingHr,
-    hrvBaselineMean: hrvBaseline.mean,
-    hrvBaselineSd: hrvBaseline.sd,
-    restingHrBaselineMean: restingHrBaseline.mean,
+  const history = await prisma.healthMetric.findMany({
+    where: { day: { gte: addDays(day, -LOOKBACK_DAYS), lte: day } },
+    orderBy: { day: "desc" },
+    select: { day: true, hrv: true, restingHr: true },
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  const measurement = findLatestReadinessMeasurement(history);
+  if (!measurement) return null;
+
+  const result = computeReadiness({
+    hrv: measurement.hrv,
+    restingHr: measurement.restingHr,
+    hrvBaselineMean: measurement.hrvBaseline.mean,
+    hrvBaselineSd: measurement.hrvBaseline.sd,
+    restingHrBaselineMean: measurement.restingHrBaseline.mean,
+  });
+
+  return {
+    result,
+    hrv: measurement.hrv,
+    restingHr: measurement.restingHr,
+    measurementDay: measurement.measurementDay,
+    isToday: measurement.measurementDay === day,
+  };
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */
