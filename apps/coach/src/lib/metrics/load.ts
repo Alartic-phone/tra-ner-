@@ -196,6 +196,25 @@ export function computeFoster(
   };
 }
 
+/**
+ * Décalage vertical (en pixels) des deux étiquettes de fin de série (CTL et
+ * ATL) sur le graphique « Charge, condition physique et fatigue », pour
+ * éviter qu'elles se superposent quand les deux courbes finissent proches
+ * l'une de l'autre. Seuil relatif à l'amplitude de la série affichée
+ * (`valueRange`), pas un seuil absolu qui serait faux à une autre échelle de
+ * charge.
+ */
+export function computeEndLabelOffsets(
+  ctl: number,
+  atl: number,
+  valueRange: number,
+): { ctlDy: number; atlDy: number } {
+  const range = valueRange || 1;
+  const close = Math.abs(ctl - atl) / range < 0.08;
+  if (!close) return { ctlDy: 0, atlDy: 0 };
+  return ctl >= atl ? { ctlDy: -7, atlDy: 7 } : { ctlDy: 7, atlDy: -7 };
+}
+
 /** Agrège des charges d'activité en charges quotidiennes, jours vides compris. */
 export function toDailyLoads(
   activities: ReadonlyArray<{ day: Day; load: number | null }>,

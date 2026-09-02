@@ -11,6 +11,7 @@ import {
 import {
   acwrZone,
   computeAcwr,
+  computeEndLabelOffsets,
   computeFitnessSeries,
   computeFoster,
   toDailyLoads,
@@ -261,6 +262,40 @@ describe("ratio aigu/chronique", () => {
     expect(current.ctl).toBeGreaterThan(20);
     expect(acwr.ratio).not.toBeNull();
     expect(acwr.ratio).toBeGreaterThan(0);
+  });
+});
+
+describe("décalage des étiquettes de fin de série (graphique charge/forme)", () => {
+  it("référence : CTL 49 et ATL 31 (30/08/2026) sont assez éloignés, aucun décalage", () => {
+    // Amplitude de la série réelle sur 30 jours : environ 0 à 137 (charge du
+    // jour comprise) — l'écart CTL/ATL de 18 y est largement au-dessus du
+    // seuil de collision.
+    const offsets = computeEndLabelOffsets(49, 31, 137);
+    expect(offsets).toEqual({ ctlDy: 0, atlDy: 0 });
+  });
+
+  it("écarte les étiquettes quand CTL et ATL finissent à moins de 8 % de l'amplitude", () => {
+    // Écart de 3 sur une amplitude de 100 : 3 % < 8 %, collision.
+    const offsets = computeEndLabelOffsets(50, 47, 100);
+    expect(offsets.ctlDy).not.toBe(0);
+    expect(offsets.atlDy).not.toBe(0);
+    // Décalées en sens opposés, jamais du même côté.
+    expect(Math.sign(offsets.ctlDy)).not.toBe(Math.sign(offsets.atlDy));
+    // La plus grande valeur (CTL) part vers le haut (dy négatif).
+    expect(offsets.ctlDy).toBeLessThan(0);
+    expect(offsets.atlDy).toBeGreaterThan(0);
+  });
+
+  it("s'adapte à l'amplitude de la série plutôt qu'à un seuil absolu", () => {
+    // Même écart brut (3) que le cas de collision ci-dessus, mais une série
+    // bien plus resserrée (amplitude 20) : 3/20 = 15 % > 8 %, l'écart est
+    // proportionnellement plus grand, donc plus de collision.
+    const offsets = computeEndLabelOffsets(50, 47, 20);
+    expect(offsets).toEqual({ ctlDy: 0, atlDy: 0 });
+  });
+
+  it("ne divise jamais par zéro sur une série totalement plate", () => {
+    expect(() => computeEndLabelOffsets(40, 40, 0)).not.toThrow();
   });
 });
 

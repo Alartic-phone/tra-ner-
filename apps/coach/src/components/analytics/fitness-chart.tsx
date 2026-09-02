@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { formatDayShort } from "@/lib/time.ts";
 import { weekdayLabel } from "@/lib/shifts/day.ts";
+import { computeEndLabelOffsets } from "@/lib/metrics/load.ts";
 
 /** Durée et amorti partagés par tous les graphiques temporels : tracé
  * progressif de gauche à droite au chargement, jamais instantané. */
@@ -72,6 +73,18 @@ export function FitnessChart({
   const firstReliable = rows.find((r) => r.reliable)?.day;
   const unreliableUntil =
     firstReliable && rows[0] && firstReliable !== rows[0].day ? firstReliable : null;
+
+  // Écarte les étiquettes de fin de série quand CTL et ATL finissent trop
+  // proches l'une de l'autre pour tenir leurs deux nombres sans se chevaucher
+  // (observé le 30/08 dans les données réelles).
+  const valueRange =
+    rows.length > 0
+      ? Math.max(...rows.flatMap((r) => [r.ctl, r.atl])) -
+        Math.min(...rows.flatMap((r) => [r.ctl, r.atl]))
+      : 1;
+  const { ctlDy: ctlLabelDy, atlDy: atlLabelDy } = last
+    ? computeEndLabelOffsets(last.ctl, last.atl, valueRange)
+    : { ctlDy: 0, atlDy: 0 };
   const raceInRange =
     raceDay && rows[0] && rows[rows.length - 1] && raceDay >= rows[0].day && raceDay <= rows[rows.length - 1]!.day
       ? raceDay
@@ -209,6 +222,7 @@ export function FitnessChart({
                 position: "right",
                 fill: "var(--chart-1)",
                 fontSize: 11,
+                dy: ctlLabelDy,
               }}
             />
           ) : null}
@@ -221,6 +235,7 @@ export function FitnessChart({
                 position: "right",
                 fill: "var(--chart-2)",
                 fontSize: 11,
+                dy: atlLabelDy,
               }}
             />
           ) : null}
