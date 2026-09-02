@@ -876,8 +876,37 @@ describe("série hebdomadaire (streak)", () => {
     expect(computeWeekStreak(days, TODAY)).toBe(2);
   });
 
-  it("vaut zéro sans activité cette semaine, même avec un historique récent", () => {
-    expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(0);
+  it("une semaine en cours SANS activité ne casse pas une série qui continue la semaine précédente", () => {
+    // La semaine courante (24/08) n'a encore rien ; celle d'avant (17/08) a
+    // couru : la série n'est pas rompue, elle est juste "en attente" de la
+    // sortie de cette semaine. Avant le correctif, ce cas retombait à 0.
+    expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(1);
+  });
+
+  it("vaut zéro sans activité cette semaine ET sans continuité la semaine précédente", () => {
+    // Trou entre la semaine courante (24/08, vide) et la seule activité
+    // historique, huit jours avant le début de cette fenêtre.
+    expect(computeWeekStreak(["2026-08-01"], TODAY)).toBe(0);
+  });
+
+  it("référence : au moins une course chaque semaine depuis le 20/07, observée un mercredi sans sortie hebdomadaire encore faite", () => {
+    // Reproduit le cas réel : douze semaines consécutives de course jusqu'au
+    // 24/08 inclus, puis un mercredi (02/09) où la semaine en cours n'a pas
+    // encore de sortie. La série ne doit pas retomber à 0.
+    const mondays = [
+      "2026-06-15",
+      "2026-06-22",
+      "2026-06-29",
+      "2026-07-06",
+      "2026-07-13",
+      "2026-07-20",
+      "2026-07-27",
+      "2026-08-03",
+      "2026-08-10",
+      "2026-08-17",
+      "2026-08-24",
+    ];
+    expect(computeWeekStreak(mondays, "2026-09-02")).toBe(mondays.length);
   });
 });
 
