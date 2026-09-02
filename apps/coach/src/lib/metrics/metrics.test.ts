@@ -19,6 +19,7 @@ import {
 } from "./load.ts";
 import {
   computeHeartRateZones,
+  computeMovingAverageHr,
   computePaceZones,
   estimateVmaFromRace,
   paceAtVmaPercent,
@@ -406,6 +407,50 @@ describe("zones de fréquence cardiaque (Karvonen)", () => {
     expect(result.byZone.get(2)).toBe(299);
     expect(result.byZone.get(4)).toBe(200);
     expect(result.unmeasured).toBe(101);
+  });
+});
+
+describe("FC moyenne pondérée par le temps en mouvement", () => {
+  it("exclut les arrêts, contrairement à une simple moyenne du flux", () => {
+    // 100 s à l'arrêt (vitesse nulle, FC élevée car juste après l'effort),
+    // puis 100 s en mouvement à FC stable. La moyenne brute serait tirée
+    // vers le haut par l'arrêt ; la moyenne en mouvement ne doit pas l'être.
+    const time = Array.from({ length: 201 }, (_, i) => i);
+    const heartrate = time.map((t) => (t < 100 ? 170 : 150));
+    const velocity = time.map((t) => (t < 100 ? 0 : 3));
+    const avg = computeMovingAverageHr(heartrate, time, velocity)!;
+    expect(avg).toBeCloseTo(150, 0);
+  });
+
+  it("référence : explique un écart de 1 à 2 bpm avec la valeur de la montre (20/08, 27/08)", () => {
+    // La montre exclut déjà les arrêts de sa propre moyenne (145 et 154 bpm
+    // signalés). Un flux avec quelques arrêts autour d'une FC stable illustre
+    // le même mécanisme : la moyenne en mouvement se rapproche de la valeur
+    // de la montre, pas de la moyenne brute du flux complet.
+    const moving = Array.from({ length: 3000 }, () => 150);
+    const stopped = Array.from({ length: 60 }, () => 120); // un feu, un ravito…
+    const heartrate = [...moving, ...stopped, ...moving];
+    const time = heartrate.map((_, i) => i);
+    const velocity = heartrate.map((_, i) => (i >= 3000 && i < 3060 ? 0 : 3));
+
+    const rawAverage = heartrate.reduce((a, b) => a + b, 0) / heartrate.length;
+    const movingAverage = computeMovingAverageHr(heartrate, time, velocity)!;
+    expect(movingAverage).toBeCloseTo(150, 0);
+    expect(movingAverage).toBeGreaterThan(rawAverage);
+  });
+
+  it("retombe sur null sans flux de vitesse, pour ne pas inventer un filtre", () => {
+    const time = [0, 1, 2];
+    const heartrate = [140, 145, 150];
+    expect(computeMovingAverageHr(heartrate, time, undefined)).toBeNull();
+  });
+
+  it("ignore les échantillons où la vitesse ou la FC manque", () => {
+    const time = [0, 1, 2, 3];
+    const heartrate = [140, null, 150, 155];
+    const velocity = [2, 2, null, 2];
+    // Seul l'intervalle [2,3] (FC 155, vitesse 2) est exploitable.
+    expect(computeMovingAverageHr(heartrate, time, velocity)).toBe(155);
   });
 });
 

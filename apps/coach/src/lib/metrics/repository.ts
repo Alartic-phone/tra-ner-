@@ -27,7 +27,12 @@ import {
   type Sex,
   type TrimpMethod,
 } from "./trimp.ts";
-import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
+import {
+  computeHeartRateZones,
+  computeMovingAverageHr,
+  computePaceZones,
+  timeInZones,
+} from "./zones.ts";
 import {
   buildPrediction,
   estimatesForDistance,
@@ -82,6 +87,13 @@ export type ActivityMetrics = {
   gapPaceSPerKm: number | null;
   decouplingPct: number | null;
   bestEfforts: Array<{ durationS: number; distanceM: number }>;
+  /**
+   * FC moyenne à conserver : recalculée depuis le flux, pondérée par le
+   * temps en mouvement (cf. `computeMovingAverageHr`), quand un flux vitesse
+   * est disponible ; sinon la valeur importée de la source est conservée
+   * telle quelle.
+   */
+  avgHr: number | null;
 };
 
 /**
@@ -104,6 +116,7 @@ export async function computeActivityMetrics(
       gapPaceSPerKm: null,
       decouplingPct: null,
       bestEfforts: [],
+      avgHr: null,
     };
   }
 
@@ -162,12 +175,23 @@ export async function computeActivityMetrics(
         )
       : [];
 
+  // La FC moyenne affichée doit être pondérée par le temps en mouvement,
+  // comme l'allure — pas par le temps écoulé (cf. computeMovingAverageHr).
+  // Sans flux vitesse pour départager mouvement et arrêt, la valeur importée
+  // de la source est conservée telle quelle.
+  const movingAvgHr =
+    streams?.heartrate && streams.time
+      ? computeMovingAverageHr(streams.heartrate, streams.time, streams.velocity_smooth)
+      : null;
+  const avgHr = movingAvgHr != null ? Math.round(movingAvgHr) : activity.avgHr;
+
   return {
     trimp,
     trimpMethod,
     gapPaceSPerKm: gap?.gapSPerKm ?? null,
     decouplingPct: decoupling?.decouplingPct ?? null,
     bestEfforts,
+    avgHr,
   };
 }
 
@@ -186,6 +210,7 @@ export async function persistActivityMetrics(
       gapPaceSPerKm: metrics.gapPaceSPerKm,
       gapEstimated: true,
       decouplingPct: metrics.decouplingPct,
+      avgHr: metrics.avgHr,
       metricsComputedAt: new Date(),
     },
   });

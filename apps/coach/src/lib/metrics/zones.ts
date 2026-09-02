@@ -101,6 +101,50 @@ export function timeInZones(
   return { byZone, belowZone1, unmeasured };
 }
 
+/**
+ * Fréquence cardiaque moyenne pondérée par le temps EN MOUVEMENT, comme
+ * l'allure. Strava calcule sa propre `average_speed` sur distance /
+ * moving_time, mais sa `average_heartrate` de résumé moyenne tous les
+ * échantillons sans exclure les arrêts — d'où un écart de 1 à 2 bpm avec la
+ * valeur affichée par la montre, qui exclut déjà les arrêts. Même seuil de
+ * vitesse que le calcul d'allure (`streams.ts`, 0,5 m/s) pour rester
+ * cohérent entre les deux métriques dérivées du même flux.
+ *
+ * `null` sans flux de vitesse pour départager mouvement et arrêt : on
+ * retombe alors sur la valeur communiquée par la source plutôt que
+ * d'inventer un filtre.
+ */
+export function computeMovingAverageHr(
+  heartrate: ReadonlyArray<number | null>,
+  time: ReadonlyArray<number>,
+  velocityMps: ReadonlyArray<number | null> | undefined,
+  movingThresholdMps = 0.5,
+): number | null {
+  if (!velocityMps) return null;
+  const n = Math.min(heartrate.length, time.length, velocityMps.length);
+
+  // Même convention que le calcul de TRIMP et la répartition par zones :
+  // l'intervalle précédent, le premier échantillon étant exclu.
+  let weightedSum = 0;
+  let totalDt = 0;
+  for (let i = 1; i < n; i++) {
+    const current = time[i];
+    const previous = time[i - 1];
+    if (current == null || previous == null) continue;
+    const dt = current - previous;
+    if (dt <= 0 || dt > 60) continue;
+
+    const hr = heartrate[i];
+    const v = velocityMps[i];
+    if (hr == null || v == null || v <= movingThresholdMps) continue;
+
+    weightedSum += hr * dt;
+    totalDt += dt;
+  }
+
+  return totalDt > 0 ? weightedSum / totalDt : null;
+}
+
 export type PaceZone = {
   name: string;
   /** Bornes en pourcentage de VMA. */
