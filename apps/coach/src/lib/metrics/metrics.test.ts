@@ -49,6 +49,7 @@ import {
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeWeekStreak } from "./streak.ts";
+import { computeSportVolume } from "./volume.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -877,6 +878,42 @@ describe("série hebdomadaire (streak)", () => {
 
   it("vaut zéro sans activité cette semaine, même avec un historique récent", () => {
     expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(0);
+  });
+});
+
+describe("volume hebdomadaire par sport", () => {
+  // Semaine du 24 au 30/08/2026 : trois courses (25, 27, 29/08) réellement
+  // enregistrées, aucun vélo — oracle de référence vérifié manuellement.
+  const WEEK_ACTIVITIES = [
+    { type: "Run", distanceM: 8964 }, // 25/08, "Morning run"
+    { type: "Run", distanceM: 5009.5 }, // 27/08, "Reprise"
+    { type: "Run", distanceM: 10714 }, // 29/08, "Test de seuil"
+  ];
+
+  it("additionne le volume de course sur la semaine de référence", () => {
+    const { runKm, rideKm } = computeSportVolume(WEEK_ACTIVITIES);
+    expect(runKm).toBeCloseTo(24.6875, 3);
+    expect(rideKm).toBe(0);
+  });
+
+  it("compte les séances tapis (VirtualRun) comme de la course", () => {
+    const { runKm } = computeSportVolume([{ type: "VirtualRun", distanceM: 5000 }]);
+    expect(runKm).toBe(5);
+  });
+
+  it("ne mélange jamais vélo et course dans le même total", () => {
+    const { runKm, rideKm } = computeSportVolume([
+      ...WEEK_ACTIVITIES,
+      { type: "Ride", distanceM: 30000 },
+    ]);
+    expect(runKm).toBeCloseTo(24.6875, 3);
+    expect(rideKm).toBe(30);
+  });
+
+  it("ignore les sports ni course ni vélo (musculation, rameur…)", () => {
+    const { runKm, rideKm } = computeSportVolume([{ type: "WeightTraining", distanceM: 0 }]);
+    expect(runKm).toBe(0);
+    expect(rideKm).toBe(0);
   });
 });
 

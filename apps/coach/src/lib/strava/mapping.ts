@@ -49,3 +49,10 @@ export const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 export function isRun(type: string): boolean {
   return RUN_TYPES.has(type);
 }
+
+/** Types Strava considérés comme du vélo. */
+export const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "Velomobile"]);
+
+export function isRide(type: string): boolean {
+  return RIDE_TYPES.has(type);
+}

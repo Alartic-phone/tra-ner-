@@ -12,7 +12,7 @@ import { RecordProgressBar } from "@/components/dashboard/record-progress-bar.ts
 import { loadStreams } from "@/lib/streams.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
-import { addDays, diffDays, minutesToTime } from "@/lib/shifts/day.ts";
+import { addDays, diffDays, minutesToTime, mondayOf } from "@/lib/shifts/day.ts";
 import { formatDayLong, formatDayShort, today } from "@/lib/time.ts";
 import {
   getProfileStatus,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/metrics/repository.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { computeWeekStreak } from "@/lib/metrics/streak.ts";
+import { computeSportVolume } from "@/lib/metrics/volume.ts";
 import { formatClock, formatDistance } from "@/lib/utils.ts";
 import { Flame } from "lucide-react";
 
@@ -34,11 +35,14 @@ export default async function DashboardPage() {
   const now = today();
   const rules = await getAvailabilityRules();
 
+  const weekStart = mondayOf(now);
+
   const [
     range,
     stats,
     recent,
     weekActivities,
+    weekVolumeActivities,
     fitness,
     streakDays,
     readiness,
@@ -55,6 +59,13 @@ export default async function DashboardPage() {
       where: { startDay: { gte: addDays(now, -6), lte: now } },
       select: { distanceM: true, movingTimeS: true },
     }),
+    // Semaine calendaire (lundi -> aujourd'hui), pour la carte « Volume —
+    // semaine » — distincte de la fenêtre glissante de 7 jours ci-dessus,
+    // qui garde son propre sens pour la carte « 7 derniers jours ».
+    prisma.activity.findMany({
+      where: { startDay: { gte: weekStart, lte: now } },
+      select: { type: true, distanceM: true },
+    }),
     loadFitnessSnapshot(addDays(now, -30), now),
     prisma.activity.findMany({
       where: { startDay: { gte: addDays(now, -365), lte: now } },
@@ -68,6 +79,8 @@ export default async function DashboardPage() {
     loadLongestRunProgression(),
     getProfileStatus(),
   ]);
+
+  const weekVolume = computeSportVolume(weekVolumeActivities);
 
   const weekStreak = computeWeekStreak(
     streakDays.map((a) => a.startDay),
@@ -135,35 +148,39 @@ export default async function DashboardPage() {
           <CardHeader title="Volume — semaine" />
           <CardBody className="flex items-center gap-4">
             {weeklyVolumeTargetKm != null ? (
-              <ProgressRing
-                value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000 / weeklyVolumeTargetKm}
-                tone="info"
-              >
+              <ProgressRing value={weekVolume.runKm / weeklyVolumeTargetKm} tone="info">
                 <span className="tabular text-lg font-semibold">
-                  <CountUp value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000} decimals={0} />
+                  <CountUp value={weekVolume.runKm} decimals={0} />
                 </span>
               </ProgressRing>
             ) : (
               <div className="flex h-24 w-24 flex-col items-center justify-center">
                 <span className="tabular text-2xl font-bold">
-                  <CountUp value={weekActivities.reduce((sum, a) => sum + a.distanceM, 0) / 1000} decimals={1} />
+                  <CountUp value={weekVolume.runKm} decimals={1} />
                 </span>
                 <span className="text-[11px] text-[var(--color-faint)]">km</span>
               </div>
             )}
-            <p className="text-xs text-[var(--color-muted)]">
+            <div className="text-xs text-[var(--color-muted)]">
               {weeklyVolumeTargetKm != null ? (
-                <>
+                <p>
                   Cible de la semaine :{" "}
                   <span className="tabular font-medium text-[var(--color-text)]">
                     {weeklyVolumeTargetKm.toFixed(0)} km
                   </span>{" "}
                   (phase du plan actif).
-                </>
-              ) : (
-                <Unavailable reason="Aucun plan actif avec volume chiffré cette semaine" />
-              )}
-            </p>
+                </p>
+              ) : null}
+              {weekVolume.rideKm > 0 ? (
+                <p className={weeklyVolumeTargetKm != null ? "mt-1" : undefined}>
+                  +{" "}
+                  <span className="tabular font-medium text-[var(--color-text)]">
+                    <CountUp value={weekVolume.rideKm} decimals={1} /> km
+                  </span>{" "}
+                  vélo (non comptés dans le volume course).
+                </p>
+              ) : null}
+            </div>
           </CardBody>
         </Card>
 
