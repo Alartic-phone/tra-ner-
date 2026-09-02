@@ -124,11 +124,21 @@ export function FitnessChart({
             labelFormatter={(d: string) => dayTooltipLabel(d)}
             formatter={(value: number, name: string) => [Math.round(value), name]}
           />
+          {/* Payload explicite plutôt que la génération automatique : Recharts
+              construit une ligne de légende par ÉLÉMENT GRAPHIQUE, pas par
+              série. `legendType="none"` sur les Area (ci-dessous) n'exclut
+              pas la ligne, il la rend seulement sans icône — Condition
+              physique et Fatigue apparaissaient donc deux fois chacune (une
+              fois pour l'Area, une fois pour la Line). */}
           <Legend
             verticalAlign="top"
             height={24}
-            iconType="plainline"
             wrapperStyle={{ fontSize: 11, color: "var(--color-muted)" }}
+            payload={[
+              { value: "Charge du jour", type: "rect", color: "var(--chart-neutral)" },
+              { value: "Condition physique (42 j)", type: "plainline", color: "var(--chart-1)" },
+              { value: "Fatigue (7 j)", type: "plainline", color: "var(--chart-2)" },
+            ]}
           />
 
           {raceInRange ? (
