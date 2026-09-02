@@ -153,7 +153,6 @@ export function MonthGrid({
                   aria-label={`${formatDayLong(d.day)} — ${timing?.label ?? "repos"}${d.isRaceDay ? " — jour de course" : ""}`}
                   className={cn(
                     "relative min-h-[74px] overflow-hidden bg-[var(--color-surface)] p-1 pl-2 text-left transition-colors md:min-h-[96px]",
-                    !d.inMonth && "opacity-40",
                     (isSelected || isRangeAnchor) && "ring-2 ring-inset ring-[var(--color-accent)]",
                     d.isRaceDay && "ring-1 ring-inset ring-[var(--color-warn)]",
                     "hover:bg-[var(--color-surface-2)]",
@@ -174,6 +173,11 @@ export function MonthGrid({
                         d.isToday
                           ? "rounded bg-[var(--color-accent)] px-1 font-semibold text-[#06101f]"
                           : "text-[var(--color-muted)]",
+                        // Seul le NUMÉRO du jour est atténué hors mois courant :
+                        // les pastilles d'activité de la case gardent leur
+                        // contraste (elles restent lisibles même en case
+                        // grisée).
+                        !d.inMonth && "opacity-50",
                       )}
                     >
                       {d.isRaceDay ? (
