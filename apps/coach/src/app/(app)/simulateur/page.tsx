@@ -123,6 +123,11 @@ export default async function SimulatorPage() {
                       Aucun chrono cible défini pour cet objectif — pas de classification possible.
                     </p>
                   )}
+                  {trajectory.referenceDay ? (
+                    <p className="text-[11px] text-[var(--color-faint)]">
+                      Performance de référence : {formatDayLong(trajectory.referenceDay)}.
+                    </p>
+                  ) : null}
                   {trajectory.confidenceNotes.length > 0 ? (
                     <ul className="list-inside list-disc text-[11px] text-[var(--color-faint)]">
                       {trajectory.confidenceNotes.map((note) => (

@@ -1,7 +1,7 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
 import { isRun, RUN_TYPES } from "../strava/mapping.ts";
-import { addDays, type Day } from "../shifts/day.ts";
+import { addDays, diffDays, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
   DEFAULT_DURATIONS,
@@ -28,7 +28,12 @@ import {
   type TrimpMethod,
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
-import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
+import {
+  buildPrediction,
+  estimatesForDistance,
+  pickReferenceEffort,
+  type Prediction,
+} from "./prediction.ts";
 import {
   computeReadiness,
   findLatestReadinessMeasurement,
@@ -401,11 +406,16 @@ export async function loadZoneSecondsByActivity(
   return out;
 }
 
-/** Meilleurs efforts consolidés sur une période, pour la vitesse critique. */
+/**
+ * Meilleurs efforts consolidés sur une période, pour la vitesse critique.
+ * `day` est conservé (jour de l'activité qui a produit le meilleur effort
+ * pour cette durée) : c'est ce qui permet de dater la performance de
+ * référence utilisée par les prédictions plutôt que de la laisser inconnue.
+ */
 export async function loadBestEfforts(from: Day, to: Day) {
   const rows = await prisma.bestEffort.findMany({
     where: { day: { gte: from, lte: to } },
-    select: { durationS: true, distanceM: true },
+    select: { durationS: true, distanceM: true, day: true },
   });
   return mergeBestEfforts(rows);
 }
@@ -472,9 +482,13 @@ export async function predictDistance(
 ): Promise<Prediction | null> {
   const efforts = await loadBestEfforts(from, to);
   if (efforts.length === 0) return null;
+  // Même effort de référence que celui utilisé par Riegel/VDOT
+  // (pickReferenceEffort) : c'est sa date qui date la prédiction.
+  const reference = pickReferenceEffort(efforts);
   return buildPrediction(distanceM, estimatesForDistance(distanceM, efforts), {
-    sourceAgeDays: null,
+    sourceAgeDays: reference ? diffDays(reference.day, to) : null,
     sampleCount: efforts.length,
+    referenceDay: reference?.day ?? null,
   });
 }
 

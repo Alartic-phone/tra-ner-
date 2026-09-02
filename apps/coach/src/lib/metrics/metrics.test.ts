@@ -37,6 +37,7 @@ import {
   fractionOfVo2Max,
   isCriticalSpeedInDomain,
   isPlausiblePrediction,
+  pickReferenceEffort,
   predictTimeFromCriticalSpeed,
   predictTimeFromVdot,
   riegel,
@@ -861,6 +862,34 @@ describe("estimatesForDistance", () => {
     expect(bySource.vitesse_critique).toBeNull();
     // 10 km est plus long que la référence : le chrono prédit doit être plus lent.
     expect(bySource.riegel!).toBeGreaterThan(1200 * (10000 / 4200));
+  });
+
+  it("mergeBestEfforts conserve le jour de l'effort gagnant (générique sur T)", () => {
+    const merged = mergeBestEfforts([
+      { durationS: 1800, distanceM: 5500, day: "2026-08-10" },
+      { durationS: 1800, distanceM: 5861, day: "2026-08-29" }, // gagne, plus loin
+      { durationS: 600, distanceM: 2000, day: "2026-08-15" },
+    ]);
+    const thirtyMin = merged.find((e) => e.durationS === 1800)!;
+    expect(thirtyMin.distanceM).toBe(5861);
+    expect(thirtyMin.day).toBe("2026-08-29");
+  });
+
+  it("référence : la date du plus récent effort utilisé n'est plus inconnue", () => {
+    // pickReferenceEffort désigne le même effort que celui daté par
+    // repository.ts (predictDistance) : les deux ne doivent jamais diverger.
+    const efforts = [
+      { durationS: 300, distanceM: 1062, day: "2026-08-20" },
+      { durationS: 1800, distanceM: 5861, day: "2026-08-29" },
+      { durationS: 600, distanceM: 2103, day: "2026-08-25" },
+    ];
+    const reference = pickReferenceEffort(efforts);
+    expect(reference?.day).toBe("2026-08-29");
+    expect(reference?.durationS).toBe(1800);
+  });
+
+  it("pickReferenceEffort renvoie null sans aucun effort", () => {
+    expect(pickReferenceEffort([])).toBeNull();
   });
 });
 

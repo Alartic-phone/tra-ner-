@@ -317,6 +317,14 @@ export type Prediction = {
   confidence: number;
   /** Raisons lisibles de la confiance accordée, affichées telles quelles. */
   confidenceNotes: string[];
+  /**
+   * Jour de la performance de référence (le même effort que celui utilisé
+   * par Riegel/VDOT, cf. `pickReferenceEffort`) — `null` seulement si aucun
+   * effort n'était disponible. Toujours affiché, pas seulement quand elle
+   * est vieille : une date connue vaut mieux qu'une ancienneté taisant sa
+   * propre source.
+   */
+  referenceDay: string | null;
 };
 
 /**
@@ -329,7 +337,7 @@ export type Prediction = {
 export function buildPrediction(
   distanceM: number,
   estimates: ReadonlyArray<{ source: PredictionSource; timeS: number | null }>,
-  context: { sourceAgeDays: number | null; sampleCount: number },
+  context: { sourceAgeDays: number | null; sampleCount: number; referenceDay?: string | null },
 ): Prediction | null {
   const computed = estimates.filter(
     (e): e is { source: PredictionSource; timeS: number } => e.timeS != null && e.timeS > 0,
@@ -412,6 +420,7 @@ export function buildPrediction(
     slowestTimeS: slowest * (1 + margin),
     confidence: Math.max(0, Math.min(1, confidence)),
     confidenceNotes: notes,
+    referenceDay: context.referenceDay ?? null,
   };
 }
 
@@ -425,11 +434,24 @@ export function buildPrediction(
  * erreur : c'est à `buildPrediction` de décider quoi faire d'une entrée sans
  * données (il renvoie `null`).
  */
+/**
+ * L'effort de plus longue durée disponible : signal le plus proche d'un
+ * effort d'endurance soutenu, donc le moins déformé par la filière
+ * anaérobie. Sert de référence à la fois pour Riegel/VDOT et pour dater la
+ * performance de référence (repository.ts) — les deux doivent désigner
+ * exactement le même effort, jamais deux sélections qui divergent.
+ */
+export function pickReferenceEffort<T extends BestEffort>(efforts: readonly T[]): T | null {
+  if (efforts.length === 0) return null;
+  return efforts.reduce((best, e) => (e.durationS > best.durationS ? e : best));
+}
+
 export function estimatesForDistance(
   distanceM: number,
   efforts: readonly BestEffort[],
 ): Array<{ source: PredictionSource; timeS: number | null }> {
-  if (efforts.length === 0) {
+  const reference = pickReferenceEffort(efforts);
+  if (!reference) {
     return [
       { source: "riegel", timeS: null },
       { source: "vdot", timeS: null },
@@ -437,7 +459,6 @@ export function estimatesForDistance(
     ];
   }
 
-  const reference = efforts.reduce((best, e) => (e.durationS > best.durationS ? e : best));
   const vdot = vdotFromRace(reference.distanceM, reference.durationS);
   const cs = computeCriticalSpeed(efforts);
 
