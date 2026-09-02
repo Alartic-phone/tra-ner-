@@ -27,7 +27,7 @@ import {
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { computeWeekStreak } from "@/lib/metrics/streak.ts";
 import { computeSportVolume } from "@/lib/metrics/volume.ts";
-import { formatClock, formatDistance } from "@/lib/utils.ts";
+import { formatClock, formatDistance, formatTimeRange } from "@/lib/utils.ts";
 import { Flame } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +82,10 @@ export default async function DashboardPage() {
   ]);
 
   const weekVolume = computeSportVolume(weekVolumeActivities);
+
+  const nextGoalTargetRange = nextGoal
+    ? formatTimeRange(nextGoal.targetTimeMinS, nextGoal.targetTimeMaxS, formatClock)
+    : null;
 
   const weekStreak = computeWeekStreak(
     streakDays.map((a) => a.startDay),
@@ -219,7 +223,7 @@ export default async function DashboardPage() {
                 </div>
                 <p className="mt-1 text-[11px] text-[var(--color-faint)]">
                   {formatDistance(nextGoal.distanceM)}
-                  {nextGoal.targetTimeS ? ` · objectif ${formatClock(nextGoal.targetTimeS)}` : ""}
+                  {nextGoalTargetRange ? ` · objectif ${nextGoalTargetRange}` : ""}
                 </p>
               </>
             ) : (

@@ -987,6 +987,25 @@ describe("classifyTrajectory", () => {
   it("classe 'retard' quand la prédiction est nettement plus lente", () => {
     expect(classifyTrajectory(4200, targetTimeS)).toBe("retard");
   });
+
+  describe("objectif en fourchette (E1)", () => {
+    // Référence : chrono visé 1h03-1h07 (3780-4020 s).
+    const target = { minS: 3780, maxS: 4020 };
+
+    it("'avance' plus rapide que la borne basse", () => {
+      expect(classifyTrajectory(3700, target)).toBe("avance");
+    });
+
+    it("'dans_les_temps' n'importe où dans la fourchette", () => {
+      expect(classifyTrajectory(3780, target)).toBe("dans_les_temps");
+      expect(classifyTrajectory(3900, target)).toBe("dans_les_temps");
+      expect(classifyTrajectory(4020, target)).toBe("dans_les_temps");
+    });
+
+    it("'retard' plus lent que la borne haute", () => {
+      expect(classifyTrajectory(4100, target)).toBe("retard");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

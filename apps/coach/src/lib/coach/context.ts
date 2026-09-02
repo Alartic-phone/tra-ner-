@@ -24,7 +24,8 @@ export type GoalInfo = {
   name: string;
   day: Day;
   distanceM: number;
-  targetTimeS: number | null;
+  targetTimeMinS: number | null;
+  targetTimeMaxS: number | null;
   floorTimeS: number | null;
   priority: string;
 };
@@ -113,7 +114,8 @@ export async function buildCoachContext(goalId: string): Promise<CoachContext> {
     name: goalRow.name,
     day: goalRow.day,
     distanceM: goalRow.distanceM,
-    targetTimeS: goalRow.targetTimeS,
+    targetTimeMinS: goalRow.targetTimeMinS,
+    targetTimeMaxS: goalRow.targetTimeMaxS,
     floorTimeS: goalRow.floorTimeS,
     priority: goalRow.priority,
   };

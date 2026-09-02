@@ -475,18 +475,30 @@ export function estimatesForDistance(
 export type TrajectoryStatus = "avance" | "dans_les_temps" | "retard";
 
 /**
- * Classe une prédiction de chrono par rapport à un objectif chiffré.
+ * Classe une prédiction de chrono par rapport à un objectif.
  *
- * Simple seuil applicatif, PAS une formule tirée de la littérature — la
- * tolérance par défaut (2 %) absorbe le bruit normal d'une prédiction
- * multi-modèles sans le sur-interpréter comme un vrai écart de forme.
+ * L'objectif est une fourchette (borne basse = le plus rapide encore
+ * réaliste, borne haute), pas un point unique — un chrono visé l'est
+ * quasiment toujours. En avance : plus rapide que la borne basse. En retard :
+ * plus lent que la borne haute. Entre les deux, dans les temps.
+ *
+ * `targetTimeS` accepte aussi un nombre unique pour compatibilité (objectif
+ * pas encore élargi en fourchette) : dans ce cas, simple seuil applicatif —
+ * PAS une formule tirée de la littérature — la tolérance par défaut (2 %)
+ * absorbe le bruit normal d'une prédiction multi-modèles sans le
+ * sur-interpréter comme un vrai écart de forme.
  */
 export function classifyTrajectory(
   predictedTimeS: number,
-  targetTimeS: number,
+  target: number | { minS: number; maxS: number },
   toleranceFraction = 0.02,
 ): TrajectoryStatus {
-  const delta = (predictedTimeS - targetTimeS) / targetTimeS;
+  if (typeof target !== "number") {
+    if (predictedTimeS < target.minS) return "avance";
+    if (predictedTimeS > target.maxS) return "retard";
+    return "dans_les_temps";
+  }
+  const delta = (predictedTimeS - target) / target;
   if (delta <= -toleranceFraction) return "avance";
   if (delta >= toleranceFraction) return "retard";
   return "dans_les_temps";

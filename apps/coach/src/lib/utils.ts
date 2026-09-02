@@ -16,6 +16,22 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${s} s`;
 }
 
+/**
+ * Fourchette de chrono visé : "1 h 03 – 1 h 07", ou la seule borne si elle
+ * sont égales (objectif pas encore élargi depuis un unique chrono visé).
+ * `null` sans borne renseignée — jamais une fourchette inventée à partir
+ * d'un seul chiffre.
+ */
+export function formatTimeRange(
+  minS: number | null | undefined,
+  maxS: number | null | undefined,
+  formatter: (seconds: number | null | undefined) => string = formatDuration,
+): string | null {
+  if (minS == null || maxS == null) return null;
+  if (minS === maxS) return formatter(minS);
+  return `${formatter(minS)} – ${formatter(maxS)}`;
+}
+
 /** Chrono complet : "1:12:34" ou "42:07". */
 export function formatClock(seconds: number | null | undefined): string {
   if (seconds == null) return "—";

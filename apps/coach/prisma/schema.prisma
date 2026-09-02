@@ -347,8 +347,12 @@ model Goal {
   day  String
 
   distanceM Float
-  /// Chrono visé, en secondes.
-  targetTimeS Int?
+  /// Chrono visé, en fourchette : borne basse (le plus rapide encore
+  /// réaliste) et borne haute, toutes deux en secondes. Un objectif n'est
+  /// quasiment jamais un point unique — le figer en un seul chiffre invente
+  /// une précision qui n'existe pas. Toujours les deux ensemble ou aucun.
+  targetTimeMinS Int?
+  targetTimeMaxS Int?
   /// Chrono « plancher » encore considéré comme une réussite.
   floorTimeS  Int?
   /// "A" | "B" | "C".

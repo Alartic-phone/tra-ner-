@@ -6,14 +6,26 @@ import { prisma } from "@/lib/db.ts";
 import { isAuthenticated } from "@/lib/auth.ts";
 import { generatePlan as runGeneration, regeneratePlan as runRegeneration } from "@/lib/coach/generate.ts";
 
-const goalSchema = z.object({
-  name: z.string().min(1).max(80),
-  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Jour attendu au format AAAA-MM-JJ"),
-  distanceM: z.number().positive().max(300000),
-  targetTimeS: z.union([z.number().int().positive(), z.null()]).optional(),
-  floorTimeS: z.union([z.number().int().positive(), z.null()]).optional(),
-  priority: z.enum(["A", "B", "C"]).default("A"),
-});
+const goalSchema = z
+  .object({
+    name: z.string().min(1).max(80),
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Jour attendu au format AAAA-MM-JJ"),
+    distanceM: z.number().positive().max(300000),
+    // Chrono visé en fourchette : les deux bornes ensemble, ou aucune —
+    // jamais une borne inventée à partir de l'autre.
+    targetTimeMinS: z.union([z.number().int().positive(), z.null()]).optional(),
+    targetTimeMaxS: z.union([z.number().int().positive(), z.null()]).optional(),
+    floorTimeS: z.union([z.number().int().positive(), z.null()]).optional(),
+    priority: z.enum(["A", "B", "C"]).default("A"),
+  })
+  .refine((v) => (v.targetTimeMinS == null) === (v.targetTimeMaxS == null), {
+    message: "Les deux bornes du chrono visé doivent être renseignées ensemble, ou aucune.",
+    path: ["targetTimeMaxS"],
+  })
+  .refine((v) => v.targetTimeMinS == null || v.targetTimeMaxS == null || v.targetTimeMinS <= v.targetTimeMaxS, {
+    message: "La borne basse doit être inférieure ou égale à la borne haute.",
+    path: ["targetTimeMinS"],
+  });
 
 export type GoalResult = { ok: true; goalId: string } | { ok: false; error: string };
 
@@ -35,7 +47,8 @@ export async function createGoal(input: unknown): Promise<GoalResult> {
       name: parsed.data.name,
       day: parsed.data.day,
       distanceM: parsed.data.distanceM,
-      targetTimeS: parsed.data.targetTimeS ?? null,
+      targetTimeMinS: parsed.data.targetTimeMinS ?? null,
+      targetTimeMaxS: parsed.data.targetTimeMaxS ?? null,
       floorTimeS: parsed.data.floorTimeS ?? null,
       priority: parsed.data.priority,
     },

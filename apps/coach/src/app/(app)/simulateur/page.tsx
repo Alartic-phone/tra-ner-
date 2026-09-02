@@ -15,7 +15,7 @@ import {
 } from "@/lib/metrics/prediction.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { formatDayLong, today } from "@/lib/time.ts";
-import { formatClock, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
+import { formatClock, formatDistance, formatDuration, formatPace, formatTimeRange } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,13 @@ export default async function SimulatorPage() {
 
   const criticalSpeed = computeCriticalSpeed(efforts);
   const trajectory = goal ? await predictDistance(goal.distanceM, from, now) : null;
+  const goalTarget =
+    goal?.targetTimeMinS != null && goal.targetTimeMaxS != null
+      ? { minS: goal.targetTimeMinS, maxS: goal.targetTimeMaxS }
+      : null;
+  const goalTargetRange = goal
+    ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS)
+    : null;
 
   return (
     <div className="p-4 md:p-6">
@@ -108,15 +115,15 @@ export default async function SimulatorPage() {
                       (fourchette {formatDuration(trajectory.fastestTimeS)}–
                       {formatDuration(trajectory.slowestTimeS)})
                     </span>
-                    {goal.targetTimeS ? (
-                      <Badge tone={TRAJECTORY_TONE[classifyTrajectory(trajectory.medianTimeS, goal.targetTimeS)]}>
-                        {TRAJECTORY_LABEL[classifyTrajectory(trajectory.medianTimeS, goal.targetTimeS)]}
+                    {goalTargetRange ? (
+                      <Badge tone={TRAJECTORY_TONE[classifyTrajectory(trajectory.medianTimeS, goalTarget!)]}>
+                        {TRAJECTORY_LABEL[classifyTrajectory(trajectory.medianTimeS, goalTarget!)]}
                       </Badge>
                     ) : null}
                   </div>
-                  {goal.targetTimeS ? (
+                  {goalTargetRange ? (
                     <p className="text-xs text-[var(--color-muted)]">
-                      Chrono visé : {formatDuration(goal.targetTimeS)}.
+                      Chrono visé : {goalTargetRange}.
                     </p>
                   ) : (
                     <p className="text-xs text-[var(--color-faint)]">
