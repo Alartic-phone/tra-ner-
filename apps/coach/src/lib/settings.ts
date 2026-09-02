@@ -20,6 +20,15 @@ export const availabilityRulesSchema = z.object({
   qualityBlockAfterNightH: z.number().min(0).max(48),
   nightCodes: z.array(z.string().min(1).max(2)),
   earlyShiftBeforeTime: z.string().regex(/^\d{2}:\d{2}$/),
+  // `.default()` : les réglages déjà enregistrés avant l'ajout de ces deux
+  // champs ne les portent pas — sans valeur par défaut, le parse échouerait
+  // et ferait retomber TOUS les réglages sur les valeurs d'usine, effaçant
+  // silencieusement la personnalisation déjà faite (lever, coucher…).
+  qualityMinSessionMin: z.number().int().min(15).max(240).default(60),
+  lateEveningTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .default("20:30"),
 });
 
 export const SETTING_KEYS = {
@@ -27,7 +36,16 @@ export const SETTING_KEYS = {
   coachModel: "coach_model",
 } as const;
 
-async function readSetting<T>(key: string, schema: z.ZodType<T>, fallback: T): Promise<T> {
+// `z.ZodType<T>` fixe aussi le type d'ENTRÉE à T par défaut : avec un champ
+// `.default()`, l'entrée admet ce champ optionnel alors que la sortie
+// (T = AvailabilityRules) l'exige toujours, et cette contradiction remonte
+// T comme optionnel jusqu'au retour de readSetting. Déclarer l'entrée
+// `unknown` découple les deux et laisse T s'inférer sur la seule sortie.
+async function readSetting<T>(
+  key: string,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  fallback: T,
+): Promise<T> {
   const row = await prisma.setting.findUnique({ where: { key } });
   if (!row) return fallback;
   try {

@@ -36,6 +36,19 @@ export type AvailabilityRules = {
   nightCodes: string[];
   /** Un poste commençant avant cette heure impose une nuit écourtée avant. */
   earlyShiftBeforeTime: string;
+  /**
+   * Durée minimale d'un créneau pour accueillir une séance de qualité (VMA,
+   * seuil, côtes) : échauffement + corps de séance + retour au calme ne
+   * tiennent pas dans un créneau à peine exploitable. Distincte de
+   * `minSessionMin`, qui ne garantit qu'une séance facile.
+   */
+  qualityMinSessionMin: number;
+  /**
+   * Un créneau qui commence à partir de cette heure est au mieux « facile » :
+   * démarrer une séance de qualité en fin de soirée, après un poste, dégrade
+   * le sommeil qui suit sans bénéfice d'entraînement proportionné.
+   */
+  lateEveningTime: string;
 };
 
 export const DEFAULT_AVAILABILITY_RULES: AvailabilityRules = {
@@ -50,6 +63,8 @@ export const DEFAULT_AVAILABILITY_RULES: AvailabilityRules = {
   qualityBlockAfterNightH: 12,
   nightCodes: ["N"],
   earlyShiftBeforeTime: "08:00",
+  qualityMinSessionMin: 60,
+  lateEveningTime: "20:30",
 };
 
 export type Interval = { startMin: number; endMin: number };
@@ -214,6 +229,7 @@ export function computeDayAvailability(
   const lastNightEnd = nightEnds.length > 0 ? Math.max(...nightEnds) : null;
   const qualityFreeFrom =
     lastNightEnd === null ? null : lastNightEnd + rules.qualityBlockAfterNightH * 60;
+  const lateEveningThreshold = timeToMinutes(rules.lateEveningTime);
 
   const windows: FreeWindow[] = free
     .map((w) => ({
@@ -226,7 +242,14 @@ export function computeDayAvailability(
       // seule sa première partie l'est. On conserve donc l'heure à partir de
       // laquelle une séance de qualité redevient possible.
       const from = qualityFreeFrom === null ? w.startMin : Math.max(w.startMin, qualityFreeFrom);
-      const qualityOk = w.endMin - from >= rules.minSessionMin;
+      // Un créneau qui démarre déjà tard en soirée est écarté de la qualité
+      // en bloc : le repousser au sein du créneau n'aurait aucun sens, il n'y
+      // a nulle part où le repousser.
+      const tooLate = w.startMin >= lateEveningThreshold;
+      // Échauffement + corps de séance + retour au calme : une qualité a
+      // besoin de plus que le strict minimum exploitable.
+      const longEnough = w.endMin - from >= rules.qualityMinSessionMin;
+      const qualityOk = !tooLate && longEnough;
       return {
         ...w,
         durationMin: w.endMin - w.startMin,
