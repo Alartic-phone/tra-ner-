@@ -50,6 +50,7 @@ import {
 } from "./best-efforts.ts";
 import { computeWeekStreak } from "./streak.ts";
 import { computeSportVolume } from "./volume.ts";
+import { longestRunProgression } from "./records.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -959,6 +960,33 @@ describe("volume hebdomadaire par sport", () => {
     const { runKm, rideKm } = computeSportVolume([{ type: "WeightTraining", distanceM: 0 }]);
     expect(runKm).toBe(0);
     expect(rideKm).toBe(0);
+  });
+});
+
+describe("progression du record de distance", () => {
+  it("référence : 6,84 -> 7,32 -> 8,00 -> 8,96 -> 10,71 km, sans jamais fusionner deux records proches", () => {
+    const runs = [
+      { day: "2026-07-24", distanceM: 6840 },
+      { day: "2026-07-30", distanceM: 6500 }, // ne bat pas le record : absent de la progression
+      { day: "2026-08-14", distanceM: 7320 },
+      { day: "2026-08-20", distanceM: 8000 },
+      { day: "2026-08-25", distanceM: 8964 },
+      { day: "2026-08-27", distanceM: 5009.5 }, // plus courte, n'apparaît pas
+      { day: "2026-08-29", distanceM: 10714 },
+    ];
+    expect(longestRunProgression(runs)).toEqual([
+      { day: "2026-07-24", distanceM: 6840 },
+      { day: "2026-08-14", distanceM: 7320 },
+      { day: "2026-08-20", distanceM: 8000 },
+      { day: "2026-08-25", distanceM: 8964 },
+      { day: "2026-08-29", distanceM: 10714 },
+    ]);
+    // 8964 m ne doit jamais être confondu avec 9000 m (arrondi à 1 décimale
+    // en km) : le record précédent et le nouveau doivent rester distincts.
+    const progression = longestRunProgression(runs);
+    const previous = progression[progression.length - 2]!;
+    expect((previous.distanceM / 1000).toFixed(2)).toBe("8.96");
+    expect((previous.distanceM / 1000).toFixed(1)).toBe("9.0"); // la régression à éviter
   });
 });
 

@@ -40,7 +40,10 @@ export function RecordProgressBar({
 
       <div className="tabular mt-2 flex items-baseline gap-2">
         <span className="text-3xl font-bold">
-          <CountUp value={latestKm} decimals={1} />
+          {/* Un record ne s'arrondit jamais à une précision qui l'égalise au
+              précédent (8,96 -> "9,0" ferait disparaître visuellement le
+              gain) : deux décimales, comme le record précédent ci-dessous. */}
+          <CountUp value={latestKm} decimals={2} />
         </span>
         <span className="text-xs text-[var(--color-muted)]">km</span>
         <span className="text-xs text-[var(--color-faint)]">le {formatDayLong(latest.day)}</span>
@@ -65,7 +68,7 @@ export function RecordProgressBar({
 
       <p className="mt-2 text-[11px] text-[var(--color-faint)]">
         {previous
-          ? `Précédent record : ${previousKm.toFixed(1)} km (${formatDayLong(previous.day)}).`
+          ? `Précédent record : ${previousKm.toFixed(2)} km (${formatDayLong(previous.day)}).`
           : "Premier record enregistré."}
       </p>
     </Card>

@@ -1,6 +1,6 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
-import { isRun } from "../strava/mapping.ts";
+import { isRun, RUN_TYPES } from "../strava/mapping.ts";
 import { addDays, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./best-efforts.ts";
 import { computeDecoupling } from "./decoupling.ts";
 import { computeGap } from "./gap.ts";
+import { longestRunProgression } from "./records.ts";
 import {
   computeAcwr,
   computeFitnessSeries,
@@ -567,18 +568,10 @@ export async function loadLongestRunProgression(): Promise<
   { day: Day; distanceM: number }[]
 > {
   const runs = await prisma.activity.findMany({
-    where: { type: { in: ["Run", "TrailRun", "VirtualRun"] } },
+    where: { type: { in: [...RUN_TYPES] } },
     orderBy: { startDay: "asc" },
     select: { startDay: true, distanceM: true },
   });
 
-  const progression: { day: Day; distanceM: number }[] = [];
-  let best = 0;
-  for (const run of runs) {
-    if (run.distanceM > best) {
-      best = run.distanceM;
-      progression.push({ day: run.startDay, distanceM: run.distanceM });
-    }
-  }
-  return progression;
+  return longestRunProgression(runs.map((r) => ({ day: r.startDay, distanceM: r.distanceM })));
 }
