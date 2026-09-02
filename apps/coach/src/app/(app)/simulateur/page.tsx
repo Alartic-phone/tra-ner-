@@ -9,6 +9,7 @@ import { DEFAULT_DISTANCES } from "@/lib/metrics/best-efforts.ts";
 import {
   classifyTrajectory,
   computeCriticalSpeed,
+  isCriticalSpeedInDomain,
   predictTimeFromCriticalSpeed,
   SOURCE_LABELS,
 } from "@/lib/metrics/prediction.ts";
@@ -195,10 +196,27 @@ export default async function SimulatorPage() {
                     <tbody className="tabular">
                       {DEFAULT_DISTANCES.map((distanceM) => {
                         const timeS = predictTimeFromCriticalSpeed(criticalSpeed, distanceM);
+                        const inDomain = timeS != null && isCriticalSpeedInDomain(timeS, criticalSpeed);
                         return (
                           <tr key={distanceM} className="border-b border-[var(--color-border)] last:border-0">
                             <td className="px-2 py-1.5">{DISTANCE_LABELS[distanceM] ?? formatDistance(distanceM)}</td>
-                            <td className="px-2 py-1.5 text-right">{formatClock(timeS)}</td>
+                            <td
+                              className={
+                                inDomain
+                                  ? "px-2 py-1.5 text-right"
+                                  : "px-2 py-1.5 text-right text-[var(--color-faint)]"
+                              }
+                            >
+                              {timeS == null ? (
+                                "—"
+                              ) : inDomain ? (
+                                formatClock(timeS)
+                              ) : (
+                                <span title={`${formatClock(timeS)} projeté`}>
+                                  extrapolation hors domaine
+                                </span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

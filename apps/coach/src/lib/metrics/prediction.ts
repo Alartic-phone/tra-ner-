@@ -179,7 +179,23 @@ export type CriticalSpeed = {
   /** Coefficient de détermination de la régression, dans [0, 1]. */
   r2: number;
   sampleCount: number;
+  /**
+   * Durée du plus long effort de référence réellement utilisé par la
+   * régression (pas la borne déclarée `maxDurationS`, qui peut dépasser ce
+   * qui est réellement disponible).
+   */
+  maxSampleDurationS: number;
 };
+
+/**
+ * Une projection au-delà de deux fois la durée du plus long effort de
+ * référence sort du domaine que la régression a effectivement observé :
+ * extrapoler un marathon depuis des efforts de 2 à 30 minutes n'a plus de
+ * valeur prédictive, seulement l'apparence d'en avoir une.
+ */
+export function isCriticalSpeedInDomain(timeS: number, cs: CriticalSpeed): boolean {
+  return timeS <= cs.maxSampleDurationS * 2;
+}
 
 /**
  * Modèle de vitesse critique par régression linéaire distance/temps.
@@ -232,6 +248,7 @@ export function computeCriticalSpeed(
     dPrimeM: intercept,
     r2: ssTot > 0 ? 1 - ssRes / ssTot : 0,
     sampleCount: n,
+    maxSampleDurationS: Math.max(...points.map((p) => p.durationS)),
   };
 }
 

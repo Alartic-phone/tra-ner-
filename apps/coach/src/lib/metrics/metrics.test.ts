@@ -35,6 +35,7 @@ import {
   estimatesForDistance,
   fitRiegelExponent,
   fractionOfVo2Max,
+  isCriticalSpeedInDomain,
   isPlausiblePrediction,
   predictTimeFromCriticalSpeed,
   predictTimeFromVdot,
@@ -655,9 +656,40 @@ describe("vitesse critique", () => {
   });
 
   it("prédit un chrono à partir du modèle", () => {
-    const cs = { csMps: 4.5, dPrimeM: 150, r2: 1, sampleCount: 5 };
+    const cs = { csMps: 4.5, dPrimeM: 150, r2: 1, sampleCount: 5, maxSampleDurationS: 1800 };
     // (10000 - 150) / 4,5 = 2188,9 s
     expect(predictTimeFromCriticalSpeed(cs, 10000)).toBeCloseTo(2188.9, 0);
+  });
+
+  it("retient la durée du plus long effort réellement utilisé, pas la borne déclarée", () => {
+    // Domaine déclaré jusqu'à 30 min, mais aucun effort de référence ne
+    // dépasse 20 min ici : le plus long RÉELLEMENT utilisé doit être retenu.
+    const efforts = [180, 300, 600, 900, 1200].map((t) => ({
+      durationS: t,
+      distanceM: 4.5 * t + 150,
+    }));
+    const cs = computeCriticalSpeed(efforts)!;
+    expect(cs.maxSampleDurationS).toBe(1200);
+  });
+
+  it("référence : projette le marathon hors du domaine d'un modèle basé sur 2-30 min", () => {
+    // 5'09/km, R² 0,999, 5 efforts — reproduit le cas signalé (projection
+    // marathon en 3:36:59 malgré un domaine de validité de 2 à 30 minutes).
+    const csMps = 1000 / (5 * 60 + 9);
+    const cs = {
+      csMps,
+      dPrimeM: 120,
+      r2: 0.999,
+      sampleCount: 5,
+      maxSampleDurationS: 1800, // 30 minutes, le plus long effort de référence
+    };
+    const marathonTimeS = predictTimeFromCriticalSpeed(cs, 42195)!;
+    expect(marathonTimeS).toBeGreaterThan(3 * 3600); // largement > 2×30 min
+    expect(isCriticalSpeedInDomain(marathonTimeS, cs)).toBe(false);
+
+    // Un 10 km projeté reste dans le domaine (proche de la durée de référence).
+    const tenKTimeS = predictTimeFromCriticalSpeed(cs, 10000)!;
+    expect(isCriticalSpeedInDomain(tenKTimeS, cs)).toBe(true);
   });
 });
 
