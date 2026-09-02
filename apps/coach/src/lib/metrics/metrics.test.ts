@@ -242,6 +242,22 @@ describe("ratio aigu/chronique", () => {
     expect(acwr.ratio).toBeNull();
     expect(acwr.zone).toBe("indeterminee");
   });
+
+  it("CTL et ratio aigu/chronique restent cohérents entre eux : même source, même fenêtre", () => {
+    // Reproduit la construction de loadFitnessSnapshot (repository.ts) : CTL
+    // et ACWR sont dérivés du même tableau `loads`. Avec un entraînement
+    // continu jusqu'à la veille du jour observé, une CTL substantielle ne
+    // peut pas coexister avec un ratio strictement nul — sans quoi la carte
+    // « État de forme » du tableau de bord afficherait deux nombres
+    // incohérents pour la même fenêtre, comme observé (CTL 53, ratio 0,00).
+    const loads = uniform(60);
+    const series = computeFitnessSeries(loads);
+    const current = series[series.length - 1]!;
+    const acwr = computeAcwr(loads, "2026-01-28");
+    expect(current.ctl).toBeGreaterThan(20);
+    expect(acwr.ratio).not.toBeNull();
+    expect(acwr.ratio).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
