@@ -13,11 +13,12 @@ import { TRIMP_METHOD_LABELS, type TrimpMethod } from "@/lib/metrics/trimp.ts";
 import { decouplingVerdict } from "@/lib/metrics/decoupling.ts";
 import { getProfileStatus, loadPersonalRecords } from "@/lib/metrics/repository.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
-import { formatInstant } from "@/lib/time.ts";
+import { formatInstant, toLocalHour } from "@/lib/time.ts";
 import { loadShiftRange } from "@/lib/shifts/repository.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { getEnv } from "@/lib/env.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,11 @@ export default async function ActivityPage({
   // sports. 0 m serait une distance inventée, pas une mesure — la durée
   // devient la métrique principale à la place.
   const hasDistance = activity.distanceM > 0;
+  const displayName = normalizeActivityName(
+    activity.name,
+    activity.type,
+    toLocalHour(activity.startedAt),
+  );
   const hrZones = profileStatus.profile
     ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
     : null;
@@ -69,7 +75,7 @@ export default async function ActivityPage({
 
       <header className="mt-2 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">{activity.name}</h1>
+          <h1 className="text-lg font-semibold">{displayName}</h1>
           <p className="mt-0.5 text-xs text-[var(--color-muted)]">
             {formatInstant(activity.startedAt)} · {activity.type} · poste du jour :{" "}
             {shiftLabel}

@@ -13,7 +13,8 @@ import { loadStreams } from "@/lib/streams.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, diffDays, minutesToTime, mondayOf } from "@/lib/shifts/day.ts";
-import { formatDayLong, formatDayShort, today } from "@/lib/time.ts";
+import { formatDayLong, formatDayShort, toLocalHour, today } from "@/lib/time.ts";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 import {
   getProfileStatus,
   loadFitnessSnapshot,
@@ -477,7 +478,9 @@ export default async function DashboardPage() {
                     ) : (
                       <ActivityTypeIcon type={a.type} className="shrink-0 text-[var(--color-muted)]" />
                     )}
-                    <span className="truncate">{a.name}</span>
+                    <span className="truncate">
+                      {normalizeActivityName(a.name, a.type, toLocalHour(a.startedAt))}
+                    </span>
                   </span>
                   <span className="tabular ml-3 shrink-0 text-[var(--color-muted)]">
                     {formatDistance(a.distanceM)} · {formatClock(a.movingTimeS)}

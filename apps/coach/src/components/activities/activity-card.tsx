@@ -6,8 +6,9 @@ import { ZoneBar } from "@/components/activities/zone-bar.tsx";
 import { Unavailable } from "@/components/ui/badge.tsx";
 import { Card } from "@/components/ui/card.tsx";
 import { formatClock, formatDistance, formatPace, formatSpeed, paceFromSpeed } from "@/lib/utils.ts";
-import { formatInstant } from "@/lib/time.ts";
+import { formatInstant, toLocalHour } from "@/lib/time.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 
 export type ActivityCardData = {
   id: string;
@@ -43,6 +44,11 @@ export function ActivityCard({
   // sports. 0 m serait une distance inventée, pas une mesure — la durée
   // devient la métrique principale à la place.
   const hasDistance = activity.distanceM > 0;
+  const displayName = normalizeActivityName(
+    activity.name,
+    activity.type,
+    toLocalHour(activity.startedAt),
+  );
 
   return (
     <Link
@@ -71,7 +77,7 @@ export function ActivityCard({
             <ActivityTypeIcon type={activity.type} size={18} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{activity.name}</p>
+            <p className="truncate text-sm font-medium">{displayName}</p>
             <p className="text-xs text-[var(--color-muted)]">
               {formatInstant(activity.startedAt)}
               {!activity.hasStreams ? " · sans flux" : ""}
