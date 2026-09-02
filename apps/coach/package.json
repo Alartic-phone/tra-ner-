@@ -20,7 +20,8 @@
     "restore": "tsx scripts/restore.ts",
     "import:coros": "tsx scripts/import-coros.ts",
     "import:coros:fit": "tsx scripts/import-coros-fit.ts",
-    "sync:strava": "tsx scripts/sync-strava.ts"
+    "sync:strava": "tsx scripts/sync-strava.ts",
+    "check:duplicates": "tsx scripts/check-duplicates.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
