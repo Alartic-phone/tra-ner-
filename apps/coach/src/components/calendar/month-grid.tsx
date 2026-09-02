@@ -6,7 +6,7 @@ import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { cn, formatDistance } from "@/lib/utils.ts";
+import { cn, formatDistanceOrDuration } from "@/lib/utils.ts";
 import { formatDayLong } from "@/lib/time.ts";
 import type { ShiftTiming } from "@/lib/shifts/types.ts";
 
@@ -227,7 +227,9 @@ export function MonthGrid({
                         title={a.name}
                       >
                         <Check size={9} className="mr-0.5 inline" aria-hidden />
-                        {formatDistance(a.distanceM)}
+                        {/* Musculation, rameur… : pas de distance mesurée —
+                            0 m serait inventé, la durée devient la pastille. */}
+                        {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
                       </div>
                     ))}
                   </div>
@@ -397,7 +399,9 @@ function ShiftPicker({
                 className="flex items-center justify-between py-1 text-xs hover:underline"
               >
                 <span className="truncate">{a.name}</span>
-                <Badge tone="ok">{formatDistance(a.distanceM)}</Badge>
+                <Badge tone="ok">
+                  {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
+                </Badge>
               </Link>
             ))}
           </div>

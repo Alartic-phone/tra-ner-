@@ -45,6 +45,10 @@ export default async function ActivityPage({
   const points = streams ? toChartPoints(streams) : [];
   const present = availableStreams(streams);
   const isRunActivity = isRun(activity.type);
+  // Musculation, rameur… : Strava ne fournit pas de distance pour ces
+  // sports. 0 m serait une distance inventée, pas une mesure — la durée
+  // devient la métrique principale à la place.
+  const hasDistance = activity.distanceM > 0;
   const hrZones = profileStatus.profile
     ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
     : null;
@@ -79,25 +83,34 @@ export default async function ActivityPage({
       <RecordCelebration durations={personalRecords} />
 
       <Card elevated className="mt-4">
-        <CardBody className="grid grid-cols-3 gap-4 sm:gap-6">
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">Distance</div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">{formatDistance(activity.distanceM)}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">Temps en mouvement</div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">{formatClock(activity.movingTimeS)}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-[var(--color-muted)]">
-              {isRunActivity ? "Allure moyenne" : "Vitesse moyenne"}
+        <CardBody className={`grid gap-4 sm:gap-6 ${hasDistance ? "grid-cols-3" : "grid-cols-1"}`}>
+          {hasDistance ? (
+            <>
+              <div>
+                <div className="text-[11px] text-[var(--color-muted)]">Distance</div>
+                <div className="tabular text-3xl font-bold sm:text-5xl">{formatDistance(activity.distanceM)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-[var(--color-muted)]">Temps en mouvement</div>
+                <div className="tabular text-3xl font-bold sm:text-5xl">{formatClock(activity.movingTimeS)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-[var(--color-muted)]">
+                  {isRunActivity ? "Allure moyenne" : "Vitesse moyenne"}
+                </div>
+                <div className="tabular text-3xl font-bold sm:text-5xl">
+                  {isRunActivity
+                    ? formatPace(paceFromSpeed(activity.avgSpeedMps))
+                    : formatSpeed(activity.avgSpeedMps)}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <div className="text-[11px] text-[var(--color-muted)]">Temps en mouvement</div>
+              <div className="tabular text-3xl font-bold sm:text-5xl">{formatClock(activity.movingTimeS)}</div>
             </div>
-            <div className="tabular text-3xl font-bold sm:text-5xl">
-              {isRunActivity
-                ? formatPace(paceFromSpeed(activity.avgSpeedMps))
-                : formatSpeed(activity.avgSpeedMps)}
-            </div>
-          </div>
+          )}
         </CardBody>
         <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] border-t border-[var(--color-border)] sm:grid-cols-3 sm:divide-y-0">
           <Stat

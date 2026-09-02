@@ -39,6 +39,10 @@ export function ActivityCard({
 }) {
   const color = sportColor(activity.type);
   const running = isRun(activity.type);
+  // Musculation, rameur… : Strava ne fournit pas de distance pour ces
+  // sports. 0 m serait une distance inventée, pas une mesure — la durée
+  // devient la métrique principale à la place.
+  const hasDistance = activity.distanceM > 0;
 
   return (
     <Link
@@ -75,19 +79,28 @@ export function ActivityCard({
           </div>
         </div>
 
-        <div className="tabular mt-3 grid grid-cols-3 gap-2">
-          <div>
-            <div className="text-lg font-semibold sm:text-xl">{formatDistance(activity.distanceM)}</div>
-            <div className="text-[11px] text-[var(--color-faint)]">distance</div>
-          </div>
-          <div>
-            <div className="text-lg font-semibold sm:text-xl">
-              {running
-                ? formatPace(paceFromSpeed(activity.avgSpeedMps))
-                : formatSpeed(activity.avgSpeedMps)}
+        <div className={`tabular mt-3 grid gap-2 ${hasDistance ? "grid-cols-3" : "grid-cols-2"}`}>
+          {hasDistance ? (
+            <>
+              <div>
+                <div className="text-lg font-semibold sm:text-xl">{formatDistance(activity.distanceM)}</div>
+                <div className="text-[11px] text-[var(--color-faint)]">distance</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold sm:text-xl">
+                  {running
+                    ? formatPace(paceFromSpeed(activity.avgSpeedMps))
+                    : formatSpeed(activity.avgSpeedMps)}
+                </div>
+                <div className="text-[11px] text-[var(--color-faint)]">{running ? "allure" : "vitesse"}</div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <div className="text-lg font-semibold sm:text-xl">{formatClock(activity.movingTimeS)}</div>
+              <div className="text-[11px] text-[var(--color-faint)]">durée</div>
             </div>
-            <div className="text-[11px] text-[var(--color-faint)]">{running ? "allure" : "vitesse"}</div>
-          </div>
+          )}
           <div>
             <div className="text-lg font-semibold sm:text-xl">
               {activity.avgHr ?? <Unavailable reason="Aucun cardio sur cette séance" />}
@@ -98,9 +111,11 @@ export function ActivityCard({
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--color-faint)]">
-          <span>{formatClock(activity.movingTimeS)}</span>
-        </div>
+        {hasDistance ? (
+          <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--color-faint)]">
+            <span>{formatClock(activity.movingTimeS)}</span>
+          </div>
+        ) : null}
         <ZoneBar secondsByZone={secondsByZone} className="mt-2" />
       </Card>
     </Link>

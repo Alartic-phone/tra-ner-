@@ -56,6 +56,20 @@ export function formatDistance(meters: number | null | undefined): string {
     : `${Math.round(meters)} m`;
 }
 
+/**
+ * Distance affichée, ou durée en repli pour un sport sans distance mesurée
+ * (musculation, rameur…). 0 m serait une distance inventée, pas une mesure :
+ * la durée reste une vraie mesure, elle. Utilisé partout où une distance
+ * d'activité s'affiche (carte, page activité, calendrier) pour ne jamais
+ * faire diverger cette règle d'un endroit à l'autre.
+ */
+export function formatDistanceOrDuration(
+  distanceM: number,
+  movingTimeS: number | null | undefined,
+): string {
+  return distanceM > 0 ? formatDistance(distanceM) : formatClock(movingTimeS);
+}
+
 export function paceFromSpeed(metersPerSecond: number | null | undefined): number | null {
   if (!metersPerSecond || metersPerSecond <= 0) return null;
   return 1000 / metersPerSecond;
