@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils.ts";
 
 export function Badge({
@@ -6,11 +6,14 @@ export function Badge({
   tone = "neutral",
   className,
   title,
+  style,
 }: {
   children: ReactNode;
   tone?: "neutral" | "ok" | "warn" | "danger" | "info";
   className?: string;
   title?: string;
+  /** Couleur ponctuelle (ex. teinte de sport) — remplace `tone` quand fourni. */
+  style?: CSSProperties;
 }) {
   const tones = {
     neutral: "border-[var(--color-border-strong)] text-[var(--color-muted)]",
@@ -23,9 +26,10 @@ export function Badge({
   return (
     <span
       title={title}
+      style={style}
       className={cn(
         "inline-flex items-center rounded-[var(--radius-pill)] border px-2 py-0.5 text-[11px] leading-4",
-        tones[tone],
+        !style && tones[tone],
         className,
       )}
     >

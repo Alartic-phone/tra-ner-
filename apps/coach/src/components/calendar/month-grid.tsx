@@ -2,8 +2,9 @@
 
 import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Flag, Loader2, Moon, RotateCcw, X } from "lucide-react";
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
+import { ActivityTypeIcon, sportColor } from "@/components/activities/activity-icon.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { cn, formatDistanceOrDuration } from "@/lib/utils.ts";
@@ -28,7 +29,7 @@ export type CalendarDay = {
   /** Volume cible (km) de la phase de plan actif couvrant la semaine de ce
    * jour, si elle en chiffre un. `null` sinon — jamais une cible inventée. */
   weeklyVolumeTargetKm: number | null;
-  activities: { id: string; name: string; distanceM: number; movingTimeS: number }[];
+  activities: { id: string; name: string; type: string; distanceM: number; movingTimeS: number }[];
   planned: {
     id: string;
     type: string;
@@ -220,18 +221,25 @@ export function MonthGrid({
                         {p.title}
                       </div>
                     ))}
-                    {d.activities.map((a) => (
-                      <div
-                        key={a.id}
-                        className="tabular truncate rounded-[var(--radius-pill)] bg-[var(--color-ok)]/15 px-1.5 text-[10px] leading-4 text-[var(--color-ok)]"
-                        title={a.name}
-                      >
-                        <Check size={9} className="mr-0.5 inline" aria-hidden />
-                        {/* Musculation, rameur… : pas de distance mesurée —
-                            0 m serait inventé, la durée devient la pastille. */}
-                        {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
-                      </div>
-                    ))}
+                    {d.activities.map((a) => {
+                      const color = sportColor(a.type);
+                      return (
+                        <div
+                          key={a.id}
+                          className="tabular truncate rounded-[var(--radius-pill)] px-1.5 text-[10px] leading-4"
+                          style={{
+                            backgroundColor: `color-mix(in oklab, ${color} 15%, transparent)`,
+                            color,
+                          }}
+                          title={a.name}
+                        >
+                          <ActivityTypeIcon type={a.type} size={9} className="mr-0.5 inline" />
+                          {/* Musculation, rameur… : pas de distance mesurée —
+                              0 m serait inventé, la durée devient la pastille. */}
+                          {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {!d.allowsLongRun && d.code === null ? (
@@ -392,18 +400,30 @@ function ShiftPicker({
 
         {single && day && day.activities.length > 0 ? (
           <div className="mt-3 border-t border-[var(--color-border)] pt-3">
-            {day.activities.map((a) => (
-              <Link
-                key={a.id}
-                href={{ pathname: `/activites/${a.id}` }}
-                className="flex items-center justify-between py-1 text-xs hover:underline"
-              >
-                <span className="truncate">{a.name}</span>
-                <Badge tone="ok">
-                  {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
-                </Badge>
-              </Link>
-            ))}
+            {day.activities.map((a) => {
+              const color = sportColor(a.type);
+              return (
+                <Link
+                  key={a.id}
+                  href={{ pathname: `/activites/${a.id}` }}
+                  className="flex items-center justify-between py-1 text-xs hover:underline"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <ActivityTypeIcon type={a.type} size={12} style={{ color }} />
+                    <span className="truncate">{a.name}</span>
+                  </span>
+                  <Badge
+                    className="shrink-0"
+                    style={{
+                      borderColor: `color-mix(in oklab, ${color} 40%, transparent)`,
+                      color,
+                    }}
+                  >
+                    {formatDistanceOrDuration(a.distanceM, a.movingTimeS)}
+                  </Badge>
+                </Link>
+              );
+            })}
           </div>
         ) : null}
       </div>

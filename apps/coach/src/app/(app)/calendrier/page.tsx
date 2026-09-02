@@ -108,6 +108,7 @@ export default async function CalendarPage({
         .map((a) => ({
           id: a.id,
           name: normalizeActivityName(a.name, a.type, toLocalHour(a.startedAt)),
+          type: a.type,
           distanceM: a.distanceM,
           movingTimeS: a.movingTimeS,
         })),
