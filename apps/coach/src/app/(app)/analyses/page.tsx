@@ -10,6 +10,7 @@ import {
 } from "@/components/analytics/fitness-chart.tsx";
 import { ZoneChart } from "@/components/analytics/zone-chart.tsx";
 import { RecomputeButton } from "@/components/analytics/recompute-button.tsx";
+import { AnalysesTabs } from "@/components/analytics/analyses-tabs.tsx";
 import {
   loadBestEfforts,
   loadFitnessSnapshot,
@@ -63,7 +64,10 @@ export default async function AnalyticsPage({
             Charge, forme et répartition d&apos;intensité.
           </p>
         </div>
-        <RecomputeButton pending={pendingMetrics} />
+        <div className="flex items-center gap-2">
+          <AnalysesTabs active="charge" />
+          <RecomputeButton pending={pendingMetrics} />
+        </div>
       </header>
 
       {snapshot.profileMissing.length > 0 ? (
