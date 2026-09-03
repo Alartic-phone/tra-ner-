@@ -43,11 +43,16 @@ const PHOTOS_PER_MOMENT = 6;
  * "athlete", "person" : dans une app perso, un athlète anonyme sonne faux,
  * un paysage est une atmosphère, il ne prétend pas être moi (CLAUDE.md).
  */
+/*
+ * Deux mots maximum : l'API de recherche Unsplash renvoie une 500 de façon
+ * consistante au-delà (constaté en pratique, indépendant de l'encodage —
+ * probablement une limite de leur moteur de recherche côté serveur).
+ */
 const QUERIES: Record<Moment, string[]> = {
-  aube: ["misty sunrise landscape", "dawn mountain trail", "foggy morning countryside"],
-  jour: ["mountain trail daylight", "countryside road landscape", "river valley clear sky"],
-  soir: ["golden hour landscape", "sunset countryside road", "evening light mountains"],
-  nuit: ["night landscape mountains", "starry sky countryside", "night fog forest trail"],
+  aube: ["misty sunrise", "dawn mountain", "foggy morning", "morning mist"],
+  jour: ["mountain trail", "countryside road", "river valley", "forest trail"],
+  soir: ["golden hour", "sunset countryside", "evening mountains", "sunset trail"],
+  nuit: ["night mountains", "starry sky", "night fog", "night forest"],
 };
 
 type ManifestEntry = {
@@ -88,12 +93,29 @@ type RawCandidate = {
   authorUrl: string;
 };
 
+/**
+ * Le point de recherche d'Unsplash renvoie par intermittence une 500
+ * ("We are experiencing errors") sans rapport avec la requête — observé y
+ * compris sur des requêtes à un seul mot qui repassent en 200 juste après.
+ * Trois tentatives avec un court délai avant d'abandonner cette requête.
+ */
+async function fetchWithRetry(url: URL, headers: Record<string, string>): Promise<Response> {
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 600 * attempt));
+    const res = await fetch(url, { headers });
+    if (res.ok) return res;
+    lastRes = res;
+  }
+  return lastRes!;
+}
+
 async function searchUnsplash(query: string, count: number, key: string): Promise<RawCandidate[]> {
   const url = new URL("https://api.unsplash.com/search/photos");
   url.searchParams.set("query", query);
   url.searchParams.set("orientation", "landscape");
   url.searchParams.set("per_page", String(count));
-  const res = await fetch(url, { headers: { Authorization: `Client-ID ${key}` } });
+  const res = await fetchWithRetry(url, { Authorization: `Client-ID ${key}` });
   if (!res.ok) throw new Error(`Unsplash ${res.status} pour "${query}"`);
   const data = (await res.json()) as {
     results: Array<{
@@ -117,7 +139,7 @@ async function searchPexels(query: string, count: number, key: string): Promise<
   url.searchParams.set("query", query);
   url.searchParams.set("orientation", "landscape");
   url.searchParams.set("per_page", String(count));
-  const res = await fetch(url, { headers: { Authorization: key } });
+  const res = await fetchWithRetry(url, { Authorization: key });
   if (!res.ok) throw new Error(`Pexels ${res.status} pour "${query}"`);
   const data = (await res.json()) as {
     photos: Array<{
@@ -167,9 +189,15 @@ async function main(): Promise<void> {
     const candidates: RawCandidate[] = [];
     for (const query of QUERIES[moment]) {
       if (candidates.length >= missing * 2) break;
-      const results = unsplashKey
-        ? await searchUnsplash(query, 10, unsplashKey)
-        : await searchPexels(query, 10, pexelsKey!);
+      let results: RawCandidate[];
+      try {
+        results = unsplashKey
+          ? await searchUnsplash(query, 10, unsplashKey)
+          : await searchPexels(query, 10, pexelsKey!);
+      } catch (err) {
+        console.warn(`  recherche "${query}" échouée après 3 tentatives, ignorée : ${err}`);
+        continue;
+      }
       for (const r of results) {
         if (!knownIds.has(r.id) && !candidates.some((c) => c.id === r.id)) candidates.push(r);
       }

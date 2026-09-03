@@ -101,7 +101,7 @@ export function ActivityCard({
         <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--color-faint)]">
           <span>{formatClock(activity.movingTimeS)}</span>
         </div>
-        <ZoneBar secondsByZone={secondsByZone} className="mt-2" />
+        <ZoneBar secondsByZone={secondsByZone} legend={false} className="mt-2" />
       </Card>
     </Link>
   );

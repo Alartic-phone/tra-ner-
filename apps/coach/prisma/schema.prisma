@@ -131,6 +131,13 @@ model Activity {
   hasHeartrate Boolean @default(false)
   hasStreams   Boolean @default(false)
 
+  /// Chemin SVG (attribut `d`, boîte 100×100) du tracé, calculé une fois par
+  /// lib/trace.ts depuis le flux GPS puis mis en cache ici — jamais recalculé
+  /// au rendu d'une liste (<TraceThumb />, une carte MapLibre par ligne
+  /// tuerait la page). Nul = pas encore calculé OU pas de GPS ; les deux cas
+  /// se distinguent par la présence du flux `latlng` (hasStreams).
+  tracePath String?
+
   /// Horodatage du dernier calcul des métriques dérivées. Nul = jamais
   /// calculé, ce qui permet de ne retraiter que ce qui doit l'être.
   metricsComputedAt DateTime?

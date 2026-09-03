@@ -19,6 +19,10 @@ backups/
 data/
 uploads/
 
+# Cache disque de <TraceAtlas /> (lib/trace-atlas-repository.ts) — régénéré
+# depuis la base, jamais une source de vérité.
+.cache/
+
 # Divers
 .DS_Store
 *.log

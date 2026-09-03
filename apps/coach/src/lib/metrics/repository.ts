@@ -1,6 +1,7 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
 import { isRun } from "../strava/mapping.ts";
+import { buildTracePath } from "../trace.ts";
 import { addDays, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
@@ -563,6 +564,54 @@ export async function loadNextGoal() {
  * Sert à la barre de progression des records du tableau de bord — jamais un
  * record affiché s'il n'a pas réellement été battu par une activité.
  */
+/**
+ * Chemin SVG (lib/trace.ts) d'une activité, mis en cache en base au premier
+ * appel — jamais recalculé au rendu (<TraceThumb />). `null` sans flux GPS.
+ */
+export async function getTracePath(activityId: string): Promise<string | null> {
+  const activity = await prisma.activity.findUnique({
+    where: { id: activityId },
+    select: { tracePath: true, hasStreams: true },
+  });
+  if (!activity) return null;
+  if (activity.tracePath !== null) return activity.tracePath;
+  if (!activity.hasStreams) return null;
+
+  const streams = await loadStreams(activityId);
+  const path = streams?.latlng ? buildTracePath(streams.latlng) : null;
+  if (path) {
+    await prisma.activity.update({ where: { id: activityId }, data: { tracePath: path } });
+  }
+  return path;
+}
+
+/** Version liste de `getTracePath` : une requête pour lire le cache, calcule seulement ce qui manque. */
+export async function getTracePathsByActivity(
+  activityIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  if (activityIds.length === 0) return out;
+
+  const rows = await prisma.activity.findMany({
+    where: { id: { in: [...activityIds] } },
+    select: { id: true, tracePath: true, hasStreams: true },
+  });
+  for (const r of rows) out.set(r.id, r.tracePath);
+
+  const toCompute = rows.filter((r) => r.tracePath === null && r.hasStreams);
+  await Promise.all(
+    toCompute.map(async (r) => {
+      const streams = await loadStreams(r.id);
+      const path = streams?.latlng ? buildTracePath(streams.latlng) : null;
+      out.set(r.id, path);
+      if (path) {
+        await prisma.activity.update({ where: { id: r.id }, data: { tracePath: path } });
+      }
+    }),
+  );
+  return out;
+}
+
 export async function loadLongestRunProgression(): Promise<
   { day: Day; distanceM: number }[]
 > {

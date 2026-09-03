@@ -15,8 +15,9 @@ import {
   type ReplacementStats,
 } from "./cycle.ts";
 import { DEFAULT_SHIFT_CYCLE, DEFAULT_SHIFT_TIMINGS } from "./defaults.ts";
-import type { Day } from "./day.ts";
+import { addDays, type Day } from "./day.ts";
 import type { ResolvedDay, ShiftCycle, ShiftTiming } from "./types.ts";
+import type { CycleRibbonDay } from "../../components/ui/cycle-ribbon-logic.ts";
 
 /**
  * Pont entre la base et le moteur de postes. Le moteur reste pur : c'est ici
@@ -154,4 +155,55 @@ export async function setException(
 
 export async function clearException(day: Day): Promise<void> {
   await prisma.shiftException.deleteMany({ where: { day } });
+}
+
+/**
+ * Construit les jours du <CycleRibbon />, centrés sur `centerDay` : postes
+ * résolus + créneaux disponibles (loadShiftRange) et, par jour, si une
+ * activité a eu lieu et si une séance planifiée du plan actif reste à
+ * réaliser. Le composant reste un pur habillage — toute la lecture base
+ * passe par ici.
+ */
+export async function loadCycleRibbonDays(
+  centerDay: Day,
+  rules: AvailabilityRules,
+  pastDays = 7,
+  futureDays = 13,
+): Promise<CycleRibbonDay[]> {
+  const from = addDays(centerDay, -pastDays);
+  const to = addDays(centerDay, futureDays);
+  const range = await loadShiftRange(from, to, rules);
+
+  const [activityDays, plannedRows] = await Promise.all([
+    prisma.activity.findMany({
+      where: { startDay: { gte: from, lte: to } },
+      select: { startDay: true },
+      distinct: ["startDay"],
+    }),
+    prisma.plannedWorkout.findMany({
+      where: { day: { gte: from, lte: to }, plan: { status: "active" } },
+      select: { day: true, status: true },
+    }),
+  ]);
+  const activitySet = new Set(activityDays.map((a) => a.startDay));
+  const plannedUndoneSet = new Set(
+    plannedRows.filter((p) => p.status === "upcoming" || p.status === "missed").map((p) => p.day),
+  );
+
+  return range.days.map((resolved) => {
+    const timing = resolved.code ? range.timings.find((t) => t.code === resolved.code) : undefined;
+    const availability = range.byDay.get(resolved.day)!.availability;
+    return {
+      day: resolved.day,
+      code: resolved.code,
+      label: timing?.label ?? "Repos",
+      startTime: timing?.startTime ?? null,
+      endTime: timing?.endTime ?? null,
+      windows: availability.windows,
+      hasActivity: activitySet.has(resolved.day),
+      hasPlannedUndone: plannedUndoneSet.has(resolved.day),
+      isToday: resolved.day === centerDay,
+      isException: resolved.isException,
+    };
+  });
 }
