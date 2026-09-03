@@ -150,6 +150,10 @@ model Activity {
   /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
   rawSummaryJson String?
 
+  /// Notes libres, éditables en place sur la page activité. Jamais générées :
+  /// uniquement ce que l'utilisateur écrit.
+  notes String?
+
   stream       ActivityStream?
   laps         Lap[]
   bestEfforts  BestEffort[]
@@ -227,7 +231,15 @@ model Lap {
   maxHr          Int?
   avgCadence     Float?
   startedAt      DateTime?
+  /// Non nul = split kilométrique automatique (Strava). Nul = tour au sens
+  /// strict : appui manuel sur la montre, ou intervalle d'une séance
+  /// fractionnée — c'est parmi ceux-là qu'`isManual` peut isoler UN effort
+  /// test à mettre en avant (page activité, bloc « lap manuel »).
   splitIndex     Int?
+  /// Mis à `true` explicitement par l'utilisateur (bascule sur la page
+  /// activité) pour distinguer un effort test délibéré d'un simple tour.
+  /// Jamais déduit automatiquement — ce serait inventer une intention.
+  isManual       Boolean   @default(false)
 
   @@unique([activityId, lapIndex])
 }

@@ -29,7 +29,7 @@ export function RecordCelebration({ durations }: { durations: number[] }) {
   return (
     <div className="relative mt-3 flex flex-wrap items-center gap-2">
       <motion.span
-        className="pointer-events-none absolute -left-2 -top-2 h-10 w-10 rounded-full bg-[var(--color-warn)]"
+        className="pointer-events-none absolute -left-2 -top-2 h-10 w-10 rounded-full bg-[var(--color-signal)]"
         initial={{ opacity: 0.5, scale: 0 }}
         animate={{ opacity: 0, scale: 3 }}
         transition={{ duration: 0.7, ease: "easeOut" }}
@@ -63,7 +63,7 @@ export function RecordCelebration({ durations }: { durations: number[] }) {
 
 function RecordBadge({ durationS }: { durationS: number }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--color-warn)]/40 bg-[var(--color-warn)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--color-warn)]">
+    <span className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--color-signal)]/40 bg-[var(--color-signal-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-signal)]">
       <Trophy size={12} aria-hidden />
       {formatDuration(durationS)}
     </span>

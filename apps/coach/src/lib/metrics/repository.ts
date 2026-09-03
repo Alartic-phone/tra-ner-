@@ -29,7 +29,12 @@ import {
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
 import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
-import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
+import {
+  computeReadiness,
+  meanAndStdDev,
+  shouldCancelSession,
+  type ReadinessResult,
+} from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -480,44 +485,91 @@ export async function loadPaceZones() {
   return vmaKmh ? computePaceZones(vmaKmh) : null;
 }
 
-/**
- * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
- * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
- * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
- * sur une base insuffisante.
- */
-export async function loadReadiness(
-  day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
-  const BASELINE_DAYS = 30;
-  const MIN_SAMPLES = 7;
+export type FreshnessGauge = {
+  value: number;
+  baselineMean: number;
+  baselineSd: number;
+};
 
-  const [todayMetric, history] = await Promise.all([
+export type Freshness = {
+  /** Jour réellement mesuré — peut différer de `day` si la mesure du jour manque (repli). */
+  day: Day;
+  /** Vrai si `day` (mesure) diffère du jour demandé : l'appelant doit le dire, jamais taire l'écart. */
+  isStale: boolean;
+  hrv: FreshnessGauge;
+  restingHr: FreshnessGauge;
+  result: ReadinessResult;
+  /** Règle d'arrêt de l'accueil (shouldCancelSession) — distincte de `result.status`. */
+  cancelled: boolean;
+};
+
+const FRESHNESS_BASELINE_DAYS = 30;
+const FRESHNESS_MIN_SAMPLES = 7;
+
+async function computeFreshnessForDay(day: Day): Promise<Freshness | null> {
+  const [metric, history] = await Promise.all([
     prisma.healthMetric.findUnique({ where: { day } }),
     prisma.healthMetric.findMany({
-      where: { day: { gte: addDays(day, -BASELINE_DAYS), lt: day } },
+      where: { day: { gte: addDays(day, -FRESHNESS_BASELINE_DAYS), lt: day } },
       select: { hrv: true, restingHr: true },
     }),
   ]);
-
-  if (todayMetric?.hrv == null || todayMetric.restingHr == null) return null;
+  if (metric?.hrv == null || metric.restingHr == null) return null;
 
   const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
   const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
-  if (hrvSamples.length < MIN_SAMPLES || restingHrSamples.length < MIN_SAMPLES) return null;
+  if (hrvSamples.length < FRESHNESS_MIN_SAMPLES || restingHrSamples.length < FRESHNESS_MIN_SAMPLES) {
+    return null;
+  }
 
   const hrvBaseline = meanAndStdDev(hrvSamples);
   const restingHrBaseline = meanAndStdDev(restingHrSamples);
 
   const result = computeReadiness({
-    hrv: todayMetric.hrv,
-    restingHr: todayMetric.restingHr,
+    hrv: metric.hrv,
+    restingHr: metric.restingHr,
+    hrvBaselineMean: hrvBaseline.mean,
+    hrvBaselineSd: hrvBaseline.sd,
+    restingHrBaselineMean: restingHrBaseline.mean,
+  });
+  const cancelled = shouldCancelSession({
+    hrv: metric.hrv,
+    restingHr: metric.restingHr,
     hrvBaselineMean: hrvBaseline.mean,
     hrvBaselineSd: hrvBaseline.sd,
     restingHrBaselineMean: restingHrBaseline.mean,
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  return {
+    day,
+    isStale: false,
+    hrv: { value: metric.hrv, baselineMean: hrvBaseline.mean, baselineSd: hrvBaseline.sd },
+    restingHr: {
+      value: metric.restingHr,
+      baselineMean: restingHrBaseline.mean,
+      baselineSd: restingHrBaseline.sd,
+    },
+    result,
+    cancelled,
+  };
+}
+
+/**
+ * Fraîcheur du jour, pour l'accueil. Si le jour demandé n'a pas de mesure (ou
+ * pas assez d'historique pour une plage habituelle), on cherche en arrière
+ * jusqu'à 14 jours : « la dernière connue AVEC sa date, jamais un "non
+ * disponible" sec » (consigne de refonte). `null` seulement si rien
+ * d'exploitable n'existe sur toute la fenêtre.
+ */
+export async function loadFreshness(day: Day): Promise<Freshness | null> {
+  const current = await computeFreshnessForDay(day);
+  if (current) return current;
+
+  for (let i = 1; i <= 14; i++) {
+    const past = await computeFreshnessForDay(addDays(day, -i));
+    if (past) return { ...past, isStale: true };
+  }
+  return null;
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */

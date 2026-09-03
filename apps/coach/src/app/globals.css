@@ -23,14 +23,16 @@
 
   /*
    * Ambre de lampe à sodium — la couleur d'un lampadaire à 5 h du matin.
-   * RARE PAR CONSTRUCTION. Il ne sert QU'À CES QUATRE CHOSES et nulle part
+   * RARE PAR CONSTRUCTION. Il ne sert QU'À CES CINQ CHOSES et nulle part
    * ailleurs :
    *   1. le repère « aujourd'hui » sur le ruban de cycle,
    *   2. un record battu,
    *   3. la meilleure valeur d'un tableau (ex. le km le plus rapide),
-   *   4. la séance du jour quand elle reste à faire.
+   *   4. la séance du jour quand elle reste à faire,
+   *   5. le marqueur d'arrivée d'un tracé GPS (page activité — le départ,
+   *      lui, reste en --color-ok).
    * Jamais sur un bouton ordinaire, jamais sur un lien, jamais en bordure
-   * décorative. Une cinquième utilisation rate la direction artistique —
+   * décorative. Une sixième utilisation rate la direction artistique —
    * si tu hésites à l'ajouter ailleurs, ne l'ajoute pas.
    */
   --color-signal: #f5a524;
