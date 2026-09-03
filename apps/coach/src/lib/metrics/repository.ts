@@ -1,8 +1,8 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
-import { isRun } from "../strava/mapping.ts";
+import { isRun, RUN_TYPES } from "../strava/mapping.ts";
 import { buildTracePath } from "../trace.ts";
-import { addDays, type Day } from "../shifts/day.ts";
+import { addDays, mondayOf, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
   DEFAULT_DURATIONS,
@@ -682,4 +682,48 @@ export async function loadLongestRunProgression(): Promise<
     }
   }
   return progression;
+}
+
+/**
+ * Meilleur kilomètre jamais couru — le plus petit temps parmi les splits
+ * kilométriques RÉELS (Lap.splitIndex non nul, donc des splits Strava, pas
+ * des tours manuels). Tolérance ±50 m autour de 1000 m : un split GPS tombe
+ * rarement pile sur la distance ronde.
+ */
+export async function loadBestKilometer(): Promise<
+  { movingTimeS: number; distanceM: number; day: Day; activityId: string } | null
+> {
+  const rows = await prisma.lap.findMany({
+    where: { splitIndex: { not: null }, distanceM: { gte: 950, lte: 1050 }, movingTimeS: { gt: 0 } },
+    select: { movingTimeS: true, distanceM: true, activityId: true, activity: { select: { startDay: true } } },
+  });
+  if (rows.length === 0) return null;
+
+  const best = rows.reduce((a, b) => (b.movingTimeS / b.distanceM < a.movingTimeS / a.distanceM ? b : a));
+  return {
+    movingTimeS: best.movingTimeS,
+    distanceM: best.distanceM,
+    day: best.activity.startDay,
+    activityId: best.activityId,
+  };
+}
+
+/** Semaine (lundi-dimanche) au plus grand volume de course jamais réalisé. */
+export async function loadRecordWeek(): Promise<{ weekStart: Day; km: number } | null> {
+  const rows = await prisma.activity.findMany({
+    where: { type: { in: [...RUN_TYPES] } },
+    select: { startDay: true, distanceM: true },
+  });
+  if (rows.length === 0) return null;
+
+  const byWeek = new Map<Day, number>();
+  for (const r of rows) {
+    const weekStart = mondayOf(r.startDay);
+    byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + r.distanceM);
+  }
+  let best: [Day, number] | null = null;
+  for (const entry of byWeek) {
+    if (!best || entry[1] > best[1]) best = entry;
+  }
+  return best ? { weekStart: best[0], km: best[1] / 1000 } : null;
 }

@@ -13,14 +13,16 @@ import {
   NotebookPen,
   Settings,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 
 const LINKS = [
-  { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
+  { href: "/", label: "Accueil", icon: LayoutDashboard },
   { href: "/activites", label: "Activités", icon: Activity },
+  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/plan", label: "Mon plan", icon: Target },
   { href: "/journal", label: "Journal", icon: NotebookPen },
   { href: "/simulateur", label: "Simulateur", icon: Gauge },
@@ -29,12 +31,10 @@ const LINKS = [
 ] as const;
 
 /**
- * Cinq onglets pouce-atteignables sur mobile : les quatre plus consultés au
- * quotidien, plus « Plus » qui ouvre le reste. Auparavant la barre tronquait
- * silencieusement à `LINKS.slice(0, 5)` — Simulateur, Analyses et Réglages
- * n'étaient tout simplement pas accessibles depuis le téléphone.
+ * Cinq onglets pouce-atteignables sur mobile (spec refonte §7) : Accueil,
+ * Activités, Calendrier, Progression, plus « Plus » qui ouvre le reste.
  */
-const PRIMARY_HREFS = ["/", "/calendrier", "/plan", "/analyses"];
+const PRIMARY_HREFS = ["/", "/activites", "/calendrier", "/progression"];
 const PRIMARY_LINKS = LINKS.filter((l) => PRIMARY_HREFS.includes(l.href));
 const MORE_LINKS = LINKS.filter((l) => !PRIMARY_HREFS.includes(l.href));
 

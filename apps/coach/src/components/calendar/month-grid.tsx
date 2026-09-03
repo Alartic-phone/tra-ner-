@@ -6,9 +6,11 @@ import { AlertTriangle, Check, Flag, Loader2, Moon, RotateCcw, X } from "lucide-
 import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ActivityTypeIcon, sportColor } from "@/components/activities/activity-icon.tsx";
 import { cn, formatDistance } from "@/lib/utils.ts";
 import { formatDayLong } from "@/lib/time.ts";
 import type { ShiftTiming } from "@/lib/shifts/types.ts";
+import type { FreeWindow } from "@/lib/shifts/availability.ts";
 
 export type CalendarDay = {
   day: string;
@@ -19,16 +21,19 @@ export type CalendarDay = {
   isFreed: boolean;
   inMonth: boolean;
   isToday: boolean;
+  /** Vrai pour un jour déjà passé — seul le numéro du jour s'atténue, pas le reste. */
+  isPast: boolean;
   maxSessionMin: number;
   allowsQuality: boolean;
   allowsLongRun: boolean;
   blockers: string[];
+  windows: FreeWindow[];
   /** Jour de la course d'un objectif actif — mis en avant dans la grille. */
   isRaceDay: boolean;
   /** Volume cible (km) de la phase de plan actif couvrant la semaine de ce
    * jour, si elle en chiffre un. `null` sinon — jamais une cible inventée. */
   weeklyVolumeTargetKm: number | null;
-  activities: { id: string; name: string; distanceM: number; movingTimeS: number }[];
+  activities: { id: string; name: string; type: string; distanceM: number; movingTimeS: number }[];
   planned: {
     id: string;
     type: string;
@@ -158,21 +163,24 @@ export function MonthGrid({
                     "hover:bg-[var(--color-surface-2)]",
                   )}
                 >
-                  {/* Bandeau de poste : la rythmique du cycle se lit d'un
-                      regard sur toute la grille, pas seulement case par case. */}
+                  {/* Bandeau de poste plein en haut de cellule : la
+                      rythmique du cycle se lit d'un regard sur toute la
+                      grille, pas seulement case par case. */}
                   <span
-                    className="absolute inset-y-0 left-0 w-1"
+                    className="absolute inset-x-0 top-0 h-1"
                     style={{ backgroundColor: stripeColor }}
                     aria-hidden
                   />
 
-                  <div className="flex items-start justify-between">
+                  <div className="mt-1 flex items-start justify-between">
                     <span
                       className={cn(
                         "tabular flex items-center gap-1 text-[11px]",
                         d.isToday
                           ? "rounded bg-[var(--color-accent)] px-1 font-semibold text-[#06101f]"
-                          : "text-[var(--color-muted)]",
+                          : d.isPast
+                            ? "text-[var(--color-faint)]"
+                            : "text-[var(--color-muted)]",
                       )}
                     >
                       {d.isRaceDay ? (
@@ -199,37 +207,50 @@ export function MonthGrid({
                   ) : null}
 
                   <div className="mt-1 space-y-0.5">
-                    {d.planned.map((p) => (
-                      <div
-                        key={p.id}
-                        className={cn(
-                          "truncate rounded-[var(--radius-pill)] px-1.5 leading-4",
-                          "text-[10px]",
-                          p.isProvisional
-                            ? "border border-dashed border-[var(--color-border-strong)] text-[var(--color-muted)]"
-                            : "bg-[var(--color-accent-soft)] text-[var(--color-text)]",
-                          p.status === "missed" && "line-through opacity-60",
-                        )}
-                        title={
-                          p.isProvisional
-                            ? `${p.title} — séance provisoire (jour de repos théorique)`
-                            : p.title
-                        }
-                      >
-                        {p.isKeySession ? "★ " : ""}
-                        {p.title}
-                      </div>
-                    ))}
-                    {d.activities.map((a) => (
-                      <div
-                        key={a.id}
-                        className="tabular truncate rounded-[var(--radius-pill)] bg-[var(--color-ok)]/15 px-1.5 text-[10px] leading-4 text-[var(--color-ok)]"
-                        title={a.name}
-                      >
-                        <Check size={9} className="mr-0.5 inline" aria-hidden />
-                        {formatDistance(a.distanceM)}
-                      </div>
-                    ))}
+                    {d.planned.map((p) => {
+                      const done = p.status === "done";
+                      return (
+                        <div
+                          key={p.id}
+                          className={cn(
+                            "flex items-center gap-1 truncate rounded-[var(--radius-pill)] px-1.5 leading-4",
+                            "text-[10px]",
+                            done
+                              ? "bg-[var(--color-ok)]/15 text-[var(--color-ok)]"
+                              : p.isProvisional
+                                ? "border border-dashed border-[var(--color-border-strong)] text-[var(--color-muted)]"
+                                : "bg-[var(--color-accent-soft)] text-[var(--color-text)]",
+                            p.status === "missed" && "line-through opacity-60",
+                          )}
+                          title={
+                            done
+                              ? `${p.title} — réalisée`
+                              : p.isProvisional
+                                ? `${p.title} — séance provisoire (jour de repos théorique)`
+                                : p.title
+                          }
+                        >
+                          {p.isKeySession ? "★ " : ""}
+                          {p.title}
+                          {done ? <Check size={9} className="shrink-0" aria-hidden /> : null}
+                        </div>
+                      );
+                    })}
+                    {d.activities.map((a) => {
+                      const color = sportColor(a.type);
+                      return (
+                        <div
+                          key={a.id}
+                          className="tabular flex items-center gap-1 truncate rounded-[var(--radius-pill)] px-1.5 text-[10px] leading-4"
+                          style={{ backgroundColor: `color-mix(in oklab, ${color} 16%, transparent)`, color }}
+                          title={a.name}
+                        >
+                          <ActivityTypeIcon type={a.type} size={9} />
+                          {formatDistance(a.distanceM)}
+                          <Check size={9} className="shrink-0" aria-label="réalisée" />
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {!d.allowsLongRun && d.code === null ? (
