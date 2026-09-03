@@ -169,12 +169,18 @@ export default async function ActivitiesPage({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             {match ? (
-                              <span
-                                aria-hidden
-                                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                style={{ backgroundColor: match === "in-zone" ? "var(--color-ok)" : "var(--color-warn)" }}
-                                title={match === "in-zone" ? "Dans la zone prescrite" : "Hors zone prescrite"}
-                              />
+                              <>
+                                <span
+                                  aria-hidden
+                                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: match === "in-zone" ? "var(--color-ok)" : "var(--color-warn)" }}
+                                  title={match === "in-zone" ? "Dans la zone prescrite" : "Hors zone prescrite"}
+                                />
+                                {/* Jamais la couleur seule : un `title` seul n'est pas fiable au clavier/lecteur d'écran. */}
+                                <span className="sr-only">
+                                  {match === "in-zone" ? "Dans la zone prescrite. " : "Hors zone prescrite. "}
+                                </span>
+                              </>
                             ) : null}
                             <p className="truncate text-sm font-medium">{a.name}</p>
                           </div>

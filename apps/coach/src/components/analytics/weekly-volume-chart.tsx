@@ -17,10 +17,17 @@ import type { WeeklyVolumePoint } from "@/lib/progression-repository.ts";
 /** Volume hebdomadaire, course et vélo distincts (deux sports, deux unités de vitesse — jamais fondus), cible du plan actif en pointillés. */
 export function WeeklyVolumeChart({ points }: { points: WeeklyVolumePoint[] }) {
   const hasTarget = points.some((p) => p.targetKm != null);
+  const totalRunKm = points.reduce((s, p) => s + p.runKm, 0);
+  const totalRideKm = points.reduce((s, p) => s + p.rideKm, 0);
 
   return (
-    <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div>
+      <p className="sr-only">
+        Sur les {points.length} dernières semaines : {totalRunKm.toFixed(1)} km de course et{" "}
+        {totalRideKm.toFixed(1)} km de vélo au total.
+      </p>
+      <div className="h-64 w-full" aria-hidden>
+        <ResponsiveContainer width="100%" height="100%">
         <BarChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid stroke="var(--color-border)" vertical={false} />
           <XAxis
@@ -57,6 +64,7 @@ export function WeeklyVolumeChart({ points }: { points: WeeklyVolumePoint[] }) {
           ) : null}
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

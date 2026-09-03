@@ -96,7 +96,11 @@ export function ActivityCharts({
   return (
     <div className="space-y-5">
       {hasHr ? (
-        <Chart title="Fréquence cardiaque" unit="bpm">
+        <Chart
+          title="Fréquence cardiaque"
+          unit="bpm"
+          summary={`Fréquence cardiaque de ${Math.round(hrDomain[0])} à ${Math.round(hrDomain[1])} bpm sur la durée de l'activité, moyenne ${Math.round(hrValues.reduce((s, v) => s + v, 0) / hrValues.length)} bpm.`}
+        >
           <AreaChart
             data={points}
             margin={{ top: 4, right: 4, bottom: 0, left: -12 }}
@@ -151,7 +155,11 @@ export function ActivityCharts({
       )}
 
       {paceValues.length > 0 ? (
-        <Chart title="Allure" unit="min/km — axe inversé, le haut est plus rapide">
+        <Chart
+          title="Allure"
+          unit="min/km — axe inversé, le haut est plus rapide"
+          summary={`Allure entre ${formatPace(Math.min(...paceValues))} et ${formatPace(Math.max(...paceValues))} sur la durée de l'activité.`}
+        >
           <LineChart
             data={points}
             margin={{ top: 4, right: 4, bottom: 0, left: -4 }}
@@ -185,7 +193,11 @@ export function ActivityCharts({
       ) : null}
 
       {altValues.length > 0 ? (
-        <Chart title="Altitude" unit="m">
+        <Chart
+          title="Altitude"
+          unit="m"
+          summary={`Altitude entre ${Math.round(Math.min(...altValues))} et ${Math.round(Math.max(...altValues))} m sur la durée de l'activité.`}
+        >
           <AreaChart
             data={points}
             margin={{ top: 4, right: 4, bottom: 0, left: -12 }}
@@ -218,7 +230,11 @@ export function ActivityCharts({
       ) : null}
 
       {cadenceValues.length > 0 ? (
-        <Chart title="Cadence" unit="pas/min">
+        <Chart
+          title="Cadence"
+          unit="pas/min"
+          summary={`Cadence entre ${Math.round(Math.min(...cadenceValues))} et ${Math.round(Math.max(...cadenceValues))} pas/min sur la durée de l'activité.`}
+        >
           <LineChart
             data={points}
             margin={{ top: 4, right: 4, bottom: 0, left: -4 }}
@@ -263,10 +279,13 @@ const tooltipStyle = {
 function Chart({
   title,
   unit,
+  summary,
   children,
 }: {
   title: string;
   unit: string;
+  /** Alternative textuelle décrivant la tendance — chaque graphique doit en avoir une (spec accessibilité). */
+  summary: string;
   children: ReactElement;
 }) {
   return (
@@ -275,7 +294,8 @@ function Chart({
         <h3 className="text-xs font-medium">{title}</h3>
         <span className="text-[10px] text-[var(--color-faint)]">{unit}</span>
       </div>
-      <div className="h-40 w-full">
+      <p className="sr-only">{summary}</p>
+      <div className="h-40 w-full" aria-hidden>
         <ResponsiveContainer width="100%" height="100%">
           {children}
         </ResponsiveContainer>

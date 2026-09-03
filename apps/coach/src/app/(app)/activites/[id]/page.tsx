@@ -218,12 +218,18 @@ export default async function ActivityPage({
         {splits.length > 0 ? (
           <div>
             <h2 className="text-sm font-medium">Splits kilométriques</h2>
-            <div className="mt-2 space-y-1 font-[family-name:var(--font-mono)] text-xs">
+            <div role="list" className="mt-2 space-y-1 font-[family-name:var(--font-mono)] text-xs">
               {splits.map((s, i) => {
                 const isFastest = i === fastestIdx;
                 const pace = isRunActivity ? formatPace(paceFromSpeed(s.avgSpeedMps)) : formatSpeed(s.avgSpeedMps);
                 return (
-                  <div key={s.id} className="flex items-center gap-2">
+                  <div
+                    key={s.id}
+                    role="listitem"
+                    tabIndex={0}
+                    aria-label={`Kilomètre ${s.splitIndex}, ${pace}${s.avgHr != null ? `, ${s.avgHr} battements par minute` : ""}${isFastest ? ", meilleur kilomètre de la sortie" : ""}`}
+                    className="flex items-center gap-2 rounded-[3px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
+                  >
                     <span className="tabular w-6 shrink-0 text-[var(--color-faint)]">{s.splitIndex}</span>
                     <span className="relative h-5 min-w-0 flex-1 overflow-hidden rounded-[3px] bg-[var(--color-surface-2)]">
                       <span
@@ -231,11 +237,18 @@ export default async function ActivityPage({
                         style={{
                           width: `${(s.movingTimeS / maxSplitDuration) * 100}%`,
                           backgroundColor: isFastest ? "var(--color-signal)" : "var(--color-accent)",
-                          color: isFastest ? "var(--color-bg)" : "var(--color-bg)",
+                          color: "var(--color-bg)",
                         }}
                       >
                         {pace}
                       </span>
+                    </span>
+                    {/* Jamais la couleur seule : le meilleur km porte aussi un mot. */}
+                    <span
+                      className="w-14 shrink-0 text-[10px] font-medium"
+                      style={{ color: isFastest ? "var(--color-signal)" : "transparent" }}
+                    >
+                      {isFastest ? "meilleur" : ""}
                     </span>
                     <span className="tabular w-16 shrink-0 text-right text-[var(--color-muted)]">
                       {s.avgHr != null ? `${s.avgHr} bpm` : "—"}

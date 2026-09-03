@@ -1,10 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { RouteMap } from "./route-map.tsx";
-import { ActivityCharts } from "./activity-charts.tsx";
+import { ChartSkeleton } from "@/components/ui/chart-skeleton.tsx";
 import type { ChartPoint } from "@/lib/streams.ts";
 import type { HeartRateZone } from "@/lib/metrics/zones.ts";
+
+// Recharts (~90 Ko gzippé) en import dynamique : pas dans le bundle initial
+// de la page activité, seulement une fois qu'on sait qu'il y a des flux à
+// tracer. `ssr:false` : la page reste rapide au premier rendu serveur, les
+// graphiques apparaissent au montage client, remplaçant un squelette aux
+// dimensions exactes (jamais de saut de mise en page).
+const ActivityCharts = dynamic(() => import("./activity-charts.tsx").then((m) => m.ActivityCharts), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-5">
+      <ChartSkeleton height={160} />
+      <ChartSkeleton height={160} />
+      <ChartSkeleton height={160} />
+    </div>
+  ),
+});
 
 /**
  * Un seul curseur synchronisé entre les quatre graphiques ET la carte

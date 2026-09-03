@@ -3,11 +3,7 @@ import { prisma } from "@/lib/db.ts";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { CountUp } from "@/components/ui/count-up.tsx";
-import {
-  AcwrChart,
-  FitnessChart,
-  FormChart,
-} from "@/components/analytics/fitness-chart.tsx";
+import { AcwrChart, FitnessChart, FormChart } from "@/components/analytics/fitness-chart-lazy.tsx";
 import { ZoneChart } from "@/components/analytics/zone-chart.tsx";
 import { RecomputeButton } from "@/components/analytics/recompute-button.tsx";
 import { AnalysesTabs } from "@/components/analytics/analyses-tabs.tsx";

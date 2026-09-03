@@ -35,7 +35,12 @@ export function PaceHrCloud({ points }: { points: PaceHrPoint[] }) {
 
   return (
     <div>
-      <div className="h-64 w-full">
+      <p className="sr-only">
+        {points.length} sorties de plus de 30 minutes entre {formatPace(Math.min(...paceValues))} et{" "}
+        {formatPace(Math.max(...paceValues))}, fréquence cardiaque entre {Math.min(...hrValues)} et{" "}
+        {Math.max(...hrValues)} bpm.
+      </p>
+      <div className="h-64 w-full" aria-hidden>
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
             <CartesianGrid stroke="var(--color-border)" />
