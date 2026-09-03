@@ -22,4 +22,8 @@ uploads/
 # Divers
 .DS_Store
 *.log
-debug/
+
+# Scripts de debug ad-hoc à la racine du projet (voir CLAUDE.md) — ancré à la
+# racine pour ne pas avaler src/app/debug/, les pages de référence du système
+# de design qui, elles, sont versionnées.
+/debug/
