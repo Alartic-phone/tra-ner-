@@ -82,7 +82,20 @@ avec la convention déjà suivie par `af535b5`/`21bdccb` plus haut.
 
 ## Étape 3.3 — `worktree-coach-finitions`
 
-*(à venir)*
+6 commits, fusion `--no-ff`.
+
+| Fichier(s) | Sort |
+|---|---|
+| `app/(app)/{activites/[id],activites,calendrier,}/loading.tsx`, `components/analytics/fitness-chart-lazy.tsx` | **Sans objet**. Squelettes de chargement écrits contre l'ANCIENNE mise en page (leurs propres commentaires disent « calque exactement page.tsx », qui a depuis été entièrement refondue). Le tronc a ses propres squelettes déjà alignés sur le rendu actuel — gardés tels quels. `fitness-chart-lazy.tsx` : les deux versions faisaient la même chose (Recharts en chunk séparé), le tronc gardé pour son `ChartSkeleton` dédié. |
+| `app/(app)/{analyses,plan,reglages,reglages/postes,reglages/profil,simulateur}/loading.tsx`, `components/ui/skeleton.tsx` | **Réappliqué**. Ces squelettes couvraient des routes que le tronc n'avait pas encore équipées — fusion automatique sans conflit, gain net de couverture. |
+| `app/globals.css`, `app/globals-contrast.test.ts` | **Réappliqué — bug réel confirmé par calcul**. `--color-faint` du tronc (`#6b7789`) mesure 3,98:1 sur `--color-surface` et 3,60:1 sur `--color-surface-2` — sous le seuil AA texte normal (4,5:1). Le test de contraste du tronc ne le détectait pas : il ne vérifiait ce ton que contre `AA_LARGE` (3:1, texte large), alors qu'il porte aussi du texte courant (hints, labels) ailleurs dans l'app. Valeur corrigée (`#7d889b`, 5,05:1 / 4,56:1) et **le test renforcé** avec deux nouveaux cas à `AA_NORMAL` pour couvrir cet usage réel. |
+| `components/nav.tsx` | **Réappliqué — bug de rendu latent découvert en résolvant**. Le rendu mobile du tronc lisait déjà `mobileLabel` sur chaque lien (`{mobileLabel}` dans la barre du bas), mais le tableau `LINKS` du tronc ne définissait pas ce champ : chaque onglet principal aurait affiché « undefined » sous son icône sur mobile. Champ ajouté à toutes les entrées, valeurs alignées sur les libellés déjà courts du tronc (qui n'a pas le problème de départ de coach-finitions — « Tableau de bord » renommé « Accueil » avait déjà réglé la longueur). Le choix produit du tronc de mettre Progression en onglet principal (plutôt qu'Analyses) est conservé — c'est une décision de refonte documentée, pas un bug. |
+
+**Bonus (bug du tronc découvert pendant la résolution, sans rapport avec un
+correctif fusionné)** : `nav.tsx` importait `TRANSITION` depuis
+`lib/motion.ts`, qui n'exporte que `DUR`/`EASE`/`SPRING_RECORD` — erreur de
+compilation latente, corrigée (remplacé par `{ duration: DUR.base, ease:
+EASE.out }`).
 
 ## Étape 3.4 — `worktree-nifty-weaving-hanrahan`
 
