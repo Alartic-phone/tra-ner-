@@ -131,6 +131,13 @@ model Activity {
   hasHeartrate Boolean @default(false)
   hasStreams   Boolean @default(false)
 
+  /// Chemin SVG (attribut `d`, boîte 100×100) du tracé, calculé une fois par
+  /// lib/trace.ts depuis le flux GPS puis mis en cache ici — jamais recalculé
+  /// au rendu d'une liste (<TraceThumb />, une carte MapLibre par ligne
+  /// tuerait la page). Nul = pas encore calculé OU pas de GPS ; les deux cas
+  /// se distinguent par la présence du flux `latlng` (hasStreams).
+  tracePath String?
+
   /// Horodatage du dernier calcul des métriques dérivées. Nul = jamais
   /// calculé, ce qui permet de ne retraiter que ce qui doit l'être.
   metricsComputedAt DateTime?
@@ -142,6 +149,10 @@ model Activity {
 
   /// Payload brut de la source, pour pouvoir recalculer sans re-télécharger.
   rawSummaryJson String?
+
+  /// Notes libres, éditables en place sur la page activité. Jamais générées :
+  /// uniquement ce que l'utilisateur écrit.
+  notes String?
 
   stream       ActivityStream?
   laps         Lap[]
@@ -220,7 +231,15 @@ model Lap {
   maxHr          Int?
   avgCadence     Float?
   startedAt      DateTime?
+  /// Non nul = split kilométrique automatique (Strava). Nul = tour au sens
+  /// strict : appui manuel sur la montre, ou intervalle d'une séance
+  /// fractionnée — c'est parmi ceux-là qu'`isManual` peut isoler UN effort
+  /// test à mettre en avant (page activité, bloc « lap manuel »).
   splitIndex     Int?
+  /// Mis à `true` explicitement par l'utilisateur (bascule sur la page
+  /// activité) pour distinguer un effort test délibéré d'un simple tour.
+  /// Jamais déduit automatiquement — ce serait inventer une intention.
+  isManual       Boolean   @default(false)
 
   @@unique([activityId, lapIndex])
 }

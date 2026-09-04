@@ -26,7 +26,7 @@ import {
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
-import { computeReadiness, meanAndStdDev } from "./readiness.ts";
+import { computeReadiness, meanAndStdDev, shouldCancelSession } from "./readiness.ts";
 import {
   buildPrediction,
   classifyTrajectory,
@@ -929,5 +929,55 @@ describe("fraîcheur du jour (readiness)", () => {
       restingHrBaselineMean: 55,
     });
     expect(result.status).toBe("correct");
+  });
+});
+
+describe("règle d'arrêt de l'accueil (shouldCancelSession)", () => {
+  it("déclenche quand le VFC est sous la borne basse (z <= -1)", () => {
+    expect(
+      shouldCancelSession({
+        hrv: 41,
+        restingHr: 55,
+        hrvBaselineMean: 48,
+        hrvBaselineSd: 6,
+        restingHrBaselineMean: 55,
+      }),
+    ).toBe(true);
+  });
+
+  it("déclenche quand la FC de repos dépasse 65 bpm, même avec un VFC normal", () => {
+    expect(
+      shouldCancelSession({
+        hrv: 48,
+        restingHr: 66,
+        hrvBaselineMean: 48,
+        hrvBaselineSd: 6,
+        restingHrBaselineMean: 55,
+      }),
+    ).toBe(true);
+  });
+
+  it("ne déclenche pas quand les deux mesures sont dans la norme", () => {
+    expect(
+      shouldCancelSession({
+        hrv: 50,
+        restingHr: 58,
+        hrvBaselineMean: 48,
+        hrvBaselineSd: 6,
+        restingHrBaselineMean: 55,
+      }),
+    ).toBe(false);
+  });
+
+  it("65 bpm pile ne déclenche pas (seuil strictement supérieur)", () => {
+    expect(
+      shouldCancelSession({
+        hrv: 48,
+        restingHr: 65,
+        hrvBaselineMean: 48,
+        hrvBaselineSd: 6,
+        restingHrBaselineMean: 55,
+      }),
+    ).toBe(false);
   });
 });

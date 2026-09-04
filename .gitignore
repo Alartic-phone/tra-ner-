@@ -35,6 +35,12 @@ npm-debug.log*
 
 # Scripts de debug jetables
 debug/
+# ... sauf apps/coach/src/app/debug/ : ce ne sont pas des scripts jetables
+# mais des routes Next.js versionnées (pages de référence du système de
+# design), cf. apps/coach/CLAUDE.md — un sous-projet autonome que les
+# conventions racine n'atteignent pas.
+!apps/coach/src/app/debug/
+!apps/coach/src/app/debug/**
 
 # Claude Code — uniquement les settings persos (settings.json et hooks restent versionnés)
 .claude/settings.local.json

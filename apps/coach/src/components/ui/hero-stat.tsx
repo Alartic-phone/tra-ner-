@@ -1,13 +1,20 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils.ts";
+import { CountUp } from "./count-up.tsx";
+import { Unavailable } from "./badge.tsx";
 
 /**
- * Remplace les <Stat size="lg"|"xl"> improvisés pour LE chiffre hero d'une
- * page (distance, allure, FC…) : échelle @theme dédiée (--text-hero-*, ratio
- * constant ×1.5) plutôt que les tailles de texte génériques, et son propre
- * chrome de carte (bordure en dégradé + halo sport optionnel, `.hero-stat-card`
- * dans globals.css) — il ne s'agit pas d'une Card, ce niveau de mise en avant
- * ne doit exister nulle part ailleurs dans l'app.
+ * LE chiffre hero d'un écran (distance, allure, FC…) : échelle @theme dédiée
+ * (--text-hero-*) sur l'axe de largeur d'Archivo (.text-hero-number,
+ * globals.css), pas les tailles de texte génériques. Son propre chrome de
+ * carte (bordure en dégradé + halo sport optionnel, `.hero-stat-card`) — ce
+ * niveau de mise en avant n'existe nulle part ailleurs dans l'app.
+ *
+ * `value` null -> <Unavailable />, JAMAIS 0 (R1). Le comptage 0->valeur ne
+ * rejoue qu'au premier montage du composant (CountUp mémorise par instance) :
+ * une navigation qui réutilise l'instance (retour arrière dans le cache du
+ * routeur) ne relance pas l'animation ; un rechargement complet en est un
+ * nouveau premier montage légitime.
  */
 
 const SPORT_VARS = {
@@ -34,21 +41,30 @@ export function HeroStat({
   value,
   unit,
   label,
+  decimals = 0,
   estimated = false,
   size = "lg",
   tone = "default",
   sport,
+  trend,
+  reason,
   className,
 }: {
-  value: ReactNode;
+  /** `null` = donnée absente : rend <Unavailable />, jamais 0. */
+  value: number | null;
   unit?: string;
   label: string;
+  decimals?: number;
   /** Valeur obtenue par approximation — jamais une estimation silencieuse. */
   estimated?: boolean;
   size?: keyof typeof SIZE_CLASSES;
   tone?: keyof typeof TONE_VARS;
   /** Halo très discret en haut à gauche — jamais un fond plein. */
   sport?: keyof typeof SPORT_VARS;
+  /** Complément court sous la valeur (ex. "+12 % vs semaine dernière"). */
+  trend?: ReactNode;
+  /** Raison de l'absence, affichée par <Unavailable />. */
+  reason?: string;
   className?: string;
 }) {
   return (
@@ -76,18 +92,24 @@ export function HeroStat({
           </span>
         ) : null}
       </div>
-      <div className="tabular mt-1 flex items-baseline gap-1.5">
-        <span
-          className={cn(
-            SIZE_CLASSES[size],
-            "font-[family-name:var(--font-display)] font-bold",
-          )}
-          style={{ color: TONE_VARS[tone] }}
-        >
-          {value}
-        </span>
-        {unit ? <span className="text-sm text-[var(--color-muted)]">{unit}</span> : null}
-      </div>
+
+      {value === null ? (
+        <div className="mt-1">
+          <Unavailable reason={reason} />
+        </div>
+      ) : (
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span
+            className={cn("text-hero-number", SIZE_CLASSES[size])}
+            style={{ color: TONE_VARS[tone] }}
+          >
+            <CountUp value={value} decimals={decimals} />
+          </span>
+          {unit ? <span className="text-sm text-[var(--color-faint)]">{unit}</span> : null}
+        </div>
+      )}
+
+      {trend ? <div className="mt-1 text-xs text-[var(--color-faint)]">{trend}</div> : null}
     </div>
   );
 }

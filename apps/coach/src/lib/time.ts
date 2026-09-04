@@ -28,6 +28,17 @@ export function today(): Day {
   return toDay(new Date());
 }
 
+const hourFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: APP_TIMEZONE,
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Heure locale Europe/Paris (0-23) d'un instant — pour choisir le moment (lib/photos.ts) au repos. */
+export function currentHour(instant: Date = new Date()): number {
+  return Number(hourFormatter.format(instant));
+}
+
 const timeFormatter = new Intl.DateTimeFormat("fr-FR", {
   timeZone: APP_TIMEZONE,
   hour: "2-digit",

@@ -1,7 +1,8 @@
 import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
-import { isRun } from "../strava/mapping.ts";
-import { addDays, type Day } from "../shifts/day.ts";
+import { isRun, RUN_TYPES } from "../strava/mapping.ts";
+import { buildTracePath } from "../trace.ts";
+import { addDays, mondayOf, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
   DEFAULT_DURATIONS,
@@ -28,7 +29,12 @@ import {
 } from "./trimp.ts";
 import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
 import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
-import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readiness.ts";
+import {
+  computeReadiness,
+  meanAndStdDev,
+  shouldCancelSession,
+  type ReadinessResult,
+} from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -479,44 +485,91 @@ export async function loadPaceZones() {
   return vmaKmh ? computePaceZones(vmaKmh) : null;
 }
 
-/**
- * Fraîcheur du jour, pour la bannière du tableau de bord. `null` si le VFC ou
- * la FC de repos du jour manquent, ou si la fenêtre de référence (14 jours
- * précédents minimum) n'a pas assez de mesures — jamais un statut affiché
- * sur une base insuffisante.
- */
-export async function loadReadiness(
-  day: Day,
-): Promise<{ result: ReadinessResult; hrv: number; restingHr: number } | null> {
-  const BASELINE_DAYS = 30;
-  const MIN_SAMPLES = 7;
+export type FreshnessGauge = {
+  value: number;
+  baselineMean: number;
+  baselineSd: number;
+};
 
-  const [todayMetric, history] = await Promise.all([
+export type Freshness = {
+  /** Jour réellement mesuré — peut différer de `day` si la mesure du jour manque (repli). */
+  day: Day;
+  /** Vrai si `day` (mesure) diffère du jour demandé : l'appelant doit le dire, jamais taire l'écart. */
+  isStale: boolean;
+  hrv: FreshnessGauge;
+  restingHr: FreshnessGauge;
+  result: ReadinessResult;
+  /** Règle d'arrêt de l'accueil (shouldCancelSession) — distincte de `result.status`. */
+  cancelled: boolean;
+};
+
+const FRESHNESS_BASELINE_DAYS = 30;
+const FRESHNESS_MIN_SAMPLES = 7;
+
+async function computeFreshnessForDay(day: Day): Promise<Freshness | null> {
+  const [metric, history] = await Promise.all([
     prisma.healthMetric.findUnique({ where: { day } }),
     prisma.healthMetric.findMany({
-      where: { day: { gte: addDays(day, -BASELINE_DAYS), lt: day } },
+      where: { day: { gte: addDays(day, -FRESHNESS_BASELINE_DAYS), lt: day } },
       select: { hrv: true, restingHr: true },
     }),
   ]);
-
-  if (todayMetric?.hrv == null || todayMetric.restingHr == null) return null;
+  if (metric?.hrv == null || metric.restingHr == null) return null;
 
   const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
   const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
-  if (hrvSamples.length < MIN_SAMPLES || restingHrSamples.length < MIN_SAMPLES) return null;
+  if (hrvSamples.length < FRESHNESS_MIN_SAMPLES || restingHrSamples.length < FRESHNESS_MIN_SAMPLES) {
+    return null;
+  }
 
   const hrvBaseline = meanAndStdDev(hrvSamples);
   const restingHrBaseline = meanAndStdDev(restingHrSamples);
 
   const result = computeReadiness({
-    hrv: todayMetric.hrv,
-    restingHr: todayMetric.restingHr,
+    hrv: metric.hrv,
+    restingHr: metric.restingHr,
+    hrvBaselineMean: hrvBaseline.mean,
+    hrvBaselineSd: hrvBaseline.sd,
+    restingHrBaselineMean: restingHrBaseline.mean,
+  });
+  const cancelled = shouldCancelSession({
+    hrv: metric.hrv,
+    restingHr: metric.restingHr,
     hrvBaselineMean: hrvBaseline.mean,
     hrvBaselineSd: hrvBaseline.sd,
     restingHrBaselineMean: restingHrBaseline.mean,
   });
 
-  return { result, hrv: todayMetric.hrv, restingHr: todayMetric.restingHr };
+  return {
+    day,
+    isStale: false,
+    hrv: { value: metric.hrv, baselineMean: hrvBaseline.mean, baselineSd: hrvBaseline.sd },
+    restingHr: {
+      value: metric.restingHr,
+      baselineMean: restingHrBaseline.mean,
+      baselineSd: restingHrBaseline.sd,
+    },
+    result,
+    cancelled,
+  };
+}
+
+/**
+ * Fraîcheur du jour, pour l'accueil. Si le jour demandé n'a pas de mesure (ou
+ * pas assez d'historique pour une plage habituelle), on cherche en arrière
+ * jusqu'à 14 jours : « la dernière connue AVEC sa date, jamais un "non
+ * disponible" sec » (consigne de refonte). `null` seulement si rien
+ * d'exploitable n'existe sur toute la fenêtre.
+ */
+export async function loadFreshness(day: Day): Promise<Freshness | null> {
+  const current = await computeFreshnessForDay(day);
+  if (current) return current;
+
+  for (let i = 1; i <= 14; i++) {
+    const past = await computeFreshnessForDay(addDays(day, -i));
+    if (past) return { ...past, isStale: true };
+  }
+  return null;
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */
@@ -563,6 +616,54 @@ export async function loadNextGoal() {
  * Sert à la barre de progression des records du tableau de bord — jamais un
  * record affiché s'il n'a pas réellement été battu par une activité.
  */
+/**
+ * Chemin SVG (lib/trace.ts) d'une activité, mis en cache en base au premier
+ * appel — jamais recalculé au rendu (<TraceThumb />). `null` sans flux GPS.
+ */
+export async function getTracePath(activityId: string): Promise<string | null> {
+  const activity = await prisma.activity.findUnique({
+    where: { id: activityId },
+    select: { tracePath: true, hasStreams: true },
+  });
+  if (!activity) return null;
+  if (activity.tracePath !== null) return activity.tracePath;
+  if (!activity.hasStreams) return null;
+
+  const streams = await loadStreams(activityId);
+  const path = streams?.latlng ? buildTracePath(streams.latlng) : null;
+  if (path) {
+    await prisma.activity.update({ where: { id: activityId }, data: { tracePath: path } });
+  }
+  return path;
+}
+
+/** Version liste de `getTracePath` : une requête pour lire le cache, calcule seulement ce qui manque. */
+export async function getTracePathsByActivity(
+  activityIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  if (activityIds.length === 0) return out;
+
+  const rows = await prisma.activity.findMany({
+    where: { id: { in: [...activityIds] } },
+    select: { id: true, tracePath: true, hasStreams: true },
+  });
+  for (const r of rows) out.set(r.id, r.tracePath);
+
+  const toCompute = rows.filter((r) => r.tracePath === null && r.hasStreams);
+  await Promise.all(
+    toCompute.map(async (r) => {
+      const streams = await loadStreams(r.id);
+      const path = streams?.latlng ? buildTracePath(streams.latlng) : null;
+      out.set(r.id, path);
+      if (path) {
+        await prisma.activity.update({ where: { id: r.id }, data: { tracePath: path } });
+      }
+    }),
+  );
+  return out;
+}
+
 export async function loadLongestRunProgression(): Promise<
   { day: Day; distanceM: number }[]
 > {
@@ -581,4 +682,48 @@ export async function loadLongestRunProgression(): Promise<
     }
   }
   return progression;
+}
+
+/**
+ * Meilleur kilomètre jamais couru — le plus petit temps parmi les splits
+ * kilométriques RÉELS (Lap.splitIndex non nul, donc des splits Strava, pas
+ * des tours manuels). Tolérance ±50 m autour de 1000 m : un split GPS tombe
+ * rarement pile sur la distance ronde.
+ */
+export async function loadBestKilometer(): Promise<
+  { movingTimeS: number; distanceM: number; day: Day; activityId: string } | null
+> {
+  const rows = await prisma.lap.findMany({
+    where: { splitIndex: { not: null }, distanceM: { gte: 950, lte: 1050 }, movingTimeS: { gt: 0 } },
+    select: { movingTimeS: true, distanceM: true, activityId: true, activity: { select: { startDay: true } } },
+  });
+  if (rows.length === 0) return null;
+
+  const best = rows.reduce((a, b) => (b.movingTimeS / b.distanceM < a.movingTimeS / a.distanceM ? b : a));
+  return {
+    movingTimeS: best.movingTimeS,
+    distanceM: best.distanceM,
+    day: best.activity.startDay,
+    activityId: best.activityId,
+  };
+}
+
+/** Semaine (lundi-dimanche) au plus grand volume de course jamais réalisé. */
+export async function loadRecordWeek(): Promise<{ weekStart: Day; km: number } | null> {
+  const rows = await prisma.activity.findMany({
+    where: { type: { in: [...RUN_TYPES] } },
+    select: { startDay: true, distanceM: true },
+  });
+  if (rows.length === 0) return null;
+
+  const byWeek = new Map<Day, number>();
+  for (const r of rows) {
+    const weekStart = mondayOf(r.startDay);
+    byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + r.distanceM);
+  }
+  let best: [Day, number] | null = null;
+  for (const entry of byWeek) {
+    if (!best || entry[1] > best[1]) best = entry;
+  }
+  return best ? { weekStart: best[0], km: best[1] / 1000 } : null;
 }

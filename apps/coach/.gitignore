@@ -19,7 +19,15 @@ backups/
 data/
 uploads/
 
+# Cache disque de <TraceAtlas /> (lib/trace-atlas-repository.ts) — régénéré
+# depuis la base, jamais une source de vérité.
+.cache/
+
 # Divers
 .DS_Store
 *.log
-debug/
+
+# Scripts de debug ad-hoc à la racine du projet (voir CLAUDE.md) — ancré à la
+# racine pour ne pas avaler src/app/debug/, les pages de référence du système
+# de design qui, elles, sont versionnées.
+/debug/

@@ -8,18 +8,35 @@
  */
 
 @theme {
-  --color-bg: #0b0e14;
-  --color-surface: #11151d;
-  --color-surface-2: #171c26;
-  --color-border: #232a37;
+  --color-bg: #080b12;
+  --color-surface: #101623;
+  --color-surface-2: #18202f;
+  --color-border: #232d3f;
   --color-border-strong: #303949;
 
-  --color-text: #e6eaf2;
-  --color-muted: #8b95a7;
-  --color-faint: #5d6779;
+  --color-text: #f2f5fa;
+  --color-muted: #8f9bb0;
+  --color-faint: #6b7789;
 
   --color-accent: #5b9cf6;
   --color-accent-soft: #1d3a5f;
+
+  /*
+   * Ambre de lampe à sodium — la couleur d'un lampadaire à 5 h du matin.
+   * RARE PAR CONSTRUCTION. Il ne sert QU'À CES CINQ CHOSES et nulle part
+   * ailleurs :
+   *   1. le repère « aujourd'hui » sur le ruban de cycle,
+   *   2. un record battu,
+   *   3. la meilleure valeur d'un tableau (ex. le km le plus rapide),
+   *   4. la séance du jour quand elle reste à faire,
+   *   5. le marqueur d'arrivée d'un tracé GPS (page activité — le départ,
+   *      lui, reste en --color-ok).
+   * Jamais sur un bouton ordinaire, jamais sur un lien, jamais en bordure
+   * décorative. Une sixième utilisation rate la direction artistique —
+   * si tu hésites à l'ajouter ailleurs, ne l'ajoute pas.
+   */
+  --color-signal: #f5a524;
+  --color-signal-bg: #3a2a10;
 
   /*
    * Couleurs de statut. Jeu fixe, validé sur la surface sombre de
@@ -105,30 +122,30 @@
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
-  --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
-    monospace;
 
   /*
-   * Familles pour les gros chiffres et les titres de page vs. le corps de
-   * texte (système de design v2). Repliées sur --font-sans tant que la paire
-   * typographique n'est pas choisie sur /debug/typo : le jour du choix, ces
-   * deux tokens sont les seuls à changer, HeroStat n'a rien à savoir de plus.
+   * Une seule famille variable (Archivo) pour le display, les titres ET le
+   * corps de texte — exploitée sur son axe de largeur (wdth) plutôt qu'
+   * appariée à une police sans rapport : plus discipliné, plus
+   * caractéristique. --font-mono sert aux tableaux de données (splits, laps,
+   * export). Fichiers réels chargés par next/font/local dans lib/fonts.ts,
+   * jamais par une URL.
    */
-  --font-display: var(--font-sans);
-  --font-body: var(--font-sans);
+  --font-display: "Archivo Variable", var(--font-archivo), var(--font-sans);
+  --font-body: "Archivo Variable", var(--font-archivo), var(--font-sans);
+  --font-mono: "JetBrains Mono Variable", var(--font-jetbrains-mono), ui-monospace,
+    SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /*
-   * Échelle des « hero numbers » (distance, allure, FC…) — ratio constant
-   * ×1.5, indépendante des tailles de texte Tailwind par défaut. Interligne
-   * resserré : ce sont des chiffres à lire d'un coup d'œil, pas du texte
-   * courant.
+   * Échelle des « hero numbers » (distance, allure, FC…), indépendante des
+   * tailles de texte Tailwind par défaut. Interligne resserré : ce sont des
+   * chiffres à lire d'un coup d'œil, pas du texte courant.
    */
-  --text-hero-md: 2rem;
+  --text-hero-md: 1.5rem;
   --text-hero-md--line-height: 1.1;
-  --text-hero-lg: 3rem;
+  --text-hero-lg: 2.25rem;
   --text-hero-lg--line-height: 1.05;
-  --text-hero-xl: 4.5rem;
+  --text-hero-xl: 3.5rem;
   --text-hero-xl--line-height: 1;
 
   /*
@@ -198,6 +215,20 @@
 }
 
 /*
+ * Chiffres héros (distance, allure, FC…) : Archivo à son axe de largeur
+ * ouvert (wdth ~112, sur 62-125) et graisse 600 — c'est cet axe, pas une
+ * police différente, qui donne aux chiffres leur caractère. `font-stretch`
+ * ne suffit pas à piloter l'axe de façon fiable sur toutes les
+ * implémentations : on fixe l'axe directement via font-variation-settings.
+ */
+.text-hero-number {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variation-settings: "wdth" 112;
+  letter-spacing: -0.02em;
+}
+
+/*
  * Chrome de carte pour HeroStat : halo sport optionnel (calque du haut, posé
  * en padding-box, transparent tant que --hero-sport-halo n'est pas défini en
  * style inline) + bordure en dégradé (calque du bas, sur border-box). Le
@@ -234,13 +265,22 @@
   body {
     background-color: var(--color-bg);
     color: var(--color-text);
-    font-family: var(--font-sans);
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     /* Zone sûre iOS : l'app est consultée depuis le téléphone, installée en PWA. */
     padding-bottom: env(safe-area-inset-bottom);
+    /*
+     * Par défaut sur TOUTE l'app, sans exception (règle du CLAUDE.md de ce
+     * dossier) : un chiffre qui saute quand sa valeur change est le défaut le
+     * plus visible d'un tableau de bord. Poser la règle une fois ici, plutôt
+     * que composant par composant, est ce qui la garantit "sans exception" —
+     * un test (globals.test.ts) échoue si cette ligne disparaît.
+     */
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Chiffres alignés en colonne dans les tableaux de données. */
+  /* Conservée pour les cas isolés qui changent de police (ex. mono dans un
+     contexte non-tabular par défaut) et veulent réaffirmer la règle. */
   .tabular {
     font-variant-numeric: tabular-nums;
   }

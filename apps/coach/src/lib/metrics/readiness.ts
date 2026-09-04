@@ -54,6 +54,20 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
   return { status, hrvDeltaPct, restingHrDeltaBpm };
 }
 
+/**
+ * Règle d'arrêt de l'accueil : distincte du statut à 3 niveaux ci-dessus, qui
+ * ne prescrit jamais de consigne. Ici, l'accueil DOIT remplacer la séance par
+ * « marche ou vélo en promenade » — VFC sous la borne basse (même seuil z ≤
+ * -1 que le statut "prudence") OU FC de repos au-delà d'un seuil ABSOLU de
+ * 65 bpm (indépendant de la ligne de base personnelle, contrairement au
+ * statut ci-dessus).
+ */
+export function shouldCancelSession(input: ReadinessInput): boolean {
+  const sd = input.hrvBaselineSd > 0 ? input.hrvBaselineSd : input.hrvBaselineMean * 0.1;
+  const z = sd > 0 ? (input.hrv - input.hrvBaselineMean) / sd : 0;
+  return z <= -1 || input.restingHr > 65;
+}
+
 /** Moyenne et écart-type (population) d'une série non vide. */
 export function meanAndStdDev(values: readonly number[]): { mean: number; sd: number } {
   const mean = values.reduce((sum, v) => sum + v, 0) / values.length;

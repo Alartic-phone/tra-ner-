@@ -4,8 +4,9 @@ import { prisma } from "@/lib/db.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, mondayOf, type Day } from "@/lib/shifts/day.ts";
-import { formatMonth, today } from "@/lib/time.ts";
+import { formatDayShort, formatMonth, today } from "@/lib/time.ts";
 import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
+import { WeekGrid } from "@/components/calendar/week-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
 
 export const dynamic = "force-dynamic";
@@ -19,21 +20,25 @@ function monthBounds(year: number, month: number): { first: Day; last: Day } {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ m?: string }>;
+  searchParams: Promise<{ m?: string; vue?: string; semaine?: string }>;
 }) {
-  const { m } = await searchParams;
+  const { m, vue, semaine } = await searchParams;
   const now = today();
+  const isWeekView = vue === "semaine";
   const [defaultYear, defaultMonth] = [Number(now.slice(0, 4)), Number(now.slice(5, 7))];
 
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const year = match ? Number(match[1]) : defaultYear;
   const month = match ? Number(match[2]) : defaultMonth;
 
+  const weekStart = semaine && /^\d{4}-\d{2}-\d{2}$/.test(semaine) ? mondayOf(semaine) : mondayOf(now);
+  const weekEnd = addDays(weekStart, 6);
+
   const { first, last } = monthBounds(year, month);
   // La grille affiche des semaines complètes : on élargit au lundi précédent
   // et au dimanche suivant.
-  const gridFrom = mondayOf(first);
-  const gridTo = addDays(mondayOf(addDays(last, 7)), -1);
+  const gridFrom = isWeekView ? weekStart : mondayOf(first);
+  const gridTo = isWeekView ? weekEnd : addDays(mondayOf(addDays(last, 7)), -1);
 
   const rules = await getAvailabilityRules();
   const [range, stats, activities, planned, raceGoals, activePlans] = await Promise.all([
@@ -41,7 +46,7 @@ export default async function CalendarPage({
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({
       where: { startDay: { gte: gridFrom, lte: gridTo } },
-      select: { id: true, startDay: true, distanceM: true, movingTimeS: true, name: true },
+      select: { id: true, startDay: true, distanceM: true, movingTimeS: true, name: true, type: true },
       orderBy: { startedAt: "asc" },
     }),
     prisma.plannedWorkout.findMany({
@@ -88,10 +93,12 @@ export default async function CalendarPage({
       isFreed: resolved.isFreed,
       inMonth: resolved.day >= first && resolved.day <= last,
       isToday: resolved.day === now,
+      isPast: resolved.day < now,
       maxSessionMin: availability.maxSessionMin,
       allowsQuality: availability.allowsQuality,
       allowsLongRun: availability.allowsLongRun,
       blockers: availability.blockers,
+      windows: availability.windows,
       isRaceDay: raceDays.has(resolved.day),
       weeklyVolumeTargetKm: weeklyVolumeTargetFor(resolved.day),
       activities: activities
@@ -99,6 +106,7 @@ export default async function CalendarPage({
         .map((a) => ({
           id: a.id,
           name: a.name,
+          type: a.type,
           distanceM: a.distanceM,
           movingTimeS: a.movingTimeS,
         })),
@@ -117,33 +125,61 @@ export default async function CalendarPage({
 
   const prev = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
   const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
+  const prevWeek = addDays(weekStart, -7);
+  const nextWeek = addDays(weekStart, 7);
 
   return (
     <div className="p-4 md:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold capitalize">{formatMonth(year, month)}</h1>
+          <h1 className="text-lg font-semibold capitalize">
+            {isWeekView ? `${formatDayShort(weekStart)} – ${formatDayShort(weekEnd)}` : formatMonth(year, month)}
+          </h1>
           <p className="text-xs text-[var(--color-muted)]">
-            Postes, séances planifiées et séances réalisées.
+            {isWeekView
+              ? "Créneaux disponibles et séances de la semaine."
+              : "Postes, séances planifiées et séances réalisées."}
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <div className="mr-2 flex overflow-hidden rounded-lg border border-[var(--color-border-strong)] text-xs">
+            <Link
+              href={{ pathname: "/calendrier", query: { m } }}
+              className={`px-3 py-1.5 ${!isWeekView ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]" : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"}`}
+            >
+              Mois
+            </Link>
+            <Link
+              href={{ pathname: "/calendrier", query: { vue: "semaine", semaine: weekStart } }}
+              className={`px-3 py-1.5 ${isWeekView ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]" : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"}`}
+            >
+              Semaine
+            </Link>
+          </div>
           <Link
-            href={{ pathname: "/calendrier", query: { m: prev } }}
-            aria-label="Mois précédent"
+            href={
+              isWeekView
+                ? { pathname: "/calendrier", query: { vue: "semaine", semaine: prevWeek } }
+                : { pathname: "/calendrier", query: { m: prev } }
+            }
+            aria-label={isWeekView ? "Semaine précédente" : "Mois précédent"}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             <ChevronLeft size={16} />
           </Link>
           <Link
-            href="/calendrier"
+            href={isWeekView ? { pathname: "/calendrier", query: { vue: "semaine" } } : "/calendrier"}
             className="flex h-9 items-center rounded-lg border border-[var(--color-border-strong)] px-3 text-xs transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             Aujourd&apos;hui
           </Link>
           <Link
-            href={{ pathname: "/calendrier", query: { m: next } }}
-            aria-label="Mois suivant"
+            href={
+              isWeekView
+                ? { pathname: "/calendrier", query: { vue: "semaine", semaine: nextWeek } }
+                : { pathname: "/calendrier", query: { m: next } }
+            }
+            aria-label={isWeekView ? "Semaine suivante" : "Mois suivant"}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border-strong)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-surface-2)]"
           >
             <ChevronRight size={16} />
@@ -152,7 +188,11 @@ export default async function CalendarPage({
       </header>
 
       <div className="mt-4">
-        <MonthGrid days={days} timings={range.timings} />
+        {isWeekView ? (
+          <WeekGrid days={days} timings={range.timings} />
+        ) : (
+          <MonthGrid days={days} timings={range.timings} />
+        )}
       </div>
 
       <Card className="mt-6">
