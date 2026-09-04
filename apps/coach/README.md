@@ -44,6 +44,17 @@ provisoire** : une métrique non calculée est affichée « non disponible ».
 Prérequis : **Node.js 22+**, `sqlite3` (pour les sauvegardes), et Docker si
 vous voulez le déploiement conteneurisé.
 
+> **Base de données partagée entre le dossier principal et les worktrees.**
+> `DATABASE_URL` doit être un **chemin absolu**
+> (`file:/chemin/complet/vers/apps/coach/prisma/dev.db`), jamais le
+> `file:./dev.db` relatif de `.env.example`. Un chemin relatif fait qu'un
+> `git worktree` (dossier différent) crée silencieusement sa **propre base
+> vide** au lieu de lire les vraies données — c'est ce qui a fait
+> disparaître les activités importées pendant la consolidation de
+> septembre 2026. Un seul fichier physique `apps/coach/prisma/dev.db`
+> (celui du dossier principal) fait autorité ; tout `.env` d'un worktree
+> doit pointer dessus avec le même chemin absolu.
+
 ```bash
 cd apps/coach
 
@@ -52,6 +63,8 @@ npm install
 
 # 2. Configuration
 cp .env.example .env
+# Puis éditer DATABASE_URL pour y mettre le chemin ABSOLU vers
+# apps/coach/prisma/dev.db du dossier principal (voir encadré ci-dessus).
 
 # 3. Générer les secrets et les reporter dans .env
 openssl rand -hex 32   # -> ENCRYPTION_KEY
