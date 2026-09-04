@@ -1,10 +1,10 @@
 # Coach — suivi d'entraînement (sous-projet autonome)
 
 > **Ce dossier n'a aucun rapport avec le site ALARTIC.** Les règles du
-> `CLAUDE.md` à la racine du dépôt (Astro, Rust/Axum, zéro ressource tierce,
-> Decap, Codeberg, jalons du cahier des charges) **ne s'appliquent pas ici**.
-> Ce projet a ses propres conventions, son propre `package.json` et son propre
-> lockfile ; il est volontairement exclu des workspaces npm de la racine.
+> `alartic/CLAUDE.md` (Astro, Rust/Axum, zéro ressource tierce, Decap,
+> Codeberg, jalons du cahier des charges) **ne s'appliquent pas ici**. Ce
+> projet a ses propres conventions, son propre `package.json` et son propre
+> lockfile ; il est volontairement exclu des workspaces npm d'`alartic/`.
 
 Application web **personnelle et mono-utilisateur** de suivi d'entraînement en
 course à pied, pensée pour un travail en postes.

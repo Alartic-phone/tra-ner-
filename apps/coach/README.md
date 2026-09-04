@@ -5,8 +5,9 @@ course à pied, conçue pour quelqu'un qui travaille en postes et dont le
 planning rend inutilisables les plans calés sur une semaine de bureau.
 
 > Ce dossier est un projet autonome à l'intérieur du dépôt. Il n'a **aucun
-> rapport** avec le site ALARTIC (`apps/web`, `apps/api`) : les règles du
-> `CLAUDE.md` racine ne s'y appliquent pas. Voir `apps/coach/CLAUDE.md`.
+> rapport** avec le site ALARTIC (`alartic/apps/web`, `alartic/apps/api`) :
+> les règles du `alartic/CLAUDE.md` ne s'y appliquent pas. Voir
+> `apps/coach/CLAUDE.md`.
 
 ## Sommaire
 

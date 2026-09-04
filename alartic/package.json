@@ -16,7 +16,7 @@
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d",
     "db:logs": "docker compose logs -f",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath alartic/.githooks"
   },
   "devDependencies": {
     "eslint-config-prettier": "10.1.8"
