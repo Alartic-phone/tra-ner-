@@ -16,7 +16,7 @@ import {
   loadRecordWeek,
   predictDistance,
 } from "@/lib/metrics/repository.ts";
-import { formatClock, formatDistance, formatPace } from "@/lib/utils.ts";
+import { formatClock, formatPace } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 

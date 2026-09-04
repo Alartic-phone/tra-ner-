@@ -1,7 +1,7 @@
 import { prisma } from "../db.ts";
 import { addDays, eachDay, mondayOf, type Day } from "../shifts/day.ts";
 import { getAvailabilityRules } from "../settings.ts";
-import { loadShiftRange, loadReplacementStats } from "../shifts/repository.ts";
+import { loadShiftRange } from "../shifts/repository.ts";
 import { isRun } from "../strava/mapping.ts";
 import {
   getProfileStatus,
@@ -38,11 +38,10 @@ export async function gatherExportData(options: ExportOptions): Promise<ExportDa
   const { from, to } = options;
   const rules = await getAvailabilityRules();
 
-  const [user, shiftRange, replacementStats, activities, healthRows, nextGoal, plannedWorkouts, profileStatus, paceZones] =
+  const [user, shiftRange, activities, healthRows, nextGoal, plannedWorkouts, profileStatus, paceZones] =
     await Promise.all([
       prisma.user.findFirst(),
       loadShiftRange(from, to, rules),
-      loadReplacementStats(from, to),
       prisma.activity.findMany({
         where: { startDay: { gte: from, lte: to } },
         orderBy: { startedAt: "asc" },

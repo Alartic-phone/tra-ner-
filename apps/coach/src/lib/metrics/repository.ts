@@ -43,7 +43,6 @@ import {
 import {
   computeReadiness,
   findLatestReadinessMeasurement,
-  meanAndStdDev,
   shouldCancelSession,
   type ReadinessResult,
 } from "./readiness.ts";
