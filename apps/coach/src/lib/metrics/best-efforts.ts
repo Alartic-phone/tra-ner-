@@ -19,6 +19,21 @@ export const DEFAULT_DURATIONS = [60, 120, 300, 600, 1200, 1800, 3600] as const;
 /** Distances de référence usuelles en course sur route. */
 export const DEFAULT_DISTANCES = [400, 1000, 1609, 5000, 10000, 21097, 42195] as const;
 
+/**
+ * Allure au-delà de laquelle un segment n'est plus une course à pied
+ * plausible — bien au-delà d'une marche. Un « meilleur effort » plus lent que
+ * ça ne peut être qu'une activité mal étiquetée (typiquement une séance de
+ * musculation démarrée en mode « course en salle », le capteur de distance
+ * restant quasi figé) ou un capteur resté bloqué. Exclu à la source : ce
+ * n'est jamais une course, donc jamais une donnée de référence pour Riegel,
+ * le VDOT ou la vitesse critique.
+ */
+export const MAX_PLAUSIBLE_PACE_S_PER_KM = 720; // 12 min/km
+
+function isPlausibleRunningPace(distanceM: number, durationS: number): boolean {
+  return distanceM > 0 && (durationS / distanceM) * 1000 <= MAX_PLAUSIBLE_PACE_S_PER_KM;
+}
+
 type Series = {
   time: ReadonlyArray<number>;
   distance: ReadonlyArray<number | null>;
@@ -70,7 +85,9 @@ export function bestDistanceForDurations(
       if (covered > best) best = covered;
     }
 
-    if (best > 0) results.push({ durationS: duration, distanceM: best });
+    if (best > 0 && isPlausibleRunningPace(best, duration)) {
+      results.push({ durationS: duration, distanceM: best });
+    }
   }
 
   return results;
