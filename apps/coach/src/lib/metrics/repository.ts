@@ -38,7 +38,14 @@ import { computeReadiness, meanAndStdDev, type ReadinessResult } from "./readine
 export type ProfileStatus = {
   profile: HeartRateProfile | null;
   vmaKmh: number | null;
-  /** Ce qui manque pour calculer la charge. Affiché tel quel dans l'interface. */
+  /**
+   * FC au seuil (lactate/anaérobie) : seule entrée du calcul des zones
+   * cardiaques (`computeHeartRateZones`). Indépendante de `profile`, qui ne
+   * sert qu'au TRIMP de Banister (réserve cardiaque hrMax/hrRest) — les deux
+   * n'ont pas besoin des mêmes repères.
+   */
+  thresholdHr: number | null;
+  /** Ce qui manque pour calculer la charge (TRIMP). Affiché tel quel dans l'interface. */
   missing: string[];
 };
 
@@ -50,6 +57,7 @@ export async function getProfileStatus(): Promise<ProfileStatus> {
     return {
       profile: null,
       vmaKmh: null,
+      thresholdHr: null,
       missing: ["Le profil n'est pas encore renseigné."],
     };
   }
@@ -63,7 +71,7 @@ export async function getProfileStatus(): Promise<ProfileStatus> {
       ? { hrMax: user.hrMax, hrRest: user.hrRest, sex }
       : null;
 
-  return { profile, vmaKmh: user.vma ?? null, missing };
+  return { profile, vmaKmh: user.vma ?? null, thresholdHr: user.lactateThresholdHr ?? null, missing };
 }
 
 export type ActivityMetrics = {
@@ -256,6 +264,19 @@ export type FitnessSnapshot = {
 };
 
 /**
+ * Premier jour pour lequel une activité existe, tous jalons confondus — pas
+ * seulement dans la fenêtre demandée. C'est cette date, et non la largeur
+ * mécanique de la fenêtre d'amorçage, qui dit depuis quand l'historique de
+ * charge est réel : `toDailyLoads` comble tous les jours à zéro, y compris
+ * ceux d'AVANT que le suivi n'existe, et rien ne les distingue d'un vrai jour
+ * de repos sans cette date de référence.
+ */
+async function getHistoryStartDay(): Promise<Day | null> {
+  const earliest = await prisma.activity.aggregate({ _min: { startDay: true } });
+  return (earliest._min.startDay as Day | null) ?? null;
+}
+
+/**
  * État de forme à une date donnée.
  *
  * La série démarre volontairement bien avant la fenêtre affichée : la CTL est
@@ -271,7 +292,7 @@ export async function loadFitnessSnapshot(
   // constantes de temps de CTL.
   const warmupFrom = addDays(from, -120);
 
-  const [activities, missingLoad, { missing }] = await Promise.all([
+  const [activities, missingLoad, { missing }, historyStartDay] = await Promise.all([
     prisma.activity.findMany({
       where: { startDay: { gte: warmupFrom, lte: to } },
       select: { startDay: true, trimp: true },
@@ -280,6 +301,7 @@ export async function loadFitnessSnapshot(
       where: { startDay: { gte: from, lte: to }, trimp: null },
     }),
     getProfileStatus(),
+    getHistoryStartDay(),
   ]);
 
   const loads = toDailyLoads(
@@ -294,9 +316,12 @@ export async function loadFitnessSnapshot(
   return {
     series,
     current: full[full.length - 1] ?? null,
-    acwr: computeAcwr(loads, to),
-    acwrSeries: series.map((p) => ({ day: p.day, ratio: computeAcwr(loads, p.day).ratio })),
-    foster: computeFoster(loads, to),
+    acwr: computeAcwr(loads, to, { historyStartDay }),
+    acwrSeries: series.map((p) => ({
+      day: p.day,
+      ratio: computeAcwr(loads, p.day, { historyStartDay }).ratio,
+    })),
+    foster: computeFoster(loads, to, 7, { historyStartDay }),
     activitiesWithoutLoad: missingLoad,
     profileMissing: missing,
   };
@@ -321,10 +346,10 @@ export async function loadZoneDistribution(
   from: Day,
   to: Day,
 ): Promise<ZoneDistribution | null> {
-  const { profile } = await getProfileStatus();
-  if (!profile) return null;
+  const { profile, thresholdHr } = await getProfileStatus();
+  if (thresholdHr == null) return null;
 
-  const zones = computeHeartRateZones(profile.hrMax, profile.hrRest);
+  const zones = computeHeartRateZones(thresholdHr, profile?.hrMax ?? null);
   const activities = await prisma.activity.findMany({
     where: { startDay: { gte: from, lte: to } },
     select: { id: true, hasStreams: true },
@@ -365,20 +390,20 @@ export async function loadZoneDistribution(
 
 /**
  * Répartition par zone FC, séance par séance — la barre de zone des cartes
- * d'activité. `null` par activité sans profil ou sans cardio : jamais une
- * barre inventée.
+ * d'activité. `null` par activité sans FC de seuil renseignée ou sans
+ * cardio : jamais une barre inventée.
  */
 export async function loadZoneSecondsByActivity(
   activityIds: readonly string[],
 ): Promise<Map<string, number[] | null>> {
-  const { profile } = await getProfileStatus();
+  const { profile, thresholdHr } = await getProfileStatus();
   const out = new Map<string, number[] | null>();
-  if (!profile || activityIds.length === 0) {
+  if (thresholdHr == null || activityIds.length === 0) {
     for (const id of activityIds) out.set(id, null);
     return out;
   }
 
-  const zones = computeHeartRateZones(profile.hrMax, profile.hrRest);
+  const zones = computeHeartRateZones(thresholdHr, profile?.hrMax ?? null);
   await Promise.all(
     activityIds.map(async (id) => {
       const streams = await loadStreams(id);

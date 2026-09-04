@@ -75,8 +75,8 @@ export default async function DashboardPage() {
   );
 
   const todaysWorkoutHrZoneRange =
-    todaysWorkout?.targetHrZone != null && profileStatus.profile
-      ? (computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest).find(
+    todaysWorkout?.targetHrZone != null && profileStatus.thresholdHr != null
+      ? (computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null).find(
           (z) => z.index === todaysWorkout.targetHrZone,
         ) ?? null)
       : null;

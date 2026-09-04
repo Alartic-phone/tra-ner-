@@ -5,7 +5,7 @@
 export type HeartRateZone = {
   index: 1 | 2 | 3 | 4 | 5;
   name: string;
-  /** Bornes en fraction de réserve cardiaque. */
+  /** Bornes en fraction de la FC au SEUIL (pas de la réserve cardiaque). */
   fromFraction: number;
   toFraction: number;
   /** Bornes en battements par minute. */
@@ -13,44 +13,68 @@ export type HeartRateZone = {
   toBpm: number;
 };
 
+/**
+ * SOURCE UNIQUE des bornes de zone cardiaque, en pourcentage de la FC au
+ * seuil. Aucun autre fichier ne doit redéfinir cette table ni recalculer des
+ * bornes de zone : `zones-source-unique.test.ts` échoue si une deuxième
+ * table apparaît ailleurs dans `src/`.
+ *
+ * Alignées sur les zones telles que configurées sur la montre et le plan de
+ * l'utilisateur (FC seuil testée sur le terrain, ex. 175 bpm le 29/08/2026),
+ * qui font foi — pas une formule de manuel. Avec un seuil à 175 bpm, ces
+ * fractions redonnent Z1 < 140, Z2 140-158, Z3 159-166, Z4 167-179, Z5
+ * 180-186, à l'arrondi près.
+ *
+ * La méthode de Karvonen (réserve cardiaque = FC_max − FC_repos) a été
+ * retirée du calcul des zones : elle produisait des bornes différentes de
+ * celles de la montre et du plan pour la même séance, ce qui n'est jamais
+ * acceptable pour une même métrique. Un seul modèle de zones existe dans
+ * l'application.
+ */
 const HR_ZONE_BOUNDS: Array<{
   index: 1 | 2 | 3 | 4 | 5;
   name: string;
   from: number;
   to: number;
 }> = [
-  { index: 1, name: "Récupération", from: 0.5, to: 0.6 },
-  { index: 2, name: "Endurance fondamentale", from: 0.6, to: 0.7 },
-  { index: 3, name: "Endurance active", from: 0.7, to: 0.8 },
-  { index: 4, name: "Seuil", from: 0.8, to: 0.9 },
-  { index: 5, name: "VMA", from: 0.9, to: 1.0 },
+  { index: 1, name: "Récupération", from: 0, to: 0.8 },
+  { index: 2, name: "Endurance fondamentale", from: 0.8, to: 0.9 },
+  { index: 3, name: "Endurance active", from: 0.9, to: 0.95 },
+  { index: 4, name: "Seuil", from: 0.95, to: 1.02 },
+  { index: 5, name: "VMA", from: 1.02, to: 1.1 },
 ];
 
 /**
- * Cinq zones de fréquence cardiaque par la méthode de Karvonen.
+ * Cinq zones de fréquence cardiaque en pourcentage de la FC au seuil.
  *
- * Source : Karvonen M.J., Kentala E., Mustala O. (1957), « The effects of
- * training on heart rate », Annales Medicinae Experimentalis et Biologiae
- * Fenniae, 35(3), 307-315.
- *
- *   FC_cible = FC_repos + pourcentage × (FC_max − FC_repos)
- *
- * On raisonne sur la RÉSERVE cardiaque et non sur un pourcentage brut de
- * FC_max : à FC max égale, deux coureurs de FC de repos différentes n'ont pas
- * la même intensité relative à 150 bpm. La réserve corrige cet écart.
+ * `thresholdHr` est la FC de seuil (lactate/anaérobie), mesurée sur le
+ * terrain — la seule entrée qui détermine les bornes. `hrMaxCap`, s'il est
+ * renseigné, fixe seulement le haut d'affichage de la zone 5 (elle est
+ * ouverte par nature : rien n'empêche de dépasser 110 % du seuil sur un
+ * sprint). Sans lui, ce haut reste la borne à 110 % — un simple plafond
+ * d'axe, pas une mesure.
  */
-export function computeHeartRateZones(hrMax: number, hrRest: number): HeartRateZone[] {
-  const reserve = hrMax - hrRest;
-  if (reserve <= 0) return [];
+export function computeHeartRateZones(
+  thresholdHr: number,
+  hrMaxCap?: number | null,
+): HeartRateZone[] {
+  if (thresholdHr <= 0) return [];
 
-  return HR_ZONE_BOUNDS.map((z) => ({
-    index: z.index,
-    name: z.name,
-    fromFraction: z.from,
-    toFraction: z.to,
-    fromBpm: Math.round(hrRest + z.from * reserve),
-    toBpm: Math.round(hrRest + z.to * reserve),
-  }));
+  return HR_ZONE_BOUNDS.map((z) => {
+    const isTop = z.index === 5;
+    const to =
+      isTop && hrMaxCap != null && hrMaxCap > thresholdHr * z.from
+        ? hrMaxCap
+        : Math.round(thresholdHr * z.to);
+    return {
+      index: z.index,
+      name: z.name,
+      fromFraction: z.from,
+      toFraction: z.to,
+      fromBpm: Math.round(thresholdHr * z.from),
+      toBpm: to,
+    };
+  });
 }
 
 /** Zone correspondant à une fréquence cardiaque donnée, ou `null` sous la zone 1. */

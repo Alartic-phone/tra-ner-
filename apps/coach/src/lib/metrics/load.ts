@@ -22,7 +22,19 @@ export type FitnessPoint = {
   ctl: number;
   /** Fatigue — moyenne mobile exponentielle à 7 jours. */
   atl: number;
-  /** Forme : CTL − ATL. */
+  /**
+   * Forme : CTL − ATL, calculée sur les valeurs BRUTES de `ctl` et `atl`
+   * ci-dessus, jamais sur leurs valeurs arrondies pour l'affichage.
+   *
+   * Conséquence assumée : `Math.round(tsb)` peut différer de
+   * `Math.round(ctl) - Math.round(atl)` d'une unité (ex. condition physique
+   * affichée à 1, fatigue à 9, forme à −7 et non −8) — c'est l'arrondi
+   * indépendant de trois valeurs affichées côte à côte qui ne « tombe juste »
+   * que par coïncidence, pas une erreur de calcul. Arrondir `ctl` et `atl`
+   * AVANT de les soustraire pour que l'affichage boucle serait le vrai bug :
+   * ça ferait dépendre la forme de l'arrondi d'affichage plutôt que de la
+   * charge réelle.
+   */
   tsb: number;
   /**
    * Faux tant que l'historique accumulé est plus court que la constante de
@@ -81,16 +93,39 @@ export function computeFitnessSeries(
 
 export type AcwrZone = "sous-charge" | "optimale" | "prudence" | "alerte" | "indeterminee";
 
+/** Historique disponible insuffisant pour que le ratio ait un sens. */
+export type InsufficientHistory = {
+  /** Jours écoulés depuis la première activité connue, jusqu'au jour calculé. */
+  daysAvailable: number;
+  /** Jours de calendrier requis. */
+  daysRequired: number;
+  /** Jours avec une charge réelle (> 0) dans la fenêtre, si ce critère s'applique. */
+  activeDays: number | null;
+  /** Jours actifs requis, si ce critère s'applique. */
+  activeDaysRequired: number | null;
+};
+
 export type Acwr = {
   day: Day;
   /** Charge moyenne quotidienne des 7 derniers jours. */
   acute: number;
   /** Charge moyenne quotidienne des 28 derniers jours. */
   chronic: number;
-  /** `null` quand la charge chronique est nulle : un ratio n'a alors aucun sens. */
+  /**
+   * `null` quand la charge chronique est nulle, ou quand l'historique est
+   * trop court pour qu'un ratio veuille dire quelque chose (`insufficientHistory`
+   * porte alors la raison). Aucune recommandation d'entraînement ne sort d'un
+   * calcul dont l'historique est insuffisant : c'est à `zone` de retomber sur
+   * "indeterminee" plutôt que de laisser un garde-fou se déclencher sur un
+   * ratio construit à partir d'une poignée de jours.
+   */
   ratio: number | null;
   zone: AcwrZone;
+  insufficientHistory: InsufficientHistory | null;
 };
+
+/** Jours d'activité réelle minimum dans la fenêtre chronique pour qu'un ratio soit publié. */
+const ACWR_MIN_ACTIVE_DAYS = 8;
 
 /**
  * Ratio aigu/chronique (7 jours / 28 jours), en moyennes quotidiennes.
@@ -105,11 +140,25 @@ export type Acwr = {
  * Ce sont bien des MOYENNES quotidiennes qui sont comparées, pas des sommes :
  * comparer une somme sur 7 jours à une somme sur 28 donnerait mécaniquement
  * un ratio autour de 0,25.
+ *
+ * `options.historyStartDay`, quand il est fourni (y compris `null` pour
+ * « aucune activité connue »), active un garde-fou : le ratio n'est calculé
+ * que si la fenêtre chronique couvre au moins `chronicDays` jours DEPUIS LA
+ * PREMIÈRE ACTIVITÉ CONNUE, dont au moins `ACWR_MIN_ACTIVE_DAYS` avec une
+ * charge réelle. En dessous, `ratio` est `null` — jamais un chiffre calculé
+ * sur une poignée de jours zéro-remplis par `toDailyLoads` avant même que le
+ * suivi n'existe. Omettre l'option désactive le garde-fou (utile pour tester
+ * la mécanique du ratio isolément, sans avoir à fournir une date d'historique
+ * à chaque appel).
  */
 export function computeAcwr(
   loads: readonly DailyLoad[],
   day: Day,
-  options: { acuteDays?: number; chronicDays?: number } = {},
+  options: {
+    acuteDays?: number;
+    chronicDays?: number;
+    historyStartDay?: Day | null;
+  } = {},
 ): Acwr {
   const acuteDays = options.acuteDays ?? 7;
   const chronicDays = options.chronicDays ?? 28;
@@ -123,9 +172,28 @@ export function computeAcwr(
 
   const acute = meanOver(acuteDays);
   const chronic = meanOver(chronicDays);
-  const ratio = chronic > 0 ? acute / chronic : null;
 
-  return { day, acute, chronic, ratio, zone: acwrZone(ratio) };
+  let insufficientHistory: InsufficientHistory | null = null;
+  if (options.historyStartDay !== undefined) {
+    const daysAvailable =
+      options.historyStartDay != null ? diffDays(options.historyStartDay, day) + 1 : 0;
+    let activeDays = 0;
+    for (let i = 0; i < chronicDays; i++) {
+      if ((byDay.get(addDays(day, -i)) ?? 0) > 0) activeDays++;
+    }
+    if (daysAvailable < chronicDays || activeDays < ACWR_MIN_ACTIVE_DAYS) {
+      insufficientHistory = {
+        daysAvailable: Math.max(0, daysAvailable),
+        daysRequired: chronicDays,
+        activeDays,
+        activeDaysRequired: ACWR_MIN_ACTIVE_DAYS,
+      };
+    }
+  }
+
+  const ratio = insufficientHistory == null && chronic > 0 ? acute / chronic : null;
+
+  return { day, acute, chronic, ratio, zone: acwrZone(ratio), insufficientHistory };
 }
 
 export function acwrZone(ratio: number | null): AcwrZone {
@@ -137,17 +205,19 @@ export function acwrZone(ratio: number | null): AcwrZone {
 }
 
 export type FosterMetrics = {
-  /** Somme des charges quotidiennes de la fenêtre. */
+  /** Somme des charges quotidiennes de la fenêtre — un simple total, jamais gardé. */
   weeklyLoad: number;
   /**
    * Monotonie : moyenne des charges quotidiennes divisée par leur écart-type.
-   * `null` si l'écart-type est nul (toutes les journées identiques).
+   * `null` si l'écart-type est nul (toutes les journées identiques) OU si
+   * l'historique est trop court (`insufficientHistory`).
    */
   monotony: number | null;
-  /** Contrainte : charge de la fenêtre × monotonie. */
+  /** Contrainte : charge de la fenêtre × monotonie. Même garde que `monotony`. */
   strain: number | null;
   /** Vrai au-delà du seuil de 2,0 au-delà duquel Foster observe un surrisque. */
   monotonyWarning: boolean;
+  insufficientHistory: InsufficientHistory | null;
 };
 
 /**
@@ -167,24 +237,57 @@ export type FosterMetrics = {
  *
  * L'écart-type est celui de la population (division par n), conformément à
  * l'usage de Foster sur une fenêtre fermée de sept jours.
+ *
+ * `options.historyStartDay` (cf. `computeAcwr`) active le même garde-fou :
+ * en dessous de `windowDays` jours d'historique réel, une seule vraie séance
+ * entourée de jours zéro-remplis avant le début du suivi produirait une
+ * monotonie et une contrainte plausibles mais sans aucun sens statistique.
+ * Aucune recommandation d'entraînement ne sort d'un calcul dont l'historique
+ * est insuffisant : `monotony` et `strain` restent `null` plutôt que
+ * d'afficher un chiffre construit sur une poignée de jours.
  */
 export function computeFoster(
   loads: readonly DailyLoad[],
   day: Day,
   windowDays = 7,
+  options: { historyStartDay?: Day | null } = {},
 ): FosterMetrics {
   const byDay = new Map(loads.map((l) => [l.day, l.load]));
   const values: number[] = [];
   for (let i = 0; i < windowDays; i++) values.push(byDay.get(addDays(day, -i)) ?? 0);
 
   const weeklyLoad = values.reduce((a, b) => a + b, 0);
+
+  let insufficientHistory: InsufficientHistory | null = null;
+  if (options.historyStartDay !== undefined) {
+    const daysAvailable =
+      options.historyStartDay != null ? diffDays(options.historyStartDay, day) + 1 : 0;
+    if (daysAvailable < windowDays) {
+      insufficientHistory = {
+        daysAvailable: Math.max(0, daysAvailable),
+        daysRequired: windowDays,
+        activeDays: null,
+        activeDaysRequired: null,
+      };
+    }
+  }
+  if (insufficientHistory) {
+    return { weeklyLoad, monotony: null, strain: null, monotonyWarning: false, insufficientHistory };
+  }
+
   const mean = weeklyLoad / windowDays;
   const variance =
     values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / windowDays;
   const sd = Math.sqrt(variance);
 
   if (sd === 0) {
-    return { weeklyLoad, monotony: null, strain: null, monotonyWarning: false };
+    return {
+      weeklyLoad,
+      monotony: null,
+      strain: null,
+      monotonyWarning: false,
+      insufficientHistory: null,
+    };
   }
 
   const monotony = mean / sd;
@@ -193,6 +296,7 @@ export function computeFoster(
     monotony,
     strain: weeklyLoad * monotony,
     monotonyWarning: monotony > 2,
+    insufficientHistory: null,
   };
 }
 

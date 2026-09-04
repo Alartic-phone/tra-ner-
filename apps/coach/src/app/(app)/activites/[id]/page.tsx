@@ -45,9 +45,10 @@ export default async function ActivityPage({
   const points = streams ? toChartPoints(streams) : [];
   const present = availableStreams(streams);
   const isRunActivity = isRun(activity.type);
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : null;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : null;
   const shiftOfDay = shifts.byDay.get(activity.startDay);
   const shiftLabel = shiftOfDay?.resolved.code
     ? (shifts.timings.find((t) => t.code === shiftOfDay.resolved.code)?.label ??

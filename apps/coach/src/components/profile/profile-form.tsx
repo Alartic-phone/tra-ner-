@@ -32,14 +32,16 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
 
   const num = (value: string): number | null => (value === "" ? null : Number(value));
 
-  // Aperçu immédiat : voir les zones se déplacer en saisissant sa FC max évite
-  // de découvrir une valeur aberrante trois semaines plus tard.
+  // Aperçu immédiat : voir les zones se déplacer en saisissant sa FC de seuil
+  // évite de découvrir une valeur aberrante trois semaines plus tard. La FC
+  // maximale ne sert qu'à plafonner l'affichage du haut de la zone 5, qui est
+  // ouverte par nature.
   const hrZones = useMemo(
     () =>
-      form.hrMax != null && form.hrRest != null && form.hrMax > form.hrRest
-        ? computeHeartRateZones(form.hrMax, form.hrRest)
+      form.lactateThresholdHr != null && form.lactateThresholdHr > 0
+        ? computeHeartRateZones(form.lactateThresholdHr, form.hrMax)
         : [],
-    [form.hrMax, form.hrRest],
+    [form.lactateThresholdHr, form.hrMax],
   );
   const paceZones = useMemo(
     () => (form.vma != null && form.vma > 0 ? computePaceZones(form.vma) : []),
@@ -138,15 +140,14 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
                 onChange={(e) => set("lactateThresholdHr", num(e.target.value))}
                 className="mt-1"
               />
-              <Hint>Facultatif.</Hint>
+              <Hint>Seule entrée des cinq zones cardiaques ci-dessous.</Hint>
             </div>
           </div>
 
           {hrZones.length > 0 ? (
             <div className="mt-4 border-t border-[var(--color-border)] pt-3">
               <p className="text-xs text-[var(--color-muted)]">
-                Zones de Karvonen sur une réserve de{" "}
-                {(form.hrMax ?? 0) - (form.hrRest ?? 0)} bpm :
+                Zones en pourcentage de la FC au seuil ({form.lactateThresholdHr} bpm) :
               </p>
               <ul className="tabular mt-1.5 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
                 {hrZones.map((zone) => (

@@ -18,11 +18,28 @@ import {
   loadZoneDistribution,
 } from "@/lib/metrics/repository.ts";
 import { computeCriticalSpeed } from "@/lib/metrics/prediction.ts";
+import type { InsufficientHistory } from "@/lib/metrics/load.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { today } from "@/lib/time.ts";
 import { formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Aucune recommandation d'entraînement ne sort d'un calcul dont l'historique
+ * est insuffisant : cette fonction met en mots la raison plutôt que de
+ * laisser le chiffre s'afficher quand même.
+ */
+function insufficientHistoryReason(info: InsufficientHistory): string {
+  if (info.activeDaysRequired != null && info.activeDays != null && info.activeDays < info.activeDaysRequired) {
+    return (
+      `historique insuffisant : ${info.activeDays} jour${info.activeDays > 1 ? "s" : ""} actif` +
+      `${info.activeDays > 1 ? "s" : ""} sur ${info.activeDaysRequired} requis dans les ` +
+      `${info.daysRequired} derniers jours`
+    );
+  }
+  return `historique insuffisant : ${info.daysAvailable} jour${info.daysAvailable > 1 ? "s" : ""} sur ${info.daysRequired}`;
+}
 
 const RANGES = [
   { key: "90", label: "3 mois", days: 90 },
@@ -123,7 +140,7 @@ export default async function AnalyticsPage({
             size="lg"
             label="Forme"
             value={current ? <CountUp value={Math.round(current.tsb)} /> : <Unavailable />}
-            hint="condition physique − fatigue"
+            hint="condition physique − fatigue, sur les valeurs exactes — peut différer de ±1 par rapport aux deux chiffres arrondis ci-contre"
             tone={tsbTone}
             estimated
           />
@@ -134,7 +151,13 @@ export default async function AnalyticsPage({
               snapshot.acwr.ratio != null ? (
                 <CountUp value={snapshot.acwr.ratio} decimals={2} />
               ) : (
-                <Unavailable />
+                <Unavailable
+                  reason={
+                    snapshot.acwr.insufficientHistory
+                      ? insufficientHistoryReason(snapshot.acwr.insufficientHistory)
+                      : "Charge chronique nulle sur la période."
+                  }
+                />
               )
             }
             hint={snapshot.acwr.zone.replace("_", " ")}
@@ -217,7 +240,13 @@ export default async function AnalyticsPage({
               snapshot.foster.monotony != null ? (
                 snapshot.foster.monotony.toFixed(2)
               ) : (
-                <Unavailable reason="Toutes les journées portent la même charge : l'écart-type est nul." />
+                <Unavailable
+                  reason={
+                    snapshot.foster.insufficientHistory
+                      ? insufficientHistoryReason(snapshot.foster.insufficientHistory)
+                      : "Toutes les journées portent la même charge : l'écart-type est nul."
+                  }
+                />
               )
             }
             hint="alerte au-delà de 2,0"
@@ -226,7 +255,17 @@ export default async function AnalyticsPage({
           <Stat
             label="Contrainte"
             value={
-              snapshot.foster.strain != null ? Math.round(snapshot.foster.strain) : <Unavailable />
+              snapshot.foster.strain != null ? (
+                Math.round(snapshot.foster.strain)
+              ) : (
+                <Unavailable
+                  reason={
+                    snapshot.foster.insufficientHistory
+                      ? insufficientHistoryReason(snapshot.foster.insufficientHistory)
+                      : undefined
+                  }
+                />
+              )
             }
             hint="charge × monotonie"
           />
@@ -236,7 +275,7 @@ export default async function AnalyticsPage({
       <Card className="mt-4">
         <CardHeader
           title="Répartition par zone de fréquence cardiaque"
-          hint="Zones de Karvonen, calculées sur la réserve cardiaque."
+          hint="En pourcentage de la FC au seuil — la même table que la barre de zone des activités."
         />
         <CardBody>
           {zones ? (
@@ -248,8 +287,8 @@ export default async function AnalyticsPage({
             />
           ) : (
             <p className="text-xs text-[var(--color-muted)]">
-              Zones non calculables : renseigner la fréquence cardiaque maximale et
-              de repos dans le profil.
+              Zones non calculables : renseigner la fréquence cardiaque au seuil dans
+              le profil.
             </p>
           )}
         </CardBody>
