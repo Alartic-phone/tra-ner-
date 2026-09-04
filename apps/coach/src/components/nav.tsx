@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { DUR, EASE } from "@/lib/motion.ts";
+import { APP_NAME } from "@/lib/app-config.ts";
 
 const LINKS = [
   { href: "/", label: "Accueil", mobileLabel: "Accueil", icon: LayoutDashboard },
@@ -56,7 +57,7 @@ export function AppNav() {
   return (
     <>
       <nav className="hidden w-52 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:block">
-        <div className="px-2 pb-4 pt-1 text-sm font-semibold">Coach</div>
+        <div className="px-2 pb-4 pt-1 text-sm font-semibold">{APP_NAME}</div>
         <ul className="space-y-0.5">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);

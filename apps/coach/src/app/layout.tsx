@@ -2,14 +2,14 @@ import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { fontArchivo, fontJetBrainsMono } from "@/lib/fonts.ts";
 import { cn } from "@/lib/utils.ts";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/app-config.ts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Coach",
-  description: "Suivi d'entraînement course à pied, adapté au travail posté",
-  manifest: "/manifest.webmanifest",
-  applicationName: "Coach",
-  appleWebApp: { capable: true, title: "Coach", statusBarStyle: "black-translucent" },
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "black-translucent" },
   // Application strictement privée : aucune indexation.
   robots: { index: false, follow: false },
 };
