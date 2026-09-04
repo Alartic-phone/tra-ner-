@@ -114,6 +114,36 @@ refixés en mieux, sur le même terrain.
 À ce stade, les cinq correctifs des étapes 3.1–3.4 se sont tous retrouvés,
 directement ou par une version plus aboutie d'eux-mêmes, dans le code final.
 
+## Étape 4 — les trois décisions mélangées de `ab69bf2`
+
+Le commit original mélangeait trois décisions sans rapport ; traitées
+séparément, aucune fusionnée telle quelle (`ab69bf2` datait d'avant toute la
+refonte, ses 301 fichiers ne s'appliquaient plus tels quels).
+
+- **4.1 Séparation Alartic** — appliquée. `apps/api`, `apps/web`, `tools/`,
+  `CLAUDE.md`, `README.md`, `package.json`, `package-lock.json`,
+  `.env.example`, `.npmrc`, `.githooks/`, `docker-compose.yml` déménagés
+  sous `alartic/`. `apps/coach/` ne bouge pas (déjà hors des workspaces
+  npm racine). `.forgejo/workflows/ci.yml` et `alartic/package.json`
+  (chemin du hook Git) mis à jour en conséquence. `apps/coach/{CLAUDE.md,
+  README.md}` pointent désormais vers `alartic/CLAUDE.md`.
+- **4.2 Retrait de l'authentification** — appliqué, avec le garde-fou
+  demandé. Exposition réseau vérifiée avant d'agir : `next dev` sans `-H`
+  écoute sur toutes les interfaces (confirmé sur la machine, IP
+  192.168.1.59 — celle vue dans les logs). `dev`/`start` passent
+  maintenant `-H 127.0.0.1` : l'app n'est plus joignable que depuis cette
+  machine. `lib/auth.ts`, `/login` et tous les gardes `isAuthenticated()`
+  supprimés. Le port Docker était déjà borné à 127.0.0.1 ; son healthcheck
+  (qui visait `/login`) corrigé. La section Vercel du README porte un
+  avertissement explicite : sans réintroduire un contrôle d'accès, la
+  déployer expose les données de santé à tout Internet, pas seulement au
+  réseau local.
+- **4.3 Nom de l'app** — décision utilisateur : garder **"Coach"**, pas de
+  renommage "Trainer HUB". Le nom est désormais porté par une constante
+  unique (`lib/app-config.ts`), utilisée par `layout.tsx`, `nav.tsx` et le
+  manifeste PWA (`public/manifest.webmanifest` statique remplacé par
+  `app/manifest.ts`, généré depuis la même constante).
+
 ## Étape 1 — arbitrages actés
 
 - **`worktree-humming-coalescing-valley`** : non fusionnée. Prélèvement
