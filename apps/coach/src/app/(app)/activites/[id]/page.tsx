@@ -158,7 +158,13 @@ export default async function ActivityPage({
         {/* Bandeau de chiffres : hero-xl puis hero-md, défilement horizontal en mobile. */}
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
           <div className="flex min-w-max gap-3 sm:min-w-0 sm:flex-wrap">
-            <HeroStat label="Distance" value={activity.distanceM / 1000} decimals={2} unit="km" size="xl" />
+            <HeroStat
+              label="Distance"
+              value={hasDistance ? activity.distanceM / 1000 : null}
+              decimals={2}
+              unit="km"
+              size="xl"
+            />
             <div className="hero-stat-card relative overflow-hidden rounded-[var(--radius-card)] p-4">
               <div className="text-xs text-[var(--color-muted)]">Temps</div>
               <div className="text-hero-number text-hero-xl mt-1">{formatClock(activity.movingTimeS)}</div>
@@ -166,7 +172,13 @@ export default async function ActivityPage({
             <div className="hero-stat-card relative overflow-hidden rounded-[var(--radius-card)] p-4">
               <div className="text-xs text-[var(--color-muted)]">{isRunActivity ? "Allure" : "Vitesse"}</div>
               <div className="text-hero-number text-hero-xl mt-1">
-                {isRunActivity ? formatPace(paceFromSpeed(activity.avgSpeedMps)) : formatSpeed(activity.avgSpeedMps)}
+                {/* Musculation, rameur… : pas de distance mesurée, une allure
+                    ou vitesse calculée à partir de 0 m n'aurait aucun sens. */}
+                {hasDistance
+                  ? isRunActivity
+                    ? formatPace(paceFromSpeed(activity.avgSpeedMps))
+                    : formatSpeed(activity.avgSpeedMps)
+                  : <Unavailable />}
               </div>
             </div>
             <HeroStat label="FC moyenne" value={activity.avgHr} unit="bpm" size="md" />
