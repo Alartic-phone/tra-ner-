@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db.ts";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { generatePlan as runGeneration, regeneratePlan as runRegeneration } from "@/lib/coach/generate.ts";
 
 const goalSchema = z
@@ -30,7 +29,6 @@ const goalSchema = z
 export type GoalResult = { ok: true; goalId: string } | { ok: false; error: string };
 
 export async function createGoal(input: unknown): Promise<GoalResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = goalSchema.safeParse(input);
   if (!parsed.success) {
@@ -61,14 +59,12 @@ export async function createGoal(input: unknown): Promise<GoalResult> {
 export type GenerateActionResult = { ok: true } | { ok: false; error: string };
 
 export async function generate(goalId: string): Promise<GenerateActionResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
   const result = await runGeneration(goalId);
   revalidatePath("/plan");
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
 export async function regenerate(goalId: string): Promise<GenerateActionResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
   const result = await runRegeneration(goalId);
   revalidatePath("/plan");
   return result.ok ? { ok: true } : { ok: false, error: result.error };

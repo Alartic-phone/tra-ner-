@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "description": "Suivi d'entraînement course à pied — mono-utilisateur, adapté au travail posté",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

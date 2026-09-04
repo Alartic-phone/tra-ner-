@@ -7,7 +7,7 @@ import { getEnv, isCoachConfigured, isStravaConfigured, isWebhookCapable } from 
 import { getSyncStatus } from "@/lib/strava/sync.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { SyncPanel } from "@/components/strava/sync-panel.tsx";
-import { connectStrava, disconnectStrava, logout } from "./actions.ts";
+import { connectStrava, disconnectStrava } from "./actions.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -38,18 +38,11 @@ export default async function SettingsPage({
 
   return (
     <div className="p-4 md:p-6">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Réglages</h1>
-          <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-            Sources de données, cycle de postes et profil.
-          </p>
-        </div>
-        <form action={logout}>
-          <Button variant="ghost" size="sm" type="submit">
-            Se déconnecter
-          </Button>
-        </form>
+      <header>
+        <h1 className="text-lg font-semibold">Réglages</h1>
+        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+          Sources de données, cycle de postes et profil.
+        </p>
       </header>
 
       {message ? (

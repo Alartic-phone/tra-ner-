@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { eachDay, isValidDay } from "@/lib/shifts/day.ts";
 import { clearException, setException } from "@/lib/shifts/repository.ts";
 
@@ -26,7 +25,6 @@ export type ShiftUpdateResult = { ok: true; changed: number } | { ok: false; err
  * récurrence n'est jamais créée.
  */
 export async function updateShifts(input: unknown): Promise<ShiftUpdateResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = payloadSchema.safeParse(input);
   if (!parsed.success) {

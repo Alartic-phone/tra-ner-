@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { prisma } from "@/lib/db.ts";
 
 /**
@@ -16,7 +15,6 @@ export async function saveActivityNote(
   activityId: string,
   notes: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = notesSchema.safeParse(notes);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Note invalide." };
@@ -37,7 +35,6 @@ export async function saveActivityNote(
 export async function toggleLapManual(
   lapId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const lap = await prisma.lap.findUnique({ where: { id: lapId }, select: { activityId: true, isManual: true } });
   if (!lap) return { ok: false, error: "Tour introuvable." };

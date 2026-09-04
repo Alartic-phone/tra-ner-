@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db.ts";
-import { isAuthenticated } from "@/lib/auth.ts";
 
 const optionalNumber = (schema: z.ZodNumber) =>
   z.union([schema, z.null()]).optional().transform((v) => v ?? null);
@@ -37,7 +36,6 @@ export type ProfileResult = { ok: true; message: string } | { ok: false; error: 
  * s'afficher comme si de rien n'était.
  */
 export async function saveProfile(input: unknown): Promise<ProfileResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = profileSchema.safeParse(input);
   if (!parsed.success) {

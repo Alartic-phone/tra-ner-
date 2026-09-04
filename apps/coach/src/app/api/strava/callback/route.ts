@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { safeEqual } from "@/lib/crypto.ts";
 import { exchangeCode } from "@/lib/strava/oauth.ts";
 import { startBackfill } from "@/lib/strava/sync.ts";
@@ -11,10 +10,6 @@ const STATE_COOKIE = "strava_oauth_state";
 
 /** Retour d'autorisation Strava. */
 export async function GET(request: NextRequest) {
-  if (!(await isAuthenticated())) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
   const { searchParams } = request.nextUrl;
   const error = searchParams.get("error");
   if (error) {

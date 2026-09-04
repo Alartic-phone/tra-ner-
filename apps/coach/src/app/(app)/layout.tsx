@@ -1,18 +1,14 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { AppNav } from "@/components/nav.tsx";
 import { PageTransition } from "@/components/ui/page-transition.tsx";
 
 /**
- * Coquille authentifiée. La vérification se fait ici plutôt que dans un
- * middleware : le middleware Next s'exécute par défaut sur le runtime Edge,
- * où `node:crypto` — donc la vérification HMAC du cookie — n'est pas
- * disponible. Un layout serveur fait le même travail sans compromis.
+ * Pas d'authentification : application mono-utilisateur qui n'écoute que
+ * sur 127.0.0.1 (jamais le réseau local), cf. package.json et
+ * apps/coach/README.md. Un mot de passe applicatif n'ajouterait rien face à
+ * un accès qui n'est de toute façon possible que depuis cette machine.
  */
-export default async function AppLayout({ children }: { children: ReactNode }) {
-  if (!(await isAuthenticated())) redirect("/login");
-
+export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh md:flex">
       <AppNav />

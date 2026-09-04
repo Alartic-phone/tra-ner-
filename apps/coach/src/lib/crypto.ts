@@ -1,19 +1,11 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from "node:crypto";
 import { getEnv } from "./env.ts";
 
 /**
- * Chiffrement des secrets stockés en base (jetons Strava) et signature du
- * cookie de session.
+ * Chiffrement des secrets stockés en base (jetons Strava).
  *
  * Uniquement des primitives de `node:crypto` : AES-256-GCM pour le
- * chiffrement authentifié, HMAC-SHA-256 pour la signature. Aucune
- * construction cryptographique maison.
+ * chiffrement authentifié. Aucune construction cryptographique maison.
  */
 
 function key(): Buffer {
@@ -40,10 +32,6 @@ export function decrypt(payload: string): string {
   const decipher = createDecipheriv("aes-256-gcm", key(), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
-}
-
-export function sign(value: string): string {
-  return createHmac("sha256", key()).update(value).digest("base64url");
 }
 
 /** Comparaison à temps constant, pour ne rien fuiter par le temps de réponse. */

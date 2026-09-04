@@ -1,6 +1,5 @@
 "use server";
 
-import { isAuthenticated } from "@/lib/auth.ts";
 import { buildExportFile, type ExportFormat } from "@/lib/export/build.ts";
 import type { ExportScope } from "@/lib/export/gather.ts";
 
@@ -22,7 +21,6 @@ export async function previewExport(input: {
   from?: string;
   to?: string;
 }): Promise<ExportPreview> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const result = await buildExportFile({
     scope: input.scope,

@@ -27,7 +27,7 @@ planning rend inutilisables les plans calés sur une semaine de bureau.
 
 | Phase | Contenu | État |
 |---|---|---|
-| 1 | Socle : Next.js, Prisma, schéma complet, protection par mot de passe, layout | **fait** |
+| 1 | Socle : Next.js, Prisma, schéma complet, layout | **fait** |
 | 2 | Cycle de postes, calendrier, exceptions, contraintes d'entraînement | **fait** |
 | 3 | Strava : OAuth, import historique, synchronisation, activités | **fait** |
 | 4 | Moteur de calcul (TRIMP, CTL/ATL/TSB, zones, découplage, prédiction) + page Analyses | **fait** |
@@ -72,20 +72,22 @@ openssl rand -hex 32   # -> ENCRYPTION_KEY
 openssl rand -hex 16   # -> STRAVA_WEBHOOK_VERIFY_TOKEN (si URL publique)
 openssl rand -hex 16   # -> CRON_SECRET (si docker compose)
 
-# 4. Choisir un mot de passe d'accès -> APP_PASSWORD (8 caractères minimum)
-
-# 5. Créer la base et le client Prisma
+# 4. Créer la base et le client Prisma
 npx prisma migrate dev --name init
 
-# 6. Amorcer le cycle de postes et le profil
+# 5. Amorcer le cycle de postes et le profil
 npm run db:seed
 
-# 7. Lancer
+# 6. Lancer
 npm run dev
 ```
 
-L'application écoute sur <http://localhost:3000>. Le mot de passe demandé est
-celui d'`APP_PASSWORD`.
+L'application écoute sur <http://127.0.0.1:3000> — sur cette machine
+uniquement, jamais le réseau local (`npm run dev`/`start` passent `-H
+127.0.0.1` à Next.js). Aucune authentification : app mono-utilisateur, le
+seul rempart est de ne jamais l'exposer au-delà de cette machine. Pour
+l'exposer malgré tout (déploiement Docker), passer par un reverse proxy
+avec TLS — voir [Déploiement](#déploiement).
 
 ### Scripts
 
@@ -390,7 +392,7 @@ Automatiser, par exemple chaque nuit :
 ### Docker Compose (par défaut)
 
 ```bash
-cp .env.example .env   # compléter APP_PASSWORD, ENCRYPTION_KEY, CRON_SECRET
+cp .env.example .env   # compléter ENCRYPTION_KEY, CRON_SECRET
 docker compose up -d
 ```
 
@@ -402,6 +404,16 @@ est inutile si un webhook est configuré.
 
 ### Vercel + base distante
 
+> **⚠️ Incompatible tel quel avec l'absence d'authentification.** L'app n'a
+> plus aucune protection d'accès (étape 4.2 de la consolidation, jamais
+> exposée que sur `127.0.0.1` en usage normal). La déployer sur Vercel la
+> rendrait joignable par n'importe qui sur Internet, sans rien à saisir,
+> avec des données de santé personnelles à la clé. Ne pas utiliser cette
+> section sans réintroduire un contrôle d'accès en amont (protection par
+> mot de passe native de Vercel, IP allowlist, VPN, ou remettre un
+> `lib/auth.ts` équivalent) — cette section documente la mécanique de
+> déploiement, pas une configuration prête à exposer publiquement.
+
 Le code ne connaît que `DATABASE_URL` : aucun aménagement particulier n'est
 nécessaire.
 
@@ -411,8 +423,8 @@ nécessaire.
    l'adaptateur `@prisma/adapter-libsql` — la variante Postgres reste plus
    simple, et c'est celle recommandée ici.
 3. Sur Vercel, déclarer les variables d'environnement de `.env.example`
-   (`DATABASE_URL`, `APP_PASSWORD`, `ENCRYPTION_KEY`, `PUBLIC_URL`, les clés
-   Strava et Anthropic).
+   (`DATABASE_URL`, `ENCRYPTION_KEY`, `PUBLIC_URL`, les clés Strava et
+   Anthropic) — et le contrôle d'accès mentionné ci-dessus.
 4. `PUBLIC_URL` = l'URL de production : le webhook Strava devient utilisable,
    ce qui rend le cron inutile.
 5. Déployer. Les migrations s'appliquent avec

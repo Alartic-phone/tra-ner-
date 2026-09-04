@@ -4,7 +4,6 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { isAuthenticated, destroySession } from "@/lib/auth.ts";
 import { getEnv, isStravaConfigured } from "@/lib/env.ts";
 import { buildAuthorizeUrl, disconnect } from "@/lib/strava/oauth.ts";
 import {
@@ -18,7 +17,6 @@ const STATE_COOKIE = "strava_oauth_state";
 
 /** Redirige vers l'écran de consentement Strava. */
 export async function connectStrava(): Promise<void> {
-  if (!(await isAuthenticated())) redirect("/login");
   if (!isStravaConfigured()) redirect("/reglages?strava=non_configure");
 
   const env = getEnv();
@@ -37,7 +35,6 @@ export async function connectStrava(): Promise<void> {
 }
 
 export async function disconnectStrava(): Promise<void> {
-  if (!(await isAuthenticated())) redirect("/login");
   await disconnect();
   revalidatePath("/reglages");
 }
@@ -47,8 +44,6 @@ export type SyncResult =
   | { ok: false; error: string };
 
 export async function syncNow(): Promise<SyncResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
-
   await enqueueIncrementalSync();
   const report = await runSyncWorker({ maxJobs: 40, budgetMs: 25_000 });
   revalidatePath("/reglages");
@@ -59,14 +54,8 @@ export async function syncNow(): Promise<SyncResult> {
 
 /** Relance l'import complet de l'historique. */
 export async function resumeBackfill(): Promise<SyncResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
   await startBackfill();
   const report = await runSyncWorker({ maxJobs: 40, budgetMs: 25_000 });
   revalidatePath("/reglages");
   return { ok: true, report };
-}
-
-export async function logout(): Promise<void> {
-  await destroySession();
-  redirect("/login");
 }

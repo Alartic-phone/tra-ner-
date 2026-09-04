@@ -15,19 +15,13 @@ const schema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL est requis"),
 
-  /** Mot de passe unique d'accès. Aucun compte, aucune inscription. */
-  APP_PASSWORD: z.string().min(8, "APP_PASSWORD doit faire au moins 8 caractères"),
-
   /**
-   * Clé de signature du cookie de session ET de chiffrement des jetons
-   * stockés en base. 32 octets en hexadécimal : `openssl rand -hex 32`.
+   * Clé de chiffrement des jetons Strava stockés en base. 32 octets en
+   * hexadécimal : `openssl rand -hex 32`.
    */
   ENCRYPTION_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "ENCRYPTION_KEY doit faire 64 caractères hexadécimaux"),
-
-  /** Durée de validité du cookie de session, en jours. */
-  SESSION_DAYS: z.coerce.number().int().positive().default(30),
 
   /**
    * URL publique de l'application. Renseignée = webhook Strava possible
@@ -41,9 +35,10 @@ const schema = z.object({
   STRAVA_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 
   /**
-   * Secret partagé permettant à une tâche planifiée de déclencher la
-   * synchronisation sans session. Absent = seul un utilisateur connecté peut
-   * la déclencher.
+   * Secret partagé permettant à un appelant externe (cron distant, reverse
+   * proxy) de déclencher la synchronisation via /api/strava/sync. Absent =
+   * cette route reste inaccessible ; le bouton « Synchroniser » de
+   * l'interface ne dépend pas de ce secret (server action directe).
    */
   CRON_SECRET: z.string().min(16).optional(),
 

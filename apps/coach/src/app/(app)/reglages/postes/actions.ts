@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db.ts";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { isValidDay } from "@/lib/shifts/day.ts";
 import { cycleLength, validateCycle } from "@/lib/shifts/cycle.ts";
 import { shiftBlocksSchema } from "@/lib/shifts/repository.ts";
@@ -18,7 +17,6 @@ const cycleSchema = z.object({
 
 /** Enregistre la définition du cycle. La séquence n'est jamais figée en code. */
 export async function saveCycle(input: unknown): Promise<ActionResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = cycleSchema.safeParse(input);
   if (!parsed.success) {
@@ -66,7 +64,6 @@ const timingsSchema = z.array(
 );
 
 export async function saveTimings(input: unknown): Promise<ActionResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = timingsSchema.safeParse(input);
   if (!parsed.success) {
@@ -95,7 +92,6 @@ export async function saveTimings(input: unknown): Promise<ActionResult> {
 }
 
 export async function saveRules(input: unknown): Promise<ActionResult> {
-  if (!(await isAuthenticated())) return { ok: false, error: "Session expirée." };
 
   const parsed = availabilityRulesSchema.safeParse(input);
   if (!parsed.success) {

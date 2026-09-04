@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { buildExportFile, type ExportFormat } from "@/lib/export/build.ts";
 import type { ExportScope } from "@/lib/export/gather.ts";
 
@@ -16,10 +15,6 @@ const DETAILS = ["aucune", "plus_45min", "toutes"] as const;
  * téléchargement de /analyses/export.
  */
 export async function GET(request: NextRequest) {
-  if (!(await isAuthenticated())) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
   const url = new URL(request.url);
   const scope = url.searchParams.get("scope") as ExportScope | null;
   const format = url.searchParams.get("format") as ExportFormat | null;

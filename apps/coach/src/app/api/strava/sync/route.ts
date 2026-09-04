@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthenticated } from "@/lib/auth.ts";
 import { getEnv } from "@/lib/env.ts";
 import { safeEqual } from "@/lib/crypto.ts";
 import { enqueueIncrementalSync, getSyncStatus, runSyncWorker } from "@/lib/strava/sync.ts";
@@ -7,24 +6,23 @@ import { enqueueIncrementalSync, getSyncStatus, runSyncWorker } from "@/lib/stra
 export const dynamic = "force-dynamic";
 
 /**
- * Autorise soit une session utilisateur, soit une tâche planifiée porteuse du
- * secret partagé — c'est ce second chemin qu'emprunte le cron quotidien
- * lorsque l'application n'a pas d'URL publique et ne reçoit donc aucun
- * webhook Strava.
+ * Autorise une tâche planifiée porteuse du secret partagé — c'est ce chemin
+ * qu'emprunte le cron quotidien lorsque l'application n'a pas d'URL publique
+ * et ne reçoit donc aucun webhook Strava. Le bouton « Synchroniser » de
+ * l'interface passe par le server action `syncNow`, pas par cette route.
  */
-async function authorize(request: NextRequest): Promise<boolean> {
-  if (await isAuthenticated()) return true;
+function authorize(request: NextRequest): boolean {
   const secret = getEnv().CRON_SECRET;
   const provided = request.headers.get("x-cron-secret");
   return Boolean(secret && provided && safeEqual(provided, secret));
 }
 
 /**
- * Déclenchement manuel de la synchronisation, et dépilage de la file.
- * Appelé par le bouton « Synchroniser » et par le script de cron quotidien.
+ * Déclenchement de la synchronisation et dépilage de la file, pour un
+ * appelant externe porteur du secret partagé (reverse proxy, cron distant).
  */
 export async function POST(request: NextRequest) {
-  if (!(await authorize(request))) {
+  if (!authorize(request)) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
@@ -41,7 +39,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!(await authorize(request))) {
+  if (!authorize(request)) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
   const status = await getSyncStatus();
