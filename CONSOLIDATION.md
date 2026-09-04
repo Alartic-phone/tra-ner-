@@ -97,9 +97,22 @@ correctif fusionné)** : `nav.tsx` importait `TRANSITION` depuis
 compilation latente, corrigée (remplacé par `{ duration: DUR.base, ease:
 EASE.out }`).
 
-## Étape 3.4 — `worktree-nifty-weaving-hanrahan`
+## Étape 3.4 — `worktree-nifty-weaving-hanrahan` (5 commits)
 
-*(à venir)*
+Branche la plus ancienne (30/08) : plusieurs de ses correctifs ciblaient
+des bugs que des fusions ultérieures (coach-fixes, c68c8c3) ont depuis
+refixés en mieux, sur le même terrain.
+
+| Hash | Intitulé | Sort |
+|---|---|---|
+| `7e84b39` | CountUp affiche la vraie valeur au rendu | **Déjà couvert**. Même bug, même correction (SSR jamais à 0), déjà en place depuis la fusion de coach-fixes. |
+| `e2881e5` | Volume "semaine" limité aux activités de course | **Déjà couvert**. `page.tsx` sépare déjà course/vélo (`runKmByDay` filtré par `isRun`, `weekRideKm` via `computeSportVolume`) depuis la fusion du tronc + 53ce4ab. |
+| `eb66fa8` | Ne pas arrondir le précédent record | **Déjà couvert**. `record-progress-bar.tsx` (que ce correctif touchait) est supprimé, remplacé par `record-staircase.tsx` qui a déjà `decimals=2`. |
+| `a906abe` | Fraîcheur retombe sur la dernière mesure disponible | **Déjà couvert, par une version supérieure**. `selectMostRecentAvailableDay` (recherche naïve sur `maxStalenessDays`, pas de recalcul de baseline) est une ébauche du même problème que `findLatestReadinessMeasurement` (9615ba9, déjà en place) résout plus complètement : baseline sur échantillons réellement disponibles plutôt qu'une fenêtre calendaire fixe. Fonction + 5 tests dédiés retirés (redondants, testent une fonction qui n'existe plus). |
+| `34c2f5f` | Exclut les "meilleurs efforts" à une allure non plausible | **Réappliqué, fusion automatique sans conflit**. Correctif net et non redondant : `best-efforts.ts` rejette désormais toute référence plus lente que 12 min/km (`MAX_PLAUSIBLE_PACE_S_PER_KM`) avant qu'elle ne pollue Riegel/VDOT — complète 93daa39 (qui filtre les modèles en sortie) en filtrant la donnée source en amont. |
+
+À ce stade, les cinq correctifs des étapes 3.1–3.4 se sont tous retrouvés,
+directement ou par une version plus aboutie d'eux-mêmes, dans le code final.
 
 ## Étape 1 — arbitrages actés
 
