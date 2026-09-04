@@ -1,4 +1,5 @@
 import type { ExportData } from "./schema.ts";
+import { formatTimeRange } from "../utils.ts";
 
 /**
  * Rendu Markdown déterministe : mêmes données -> même fichier au caractère
@@ -19,7 +20,7 @@ function fmtPaceSPerKm(v: number | null): string {
   const s = total % 60;
   return `${m}'${String(s).padStart(2, "0")}"/km`;
 }
-function fmtClock(seconds: number | null): string {
+function fmtClock(seconds: number | null | undefined): string {
   if (seconds == null) return NA;
   const s = Math.round(seconds);
   const h = Math.floor(s / 3600);
@@ -284,7 +285,10 @@ function section8Plan(d: ExportData): string {
   const lines = ["## 8. Plan", ""];
   lines.push(
     d.plan.goal
-      ? `- Objectif : ${d.plan.goal.name}, le ${d.plan.goal.day}, ${(d.plan.goal.distanceM / 1000).toFixed(1)} km${d.plan.goal.targetTimeS != null ? `, chrono visé ${fmtClock(d.plan.goal.targetTimeS)}` : ""}`
+      ? (() => {
+          const range = formatTimeRange(d.plan.goal.targetTimeMinS, d.plan.goal.targetTimeMaxS, fmtClock);
+          return `- Objectif : ${d.plan.goal.name}, le ${d.plan.goal.day}, ${(d.plan.goal.distanceM / 1000).toFixed(1)} km${range ? `, chrono visé ${range}` : ""}`;
+        })()
       : "- Aucun objectif actif.",
   );
   lines.push("", "### Séances planifiées", "");

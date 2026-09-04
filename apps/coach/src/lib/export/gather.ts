@@ -58,9 +58,10 @@ export async function gatherExportData(options: ExportOptions): Promise<ExportDa
       loadPaceZones(),
     ]);
 
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : null;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : null;
 
   // -- Profil ---------------------------------------------------------------
   const profile: ExportData["profile"] = {
@@ -235,7 +236,13 @@ export async function gatherExportData(options: ExportOptions): Promise<ExportDa
   // -- Plan ------------------------------------------------------------------
   const plan: ExportData["plan"] = {
     goal: nextGoal
-      ? { name: nextGoal.name, day: nextGoal.day, distanceM: nextGoal.distanceM, targetTimeS: nextGoal.targetTimeS }
+      ? {
+          name: nextGoal.name,
+          day: nextGoal.day,
+          distanceM: nextGoal.distanceM,
+          targetTimeMinS: nextGoal.targetTimeMinS,
+          targetTimeMaxS: nextGoal.targetTimeMaxS,
+        }
       : null,
     workouts: plannedWorkouts.map((w) => ({
       day: w.day,

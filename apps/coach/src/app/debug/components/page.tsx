@@ -49,7 +49,8 @@ export default async function ComponentsDebugPage() {
   const moment = momentForContext({ shiftCode: null, isWorking: false, hour: new Date().getHours() });
   const photo = pickPhoto(day, moment, manifest);
 
-  const sampleZones = computeHeartRateZones(185, 48);
+  // Échantillon aligné sur l'exemple canonique de zones.ts (seuil 175 bpm).
+  const sampleZones = computeHeartRateZones(175, 190);
   const sampleSecondsByZone = [420, 1560, 720, 240, 60];
 
   const tracePath = buildTracePath(syntheticLoop(45.75, 4.85, 0));

@@ -132,7 +132,15 @@ export const exportRecordSchema = z.object({
 });
 
 export const exportPlanSchema = z.object({
-  goal: z.object({ name: z.string(), day: dayString, distanceM: z.number(), targetTimeS: z.number().nullable() }).nullable(),
+  goal: z
+    .object({
+      name: z.string(),
+      day: dayString,
+      distanceM: z.number(),
+      targetTimeMinS: z.number().nullable(),
+      targetTimeMaxS: z.number().nullable(),
+    })
+    .nullable(),
   workouts: z.array(
     z.object({
       day: dayString,

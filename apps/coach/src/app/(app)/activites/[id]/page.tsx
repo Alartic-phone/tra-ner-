@@ -69,9 +69,10 @@ export default async function ActivityPage({
     activity.type,
     toLocalHour(activity.startedAt),
   );
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : null;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : null;
   const secondsByZone = zonesByActivity.get(activity.id) ?? null;
 
   const shiftOfDay = shifts.byDay.get(activity.startDay);

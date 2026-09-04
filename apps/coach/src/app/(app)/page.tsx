@@ -119,9 +119,10 @@ export default async function HomePage() {
     lastActivity ? loadZoneSecondsByActivity([lastActivity.id]) : Promise.resolve(new Map()),
     lastActivity ? getTracePath(lastActivity.id) : Promise.resolve(null),
   ]);
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : undefined;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : undefined;
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 p-4 md:space-y-6 md:p-6">

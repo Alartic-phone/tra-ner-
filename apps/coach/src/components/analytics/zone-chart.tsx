@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDuration } from "@/lib/utils.ts";
+import { distributePercentages, formatDuration } from "@/lib/utils.ts";
 
 export type ZoneRow = {
   index: number;
@@ -19,6 +19,9 @@ export const ZONE_RAMP = [
   "var(--zone-5)",
 ];
 
+/** Couleur neutre de la ligne « sous Z1 » — en dessous de l'échelle des zones. */
+const BELOW_ZONE_1_COLOR = "var(--color-border-strong)";
+
 /**
  * Répartition du temps par zone de fréquence cardiaque.
  *
@@ -27,9 +30,15 @@ export const ZONE_RAMP = [
  * est à teinte unique et ordonnée — les zones forment une échelle d'intensité,
  * pas des catégories indépendantes, et un arc-en-ciel suggérerait le contraire.
  *
- * Le temps sans mesure cardiaque n'est PAS réparti au prorata : il est compté
- * à part. Le diluer dans les zones fabriquerait une polarisation qui n'a pas
- * été mesurée.
+ * Le temps sous la zone 1 (marche, récupération entre fractions) est une
+ * ligne à part entière de la répartition, pas une note en bas de page : sinon
+ * il disparaît du total sans que ça se voie. Le temps sans mesure cardiaque,
+ * lui, reste hors répartition — il n'a pas été classé, pas seulement classé
+ * en bas d'échelle, et le diluer fabriquerait une polarisation non mesurée.
+ *
+ * Les pourcentages sont répartis par la méthode du plus grand reste
+ * (`distributePercentages`) : arrondir chaque part indépendamment ne somme à
+ * 100 que par coïncidence.
  */
 export function ZoneChart({
   zones,
@@ -42,8 +51,28 @@ export function ZoneChart({
   belowZone1Seconds: number;
   activitiesWithoutHr: number;
 }) {
-  const measured = zones.reduce((sum, z) => sum + z.seconds, 0);
-  const max = Math.max(1, ...zones.map((z) => z.seconds));
+  const rows = [
+    ...(belowZone1Seconds > 0
+      ? [
+          {
+            key: "below",
+            label: "Sous Z1",
+            range: null as string | null,
+            seconds: belowZone1Seconds,
+            color: BELOW_ZONE_1_COLOR,
+          },
+        ]
+      : []),
+    ...zones.map((zone) => ({
+      key: String(zone.index),
+      label: `Z${zone.index} · ${zone.name}`,
+      range: `${zone.fromBpm}–${zone.toBpm}`,
+      seconds: zone.seconds,
+      color: ZONE_RAMP[zone.index - 1]!,
+    })),
+  ];
+
+  const measured = rows.reduce((sum, r) => sum + r.seconds, 0);
 
   if (measured === 0) {
     return (
@@ -53,49 +82,54 @@ export function ZoneChart({
     );
   }
 
-  const lowIntensity = zones
-    .filter((z) => z.index <= 2)
-    .reduce((sum, z) => sum + z.seconds, 0);
+  const max = Math.max(1, ...rows.map((r) => r.seconds));
+  const percentages = distributePercentages(rows.map((r) => r.seconds));
+
+  const lowIntensity =
+    belowZone1Seconds + zones.filter((z) => z.index <= 2).reduce((sum, z) => sum + z.seconds, 0);
   const polarisation = Math.round((lowIntensity / measured) * 100);
 
   return (
     <div>
       <ul className="space-y-2">
-        {zones.map((zone) => {
-          const share = (zone.seconds / measured) * 100;
-          return (
-            <li key={zone.index} className="flex items-center gap-3">
-              <span className="w-40 shrink-0 text-xs">
-                <span className="text-[var(--color-text)]">
-                  Z{zone.index} · {zone.name}
-                </span>
-                <span className="tabular ml-1 text-[var(--color-faint)]">
-                  {zone.fromBpm}–{zone.toBpm}
-                </span>
-              </span>
-              <span className="h-4 min-w-0 flex-1 rounded-[var(--radius-pill)] bg-[var(--color-surface-2)]">
-                <span
-                  className="block h-4 rounded-[var(--radius-pill)] transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"
-                  style={{
-                    width: `${(zone.seconds / max) * 100}%`,
-                    backgroundColor: ZONE_RAMP[zone.index - 1],
-                  }}
-                />
-              </span>
-              <span className="tabular w-28 shrink-0 text-right text-xs text-[var(--color-muted)]">
-                {formatDuration(zone.seconds)}
-                <span className="ml-1.5 text-[var(--color-faint)]">
-                  {share.toFixed(0)} %
-                </span>
-              </span>
-            </li>
-          );
-        })}
+        {rows.map((row, i) => (
+          <li key={row.key} className="flex items-center gap-3">
+            <span className="w-40 shrink-0 text-xs">
+              <span className="text-[var(--color-text)]">{row.label}</span>
+              {row.range ? (
+                <span className="tabular ml-1 text-[var(--color-faint)]">{row.range}</span>
+              ) : null}
+            </span>
+            <span className="h-4 min-w-0 flex-1 rounded-[var(--radius-pill)] bg-[var(--color-surface-2)]">
+              <span
+                className="block h-4 rounded-[var(--radius-pill)] transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"
+                style={{
+                  width: `${(row.seconds / max) * 100}%`,
+                  backgroundColor: row.color,
+                }}
+              />
+            </span>
+            <span className="tabular w-28 shrink-0 text-right text-xs text-[var(--color-muted)]">
+              {formatDuration(row.seconds)}
+              <span className="ml-1.5 text-[var(--color-faint)]">{percentages[i]} %</span>
+            </span>
+          </li>
+        ))}
       </ul>
 
       <div className="mt-4 border-t border-[var(--color-border)] pt-3 text-xs">
         <p className="text-[var(--color-muted)]">
-          Basse intensité (Z1-Z2) :{" "}
+          Total mesuré :{" "}
+          <span className="tabular font-medium text-[var(--color-text)]">
+            {formatDuration(measured)}
+          </span>{" "}
+          — calculé sur les secondes exactes, pas sur la somme des durées
+          arrondies ci-dessus : un écart de une ou deux minutes entre les deux
+          est un artefact d&apos;arrondi par ligne, pas une donnée perdue.
+        </p>
+
+        <p className="mt-1 text-[var(--color-muted)]">
+          Basse intensité (sous Z1 et Z1-Z2) :{" "}
           <span
             className="tabular font-medium"
             style={{
@@ -110,13 +144,6 @@ export function ZoneChart({
             L&apos;entraînement polarisé vise environ 80 %.
           </span>
         </p>
-
-        {belowZone1Seconds > 0 ? (
-          <p className="mt-1 text-[var(--color-faint)]">
-            {formatDuration(belowZone1Seconds)} sous la zone 1 (échauffement,
-            marche, récupération entre fractions) — exclus du calcul ci-dessus.
-          </p>
-        ) : null}
 
         {unmeasuredSeconds > 0 || activitiesWithoutHr > 0 ? (
           <p className="mt-1 text-[var(--color-warn)]">

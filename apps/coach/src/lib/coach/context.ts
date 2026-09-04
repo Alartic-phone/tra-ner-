@@ -133,9 +133,10 @@ export async function buildCoachContext(goalId: string): Promise<CoachContext> {
     dataCompleteness.push(...profileStatus.missing.map((m) => `Profil : ${m} non disponible.`));
   }
 
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : null;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : null;
   const paceZones = profileStatus.vmaKmh ? computePaceZones(profileStatus.vmaKmh) : null;
   if (!paceZones) dataCompleteness.push("VMA non renseignée : zones d'allure non disponibles.");
 
@@ -159,7 +160,13 @@ export async function buildCoachContext(goalId: string): Promise<CoachContext> {
     );
     const series = computeFitnessSeries(loads);
     const current = series[series.length - 1] ?? null;
-    const acwr = computeAcwr(loads, now);
+    // Première activité connue dans la fenêtre d'amorçage : sert à distinguer
+    // un vrai jour de repos d'un jour antérieur au suivi (cf. computeAcwr).
+    const historyStartDay = activities.reduce<Day | null>(
+      (min, a) => (min == null || a.startDay < min ? a.startDay : min),
+      null,
+    );
+    const acwr = computeAcwr(loads, now, { historyStartDay });
     if (current) {
       fitness = {
         ctl: current.ctl,

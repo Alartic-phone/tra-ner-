@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   banisterWeight,
@@ -63,6 +66,7 @@ import { computeSportVolume } from "./volume.ts";
 import { longestRunProgression } from "./records.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
 
@@ -206,6 +210,39 @@ describe("CTL, ATL et TSB", () => {
     expect(series[0]!.ctl).toBeCloseTo(1, 6);
     expect(series[0]!.atl).toBeCloseTo(6, 6);
   });
+
+  it("calcule la forme sur les valeurs brutes de CTL/ATL, jamais sur des valeurs déjà arrondies", () => {
+    const series = computeFitnessSeries(constantLoad(35, 63));
+    for (const p of series) {
+      // L'égalité doit être exacte (mêmes flottants), pas seulement proche :
+      // toute réécriture qui arrondirait ctl/atl avant de les soustraire
+      // ferait échouer ce test.
+      expect(p.tsb).toBe(p.ctl - p.atl);
+    }
+  });
+
+  it("cas concret du rapport de bug : Condition physique 1, Fatigue 9, Forme −7 (pas −8)", () => {
+    // initialCtl et initialAtl choisis pour qu'un jour de repos (charge 0)
+    // les ramène exactement à 1,3 et 8,6 après un pas de décroissance :
+    //   ctl' = initialCtl × 41/42 = 1,3  ⇒  initialCtl = 1,3 × 42/41
+    //   atl' = initialAtl × 6/7   = 8,6  ⇒  initialAtl = 8,6 × 7/6
+    const series = computeFitnessSeries([{ day: "2026-01-01", load: 0 }], {
+      initialCtl: (1.3 * 42) / 41,
+      initialAtl: (8.6 * 7) / 6,
+    });
+    const point = series[0]!;
+    expect(point.ctl).toBeCloseTo(1.3, 6);
+    expect(point.atl).toBeCloseTo(8.6, 6);
+    expect(Math.round(point.ctl)).toBe(1);
+    expect(Math.round(point.atl)).toBe(9);
+
+    // 1 − 9 = −8, mais la forme affichée est −7 : elle vient de la
+    // soustraction des valeurs BRUTES (1,3 − 8,6 = −7,3, qui arrondit à
+    // −7), pas de la soustraction des valeurs déjà arrondies à l'écran.
+    // C'est le comportement attendu, pas une régression à corriger.
+    expect(Math.round(point.tsb)).toBe(-7);
+    expect(Math.round(point.tsb)).not.toBe(Math.round(point.ctl) - Math.round(point.atl));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +305,50 @@ describe("ratio aigu/chronique", () => {
     expect(current.ctl).toBeGreaterThan(20);
     expect(acwr.ratio).not.toBeNull();
     expect(acwr.ratio).toBeGreaterThan(0);
+  });
+
+  it("ne calcule pas de ratio à partir d'une seule activité (garde-fou d'historique)", () => {
+    // Une unique séance il y a 3 jours : sans le garde-fou, le ratio
+    // aigu/chronique exploserait (chronique quasi nulle). Avec le garde-fou,
+    // il n'est simplement pas calculé.
+    const loads = toDailyLoads([{ day: "2026-01-25", load: 80 }], "2026-01-01", "2026-01-28");
+    const acwr = computeAcwr(loads, "2026-01-28", { historyStartDay: "2026-01-25" });
+    expect(acwr.ratio).toBeNull();
+    expect(acwr.zone).toBe("indeterminee");
+    expect(acwr.insufficientHistory).not.toBeNull();
+    expect(acwr.insufficientHistory!.daysAvailable).toBe(4);
+    expect(acwr.insufficientHistory!.daysRequired).toBe(28);
+  });
+
+  it("refuse le ratio sous 28 jours calendaires même avec beaucoup de séances", () => {
+    // 20 jours de calendrier avec une activité chaque jour : la fenêtre
+    // chronique n'est pas encore pleine, quel que soit le nombre de séances.
+    const loads = uniform(50).slice(0, 20);
+    const acwr = computeAcwr(loads, "2026-01-20", { historyStartDay: "2026-01-01" });
+    expect(acwr.ratio).toBeNull();
+    expect(acwr.insufficientHistory!.daysAvailable).toBe(20);
+  });
+
+  it("refuse le ratio sous 8 jours actifs même avec 28 jours de calendrier", () => {
+    // 28 jours d'historique mais une seule séance dedans : le calendrier est
+    // là, l'activité réelle ne l'est pas.
+    const loads = toDailyLoads([{ day: "2026-01-05", load: 80 }], "2026-01-01", "2026-01-28");
+    const acwr = computeAcwr(loads, "2026-01-28", { historyStartDay: "2026-01-01" });
+    expect(acwr.ratio).toBeNull();
+    expect(acwr.insufficientHistory!.activeDays).toBe(1);
+    expect(acwr.insufficientHistory!.activeDaysRequired).toBe(8);
+  });
+
+  it("calcule normalement le ratio dès que l'historique et l'activité suffisent", () => {
+    const acwr = computeAcwr(uniform(50), "2026-01-28", { historyStartDay: "2026-01-01" });
+    expect(acwr.ratio).toBeCloseTo(1, 6);
+    expect(acwr.insufficientHistory).toBeNull();
+  });
+
+  it("désactive le garde-fou quand historyStartDay n'est pas fourni (compatibilité des tests unitaires ci-dessus)", () => {
+    const loads = toDailyLoads([{ day: "2026-01-25", load: 80 }], "2026-01-01", "2026-01-28");
+    const acwr = computeAcwr(loads, "2026-01-28");
+    expect(acwr.insufficientHistory).toBeNull();
   });
 });
 
@@ -348,6 +429,35 @@ describe("monotonie et contrainte de Foster", () => {
     expect(withRest.weeklyLoad).toBe(100);
     expect(withRest.monotony).toBeLessThan(0.5);
   });
+
+  it("ne calcule ni monotonie ni contrainte sous 7 jours d'historique réel", () => {
+    // Une seule séance il y a 2 jours : sans garde-fou, les jours qui la
+    // précèdent (avant même le début du suivi) sont zéro-remplis et
+    // produisent une monotonie et une contrainte d'apparence plausible.
+    const loads = week([0, 0, 0, 0, 0, 80, 0]);
+    const foster = computeFoster(loads, "2026-01-07", 7, { historyStartDay: "2026-01-06" });
+    expect(foster.monotony).toBeNull();
+    expect(foster.strain).toBeNull();
+    expect(foster.monotonyWarning).toBe(false);
+    expect(foster.insufficientHistory).not.toBeNull();
+    expect(foster.insufficientHistory!.daysAvailable).toBe(2);
+    expect(foster.insufficientHistory!.daysRequired).toBe(7);
+  });
+
+  it("calcule normalement dès que 7 jours d'historique réel sont couverts", () => {
+    const foster = computeFoster(week([70, 0, 70, 0, 70, 0, 70]), "2026-01-07", 7, {
+      historyStartDay: "2026-01-01",
+    });
+    expect(foster.monotony).not.toBeNull();
+    expect(foster.insufficientHistory).toBeNull();
+  });
+
+  it("désactive le garde-fou quand historyStartDay n'est pas fourni", () => {
+    const loads = week([0, 0, 0, 0, 0, 80, 0]);
+    const foster = computeFoster(loads, "2026-01-07");
+    expect(foster.insufficientHistory).toBeNull();
+    expect(foster.monotony).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -374,40 +484,51 @@ describe("agrégation des charges quotidiennes", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("zones de fréquence cardiaque (Karvonen)", () => {
-  const zones = computeHeartRateZones(190, 50);
+describe("zones de fréquence cardiaque (% de la FC au seuil)", () => {
+  // FC seuil de référence utilisée dans le rapport de bug : 175 bpm, testée
+  // le 29/08/2026. Les bornes attendues sont celles de la montre et du plan
+  // de l'utilisateur : Z1 <140, Z2 140-158, Z3 159-166, Z4 167-179, Z5 180+.
+  const zones = computeHeartRateZones(175);
 
-  it("produit cinq zones sur la réserve cardiaque", () => {
+  it("produit cinq zones en pourcentage du SEUIL, pas de la réserve cardiaque", () => {
     expect(zones).toHaveLength(5);
-    // Réserve = 140. Zone 2 : 50 + 0,6×140 = 134 à 50 + 0,7×140 = 148.
-    expect(zones[1]!.fromBpm).toBe(134);
-    expect(zones[1]!.toBpm).toBe(148);
-    // Zone 4 : 162 à 176.
-    expect(zones[3]!.fromBpm).toBe(162);
-    expect(zones[3]!.toBpm).toBe(176);
-    expect(zones[4]!.toBpm).toBe(190);
+    expect(zones[0]!.toBpm).toBe(140);
+    expect(zones[1]!.fromBpm).toBe(140);
+    expect(zones[1]!.toBpm).toBe(158);
+    expect(zones[2]!.fromBpm).toBe(158);
+    expect(zones[2]!.toBpm).toBe(166);
+    expect(zones[3]!.fromBpm).toBe(166);
+    expect(zones[3]!.toBpm).toBe(179);
+    expect(zones[4]!.fromBpm).toBe(179);
   });
 
-  it("distingue deux coureurs de FC de repos différentes", () => {
-    // Même FC max, FC de repos différente : 150 bpm n'est pas la même
-    // intensité relative pour les deux.
-    const trained = computeHeartRateZones(190, 40);
-    const untrained = computeHeartRateZones(190, 70);
-    expect(zoneForHeartRate(150, trained)!.index).toBe(3);
-    expect(zoneForHeartRate(150, untrained)!.index).toBe(2);
+  it("ne dépend PAS de la FC de repos : deux profils au même seuil ont les mêmes zones", () => {
+    // Contrairement à Karvonen (réserve cardiaque), la FC de repos n'entre
+    // plus du tout dans le calcul — c'est justement ce qui faisait diverger
+    // l'ancien système de celui de la montre.
+    const a = computeHeartRateZones(175);
+    const b = computeHeartRateZones(175);
+    expect(a).toEqual(b);
+    expect(zoneForHeartRate(155, a)!.index).toBe(2);
+    expect(zoneForHeartRate(155, b)!.index).toBe(2);
+  });
+
+  it("plafonne l'affichage de la zone 5 sur la FC max si elle dépasse 110 % du seuil", () => {
+    const withCap = computeHeartRateZones(175, 192);
+    expect(withCap[4]!.toBpm).toBe(192);
+    const withoutCap = computeHeartRateZones(175, null);
+    expect(withoutCap[4]!.toBpm).toBe(Math.round(175 * 1.1));
   });
 
   it("classe une fréquence dans la bonne zone", () => {
-    // 120 bpm est exactement la borne basse de la zone 1 : il y appartient.
-    expect(zoneForHeartRate(120, zones)!.index).toBe(1);
-    expect(zoneForHeartRate(110, zones)).toBeNull(); // Sous la zone 1.
-    expect(zoneForHeartRate(140, zones)!.index).toBe(2);
+    expect(zoneForHeartRate(155, zones)!.index).toBe(2);
     expect(zoneForHeartRate(200, zones)!.index).toBe(5);
+    expect(zoneForHeartRate(0, zones)!.index).toBe(1);
   });
 
   it("répartit le temps par zone et isole le temps non mesuré", () => {
     const time = Array.from({ length: 601 }, (_, i) => i);
-    const heartrate = time.map((t) => (t < 300 ? 140 : t < 500 ? 170 : null));
+    const heartrate = time.map((t) => (t < 300 ? 150 : t < 500 ? 172 : null));
     const result = timeInZones(heartrate, time, zones);
     expect(result.byZone.get(2)).toBe(299);
     expect(result.byZone.get(4)).toBe(200);
@@ -456,6 +577,47 @@ describe("FC moyenne pondérée par le temps en mouvement", () => {
     const velocity = [2, 2, null, 2];
     // Seul l'intervalle [2,3] (FC 155, vitesse 2) est exploitable.
     expect(computeMovingAverageHr(heartrate, time, velocity)).toBe(155);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("zones cardiaques — source unique", () => {
+  it("aucune table de zones (noms + bornes) n'est dupliquée ailleurs dans src/", () => {
+    // Les cinq libellés, dans cet ordre, ne doivent apparaître ensemble
+    // nulle part sauf dans zones.ts : c'est la signature d'une deuxième
+    // table de zones recopiée à la main.
+    const signature = ["Récupération", "Endurance fondamentale", "Endurance active", "Seuil", "VMA"];
+    const root = path.resolve(HERE, "../..");
+    const offenders: string[] = [];
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "node_modules" || entry.name === ".next") continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(ts|tsx)$/.test(entry.name)) continue;
+        if (full === path.resolve(HERE, "zones.ts")) continue;
+        if (full === path.resolve(HERE, "metrics.test.ts")) continue;
+
+        const content = fs.readFileSync(full, "utf8");
+        if (signature.every((label) => content.includes(`"${label}"`))) {
+          offenders.push(path.relative(root, full));
+        }
+      }
+    };
+    walk(root);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("aucun calcul de réserve cardiaque (hrMax - hrRest) hors de trimp.ts pour les zones", () => {
+    const content = fs.readFileSync(path.resolve(HERE, "zones.ts"), "utf8");
+    expect(content).not.toMatch(/hrMax\s*-\s*hrRest/);
+    expect(content).not.toMatch(/hrRest\s*\+/);
   });
 });
 

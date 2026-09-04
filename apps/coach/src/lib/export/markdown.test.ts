@@ -91,7 +91,13 @@ function fixture(): ExportData {
       { label: "5 km", value: 1200, unit: "s/km", day: null, estimated: true },
     ],
     plan: {
-      goal: { name: "Course cible", day: "2026-10-25", distanceM: 21097, targetTimeS: 6000 },
+      goal: {
+        name: "Course cible",
+        day: "2026-10-25",
+        distanceM: 21097,
+        targetTimeMinS: 6000,
+        targetTimeMaxS: 6000,
+      },
       workouts: [
         { day: "2026-08-29", title: "Endurance", type: "endurance", status: "done", targetDistanceM: 10000, targetDurationS: 3600, activityId: "a1" },
       ],

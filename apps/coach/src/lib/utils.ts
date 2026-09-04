@@ -109,3 +109,38 @@ export function formatSpeed(metersPerSecond: number | null | undefined): string 
  * manquer : on affiche « non disponible », jamais une estimation silencieuse.
  */
 export const NA = "non disponible";
+
+/**
+ * Répartit des quantités en pourcentages arrondis dont la somme vaut
+ * exactement 100 — méthode du plus grand reste.
+ *
+ * Arrondir chaque part indépendamment (`Math.round` part par part) ne tombe
+ * juste que par coïncidence : cinq zones à 21 %, 28 %, 25 %, 25 % et 3 %
+ * peuvent très bien sommer à 102. On arrondit d'abord tout à l'entier
+ * inférieur, puis on distribue les points de pourcentage manquants aux parts
+ * dont le résidu (partie décimale perdue) est le plus grand — c'est elles qui
+ * ont le plus « droit » à l'arrondi supérieur.
+ *
+ * Renvoie des zéros si la somme des quantités est nulle ou négative.
+ */
+export function distributePercentages(values: readonly number[]): number[] {
+  const total = values.reduce((sum, v) => sum + v, 0);
+  if (total <= 0) return values.map(() => 0);
+
+  const raw = values.map((v) => (v / total) * 100);
+  const floors = raw.map((v) => Math.floor(v));
+  const remainders = raw.map((v, i) => v - floors[i]!);
+  let missing = 100 - floors.reduce((sum, v) => sum + v, 0);
+
+  const byLargestRemainder = remainders
+    .map((r, i) => i)
+    .sort((a, b) => remainders[b]! - remainders[a]!);
+
+  const result = [...floors];
+  for (const i of byLargestRemainder) {
+    if (missing <= 0) break;
+    result[i]! += 1;
+    missing--;
+  }
+  return result;
+}

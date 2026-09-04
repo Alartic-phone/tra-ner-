@@ -59,9 +59,10 @@ export default async function ActivitiesPage({
     loadZoneSecondsByActivity(activityIds),
     getTracePathsByActivity(activityIds),
   ]);
-  const hrZones = profileStatus.profile
-    ? computeHeartRateZones(profileStatus.profile.hrMax, profileStatus.profile.hrRest)
-    : undefined;
+  const hrZones =
+    profileStatus.thresholdHr != null
+      ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
+      : undefined;
 
   const weeks = groupByWeek(page);
 

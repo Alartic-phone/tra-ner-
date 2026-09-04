@@ -49,7 +49,7 @@ export function toLocalTime(instant: Date): string {
   return timeFormatter.format(instant);
 }
 
-const hourFormatter = new Intl.DateTimeFormat("en-GB", {
+const toLocalHourFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: APP_TIMEZONE,
   hour: "2-digit",
   hour12: false,
@@ -58,7 +58,7 @@ const hourFormatter = new Intl.DateTimeFormat("en-GB", {
 /** Heure locale (0-23) d'un instant, en Europe/Paris. */
 export function toLocalHour(instant: Date): number {
   // `Intl` avec `hour12: false` peut rendre "24" à minuit selon l'environnement.
-  return Number(hourFormatter.format(instant)) % 24;
+  return Number(toLocalHourFormatter.format(instant)) % 24;
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
