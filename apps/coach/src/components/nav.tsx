@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Activity,
   CalendarDays,
@@ -17,22 +18,27 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
+import { DUR, EASE } from "@/lib/motion.ts";
 
 const LINKS = [
-  { href: "/", label: "Accueil", icon: LayoutDashboard },
-  { href: "/activites", label: "Activités", icon: Activity },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
-  { href: "/progression", label: "Progression", icon: TrendingUp },
-  { href: "/plan", label: "Mon plan", icon: Target },
-  { href: "/journal", label: "Journal", icon: NotebookPen },
-  { href: "/simulateur", label: "Simulateur", icon: Gauge },
-  { href: "/analyses", label: "Analyses", icon: LineChart },
-  { href: "/reglages", label: "Réglages", icon: Settings },
+  { href: "/", label: "Accueil", mobileLabel: "Accueil", icon: LayoutDashboard },
+  { href: "/activites", label: "Activités", mobileLabel: "Activités", icon: Activity },
+  { href: "/calendrier", label: "Calendrier", mobileLabel: "Calendrier", icon: CalendarDays },
+  { href: "/progression", label: "Progression", mobileLabel: "Progression", icon: TrendingUp },
+  { href: "/plan", label: "Mon plan", mobileLabel: "Plan", icon: Target },
+  { href: "/journal", label: "Journal", mobileLabel: "Journal", icon: NotebookPen },
+  { href: "/simulateur", label: "Simulateur", mobileLabel: "Simulateur", icon: Gauge },
+  { href: "/analyses", label: "Analyses", mobileLabel: "Analyses", icon: LineChart },
+  { href: "/reglages", label: "Réglages", mobileLabel: "Réglages", icon: Settings },
 ] as const;
 
 /**
  * Cinq onglets pouce-atteignables sur mobile (spec refonte §7) : Accueil,
  * Activités, Calendrier, Progression, plus « Plus » qui ouvre le reste.
+ * Chaque entrée porte un `mobileLabel` distinct de `label` — nécessaire dès
+ * qu'un libellé desktop est trop long pour la barre du bas (auparavant
+ * absent des données alors que le rendu mobile le lisait déjà, ce qui
+ * affichait "undefined" sous chaque icône du bandeau principal).
  */
 const PRIMARY_HREFS = ["/", "/activites", "/calendrier", "/progression"];
 const PRIMARY_LINKS = LINKS.filter((l) => PRIMARY_HREFS.includes(l.href));
@@ -42,6 +48,7 @@ const MORE_LINKS = LINKS.filter((l) => !PRIMARY_HREFS.includes(l.href));
 export function AppNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
   const moreActive = MORE_LINKS.some((l) => isActive(l.href));
@@ -51,27 +58,39 @@ export function AppNav() {
       <nav className="hidden w-52 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:block">
         <div className="px-2 pb-4 pt-1 text-sm font-semibold">Coach</div>
         <ul className="space-y-0.5">
-          {LINKS.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
-                  isActive(href)
-                    ? "bg-[var(--color-accent-soft)] text-[var(--color-text)]"
-                    : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
-                )}
-              >
-                <Icon size={16} aria-hidden />
-                {label}
-              </Link>
-            </li>
-          ))}
+          {LINKS.map(({ href, label, icon: Icon }) => {
+            const active = isActive(href);
+            return (
+              <li key={href} className="relative">
+                <Link
+                  href={href}
+                  className={cn(
+                    "relative flex items-center gap-2.5 rounded-[var(--radius-card)] px-2 py-1.5 text-sm transition-colors duration-[var(--duration-fast)]",
+                    active
+                      ? "text-[var(--color-text)]"
+                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]",
+                  )}
+                >
+                  {active && !reducedMotion ? (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 rounded-[var(--radius-card)] bg-[var(--color-accent-soft)]"
+                      transition={{ duration: DUR.base, ease: EASE.out }}
+                    />
+                  ) : active ? (
+                    <span className="absolute inset-0 rounded-[var(--radius-card)] bg-[var(--color-accent-soft)]" />
+                  ) : null}
+                  <Icon size={16} className="relative" aria-hidden />
+                  <span className="relative">{label}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-[var(--color-border)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] md:hidden">
-        {PRIMARY_LINKS.map(({ href, label, icon: Icon }) => (
+        {PRIMARY_LINKS.map(({ href, label, mobileLabel, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -82,7 +101,7 @@ export function AppNav() {
             )}
           >
             <Icon size={18} aria-hidden />
-            {label.split(" ")[0]}
+            {mobileLabel}
           </Link>
         ))}
         <button

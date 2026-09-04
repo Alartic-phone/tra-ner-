@@ -77,7 +77,8 @@ export function ZoneChart({
   if (measured === 0) {
     return (
       <p className="text-xs text-[var(--color-muted)]">
-        Aucune donnée de fréquence cardiaque sur la période.
+        Aucune mesure de fréquence cardiaque sur la période. La répartition
+        apparaît dès qu&apos;une activité avec capteur cardiaque est importée.
       </p>
     );
   }
