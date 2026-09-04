@@ -16,6 +16,22 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${s} s`;
 }
 
+/**
+ * Fourchette de chrono visé : "1 h 03 – 1 h 07", ou la seule borne si elle
+ * sont égales (objectif pas encore élargi depuis un unique chrono visé).
+ * `null` sans borne renseignée — jamais une fourchette inventée à partir
+ * d'un seul chiffre.
+ */
+export function formatTimeRange(
+  minS: number | null | undefined,
+  maxS: number | null | undefined,
+  formatter: (seconds: number | null | undefined) => string = formatDuration,
+): string | null {
+  if (minS == null || maxS == null) return null;
+  if (minS === maxS) return formatter(minS);
+  return `${formatter(minS)} – ${formatter(maxS)}`;
+}
+
 /** Chrono complet : "1:12:34" ou "42:07". */
 export function formatClock(seconds: number | null | undefined): string {
   if (seconds == null) return "—";
@@ -54,6 +70,20 @@ export function formatDistance(meters: number | null | undefined): string {
   return meters >= 1000
     ? `${(meters / 1000).toFixed(2).replace(".", ",")} km`
     : `${Math.round(meters)} m`;
+}
+
+/**
+ * Distance affichée, ou durée en repli pour un sport sans distance mesurée
+ * (musculation, rameur…). 0 m serait une distance inventée, pas une mesure :
+ * la durée reste une vraie mesure, elle. Utilisé partout où une distance
+ * d'activité s'affiche (carte, page activité, calendrier) pour ne jamais
+ * faire diverger cette règle d'un endroit à l'autre.
+ */
+export function formatDistanceOrDuration(
+  distanceM: number,
+  movingTimeS: number | null | undefined,
+): string {
+  return distanceM > 0 ? formatDistance(distanceM) : formatClock(movingTimeS);
 }
 
 export function paceFromSpeed(metersPerSecond: number | null | undefined): number | null {

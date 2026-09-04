@@ -157,6 +157,57 @@ describe("contraintes physiologiques (§6.3)", () => {
     expect(a.blockers).toEqual([]);
   });
 
+  it("référence : un créneau tardif et court après un poste d'après-midi n'est jamais « qualité »", () => {
+    // Poste A (13:00-21:00) + 45 min de tampon -> créneau libre 21:45-22:30,
+    // 45 min : reproduit le cas réel signalé (affiché à tort « qualité
+    // possible »). Trop tard ET trop court pour de la qualité, mais toujours
+    // exploitable pour une séance facile.
+    const custom = { ...RULES, bufferAfterMin: 45 };
+    const a = computeDayAvailability(
+      day("2026-08-27", "A"),
+      day("2026-08-26", null),
+      day("2026-08-28", null),
+      TIMINGS,
+      custom,
+    );
+    // Le poste laisse aussi une matinée libre (06:30-12:00) : seul le
+    // créneau du soir nous intéresse ici, c'est lui qui reproduit le bug.
+    const evening = a.windows[a.windows.length - 1]!;
+    expect(minutesToTime(evening.startMin)).toBe("21:45");
+    expect(minutesToTime(evening.endMin)).toBe("22:30");
+    expect(evening.durationMin).toBe(45);
+    expect(evening.allowsQuality).toBe(false);
+  });
+
+  it("un créneau de moins de 60 min ne permet pas la qualité même en journée", () => {
+    // Isole la règle de durée de celle d'horaire tardif : fenêtre 10:00-10:50
+    // (50 min), bien avant le seuil de soirée.
+    const custom = { ...RULES, wakeTime: "10:00", bedTime: "10:50" };
+    const a = computeDayAvailability(
+      day("2026-09-05", null),
+      day("2026-09-04", null),
+      day("2026-09-06", null),
+      TIMINGS,
+      custom,
+    );
+    expect(a.windows).toHaveLength(1);
+    expect(a.windows[0]!.durationMin).toBe(50);
+    expect(a.windows[0]!.allowsQuality).toBe(false);
+  });
+
+  it("un créneau de 60 min ou plus, avant le seuil de soirée, reste éligible à la qualité", () => {
+    const custom = { ...RULES, wakeTime: "10:00", bedTime: "11:00" };
+    const a = computeDayAvailability(
+      day("2026-09-05", null),
+      day("2026-09-04", null),
+      day("2026-09-06", null),
+      TIMINGS,
+      custom,
+    );
+    expect(a.windows[0]!.durationMin).toBe(60);
+    expect(a.windows[0]!.allowsQuality).toBe(true);
+  });
+
   it("respecte des règles personnalisées sans changer de code", () => {
     const custom = { ...RULES, maxSessionOnWorkDayMin: 45, minSessionMin: 60 };
     const a = computeDayAvailability(

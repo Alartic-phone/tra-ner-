@@ -31,9 +31,10 @@ export function buildSystemPrompt(): string {
   ].join("\n");
 }
 
-function formatTargetTime(seconds: number | null): string {
-  if (seconds == null) return "aucun chrono cible, terminer dans de bonnes conditions";
-  return formatDuration(seconds);
+function formatTargetTime(minS: number | null, maxS: number | null): string {
+  if (minS == null || maxS == null) return "aucun chrono cible, terminer dans de bonnes conditions";
+  if (minS === maxS) return formatDuration(minS);
+  return `entre ${formatDuration(minS)} et ${formatDuration(maxS)}`;
 }
 
 export function buildUserPrompt(context: CoachContext): string {
@@ -43,7 +44,7 @@ export function buildUserPrompt(context: CoachContext): string {
   lines.push(
     `Objectif : "${context.goal.name}" — ${formatDistance(context.goal.distanceM)} le ` +
       `${formatDayLong(context.goal.day)} (${context.goal.day}). Chrono visé : ` +
-      `${formatTargetTime(context.goal.targetTimeS)}.`,
+      `${formatTargetTime(context.goal.targetTimeMinS, context.goal.targetTimeMaxS)}.`,
   );
   lines.push(
     `Fenêtre de préparation : environ ${context.weeksUntilGoal} semaines. C'est court : ` +

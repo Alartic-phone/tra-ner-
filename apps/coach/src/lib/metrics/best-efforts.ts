@@ -109,18 +109,19 @@ export function bestTimeForDistances(
 /**
  * Fusionne les meilleurs efforts de plusieurs activités en ne gardant, pour
  * chaque durée, que le plus performant.
+ *
+ * Générique sur T plutôt que figé sur `{ durationS, distanceM }` : quand
+ * l'appelant fait porter un champ `day` à chaque effort (repository.ts, pour
+ * dater la performance de référence servant aux prédictions), il ressort
+ * intact — recréer un objet appauvri ici l'aurait perdu silencieusement.
  */
-export function mergeBestEfforts(
-  efforts: ReadonlyArray<BestEffort>,
-): BestEffort[] {
-  const best = new Map<number, number>();
+export function mergeBestEfforts<T extends BestEffort>(efforts: ReadonlyArray<T>): T[] {
+  const best = new Map<number, T>();
   for (const e of efforts) {
     const current = best.get(e.durationS);
-    if (current == null || e.distanceM > current) best.set(e.durationS, e.distanceM);
+    if (current == null || e.distanceM > current.distanceM) best.set(e.durationS, e);
   }
-  return [...best.entries()]
-    .map(([durationS, distanceM]) => ({ durationS, distanceM }))
-    .sort((a, b) => a.durationS - b.durationS);
+  return [...best.values()].sort((a, b) => a.durationS - b.durationS);
 }
 
 /**

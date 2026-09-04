@@ -16,7 +16,8 @@ export function GoalForm() {
   const [name, setName] = useState("10 km");
   const [day, setDay] = useState("");
   const [distanceKm, setDistanceKm] = useState("10");
-  const [targetTime, setTargetTime] = useState("");
+  const [targetTimeMin, setTargetTimeMin] = useState("");
+  const [targetTimeMax, setTargetTimeMax] = useState("");
   const [floorTime, setFloorTime] = useState("");
 
   const submit = () => {
@@ -30,8 +31,22 @@ export function GoalForm() {
       setError("Distance invalide.");
       return;
     }
-    if (targetTime.trim() !== "" && parseClock(targetTime) === null) {
-      setError('Chrono visé invalide — format "1:04:00" ou "45:00".');
+    const minFilled = targetTimeMin.trim() !== "";
+    const maxFilled = targetTimeMax.trim() !== "";
+    if (minFilled !== maxFilled) {
+      setError("Les deux bornes du chrono visé doivent être renseignées ensemble, ou aucune.");
+      return;
+    }
+    if (minFilled && parseClock(targetTimeMin) === null) {
+      setError('Borne basse invalide — format "1:04:00" ou "45:00".');
+      return;
+    }
+    if (maxFilled && parseClock(targetTimeMax) === null) {
+      setError('Borne haute invalide — format "1:04:00" ou "45:00".');
+      return;
+    }
+    if (minFilled && maxFilled && parseClock(targetTimeMin)! > parseClock(targetTimeMax)!) {
+      setError("La borne basse doit être inférieure ou égale à la borne haute.");
       return;
     }
     if (floorTime.trim() !== "" && parseClock(floorTime) === null) {
@@ -44,7 +59,8 @@ export function GoalForm() {
         name,
         day,
         distanceM,
-        targetTimeS: parseClock(targetTime),
+        targetTimeMinS: parseClock(targetTimeMin),
+        targetTimeMaxS: parseClock(targetTimeMax),
         floorTimeS: parseClock(floorTime),
         priority: "A",
       });
@@ -87,15 +103,28 @@ export function GoalForm() {
           />
         </div>
         <div>
-          <Label htmlFor="goal-target">Chrono visé</Label>
+          <Label htmlFor="goal-target-min">Chrono visé — borne basse</Label>
           <Input
-            id="goal-target"
-            placeholder="1:04:00"
-            value={targetTime}
-            onChange={(e) => setTargetTime(e.target.value)}
+            id="goal-target-min"
+            placeholder="1:03:00"
+            value={targetTimeMin}
+            onChange={(e) => setTargetTimeMin(e.target.value)}
             className="mt-1"
           />
-          <Hint>Optionnel — laisser vide pour « terminer sans pression de temps ».</Hint>
+        </div>
+        <div>
+          <Label htmlFor="goal-target-max">Chrono visé — borne haute</Label>
+          <Input
+            id="goal-target-max"
+            placeholder="1:07:00"
+            value={targetTimeMax}
+            onChange={(e) => setTargetTimeMax(e.target.value)}
+            className="mt-1"
+          />
+          <Hint>
+            Fourchette, pas un chiffre unique. Les deux ensemble, ou laisser les deux vides pour
+            « terminer sans pression de temps ».
+          </Hint>
         </div>
         <div>
           <Label htmlFor="goal-floor">Chrono plancher</Label>

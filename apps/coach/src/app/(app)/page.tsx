@@ -11,11 +11,12 @@ import { Badge } from "@/components/ui/badge.tsx";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadCycleRibbonDays, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { mondayOf, addDays, eachDay, diffDays } from "@/lib/shifts/day.ts";
-import { formatDayShort, today, currentHour } from "@/lib/time.ts";
+import { formatDayShort, today, currentHour, toLocalHour } from "@/lib/time.ts";
 import { readPhotoManifest } from "@/lib/photo-manifest.ts";
 import { pickPhoto, momentForContext } from "@/lib/photos.ts";
 import { buildTodayPhrase } from "@/lib/home.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 import {
   getProfileStatus,
   getTracePath,
@@ -26,7 +27,14 @@ import {
   loadZoneSecondsByActivity,
 } from "@/lib/metrics/repository.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
-import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
+import { computeSportVolume } from "@/lib/metrics/volume.ts";
+import {
+  formatClock,
+  formatDistance,
+  formatPace,
+  formatTimeRange,
+  paceFromSpeed,
+} from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +78,12 @@ export default async function HomePage() {
   const todayRibbon = ribbonDays.find((d) => d.day === day);
   const todayShift = weekRange.byDay.get(day);
 
+  // Chrono visé en fourchette (Goal.targetTimeMinS/targetTimeMaxS) — jamais
+  // un point unique, cf. lib/utils.ts formatTimeRange.
+  const nextGoalTargetRange = nextGoal
+    ? formatTimeRange(nextGoal.targetTimeMinS, nextGoal.targetTimeMaxS, formatClock)
+    : null;
+
   const moment = momentForContext({
     shiftCode: todayShift?.resolved.code ?? null,
     isWorking: todayShift?.resolved.isWorking ?? false,
@@ -98,6 +112,8 @@ export default async function HomePage() {
   const weekTotalKm = [...runKmByDay.values()].reduce((s, v) => s + v, 0);
   const maxDayKm = Math.max(1, ...weekDays.map((d) => runKmByDay.get(d) ?? 0));
   const target = weeklyTargetKm ?? user?.weeklyVolumeKm ?? null;
+  // Vélo à part, jamais additionné à la course : cf. lib/metrics/volume.ts.
+  const weekRideKm = computeSportVolume(weekActivities).rideKm;
 
   const [lastActivityZones, lastActivityTracePath] = await Promise.all([
     lastActivity ? loadZoneSecondsByActivity([lastActivity.id]) : Promise.resolve(new Map()),
@@ -203,7 +219,15 @@ export default async function HomePage() {
           decimals={2}
           unit="km"
           size="md"
-          trend={target != null ? `sur ${target.toFixed(0)} km visés` : undefined}
+          trend={
+            [
+              target != null ? `sur ${target.toFixed(0)} km visés` : null,
+              // Vélo affiché à part, jamais mélangé au volume de course.
+              weekRideKm > 0 ? `+ ${weekRideKm.toFixed(1)} km vélo` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
         />
       </div>
 
@@ -212,7 +236,9 @@ export default async function HomePage() {
           <Card interactive className="flex items-center gap-4 p-4">
             <TraceThumb tracePath={lastActivityTracePath} type={lastActivity.type} size={80} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{lastActivity.name}</p>
+              <p className="truncate text-sm font-medium">
+                {normalizeActivityName(lastActivity.name, lastActivity.type, toLocalHour(lastActivity.startedAt))}
+              </p>
               <div className="tabular mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-muted)]">
                 <span>{formatDistance(lastActivity.distanceM)}</span>
                 <span>{formatClock(lastActivity.movingTimeS)}</span>
@@ -249,14 +275,7 @@ export default async function HomePage() {
           </div>
           <p className="tabular mt-1 text-xs text-[var(--color-muted)]">
             {formatDistance(nextGoal.distanceM)}
-            {nextGoal.targetTimeS != null ? (
-              <>
-                {" · "}
-                {nextGoal.floorTimeS != null
-                  ? `${formatClock(nextGoal.targetTimeS)} – ${formatClock(nextGoal.floorTimeS)}`
-                  : formatClock(nextGoal.targetTimeS)}
-              </>
-            ) : null}
+            {nextGoalTargetRange ? ` · objectif ${nextGoalTargetRange}` : ""}
           </p>
         </Card>
       ) : null}

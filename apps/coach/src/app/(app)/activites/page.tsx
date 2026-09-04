@@ -13,7 +13,8 @@ import {
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
 import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
-import { formatDayShort, formatInstant } from "@/lib/time.ts";
+import { formatDayShort, formatInstant, toLocalHour } from "@/lib/time.ts";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -182,7 +183,9 @@ export default async function ActivitiesPage({
                                 </span>
                               </>
                             ) : null}
-                            <p className="truncate text-sm font-medium">{a.name}</p>
+                            <p className="truncate text-sm font-medium">
+                              {normalizeActivityName(a.name, a.type, toLocalHour(a.startedAt))}
+                            </p>
                           </div>
                           <p className="mt-0.5 text-xs text-[var(--color-muted)]">{formatInstant(a.startedAt)}</p>
                           <div className="tabular mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--color-muted)]">

@@ -74,3 +74,52 @@ export function meanAndStdDev(values: readonly number[]): { mean: number; sd: nu
   const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
   return { mean, sd: Math.sqrt(variance) };
 }
+
+export type HealthSample = { day: string; hrv: number | null; restingHr: number | null };
+
+export type ReadinessMeasurement = {
+  measurementDay: string;
+  hrv: number;
+  restingHr: number;
+  hrvBaseline: { mean: number; sd: number };
+  restingHrBaseline: { mean: number; sd: number };
+};
+
+/**
+ * Trouve la mesure la plus récente COMPLÈTE (VFC et FC de repos toutes deux
+ * présentes) dans `history`, triée du jour le plus récent au plus ancien —
+ * ce n'est pas forcément le jour courant : avant le réveil, ou en sortie de
+ * poste, la mesure du jour n'existe simplement pas encore, et ce n'est pas
+ * une raison de perdre la dernière connue.
+ *
+ * La plage habituelle se calcule sur les `baselineSamples` jours DISPONIBLES
+ * précédant cette mesure (pas les jours calendaires) : le capteur ayant des
+ * trous (ex. VFC absente avant une date donnée), ancrer la fenêtre sur le
+ * calendrier sous-échantillonnerait ou raterait carrément la baseline.
+ */
+export function findLatestReadinessMeasurement(
+  history: readonly HealthSample[],
+  baselineSamples = 7,
+): ReadinessMeasurement | null {
+  const measurement = history.find((h) => h.hrv != null && h.restingHr != null);
+  if (!measurement) return null;
+
+  const before = history.filter((h) => h.day < measurement.day);
+  const hrvSamples = before
+    .map((h) => h.hrv)
+    .filter((v): v is number => v != null)
+    .slice(0, baselineSamples);
+  const restingHrSamples = before
+    .map((h) => h.restingHr)
+    .filter((v): v is number => v != null)
+    .slice(0, baselineSamples);
+  if (hrvSamples.length < baselineSamples || restingHrSamples.length < baselineSamples) return null;
+
+  return {
+    measurementDay: measurement.day,
+    hrv: measurement.hrv!,
+    restingHr: measurement.restingHr!,
+    hrvBaseline: meanAndStdDev(hrvSamples),
+    restingHrBaseline: meanAndStdDev(restingHrSamples),
+  };
+}

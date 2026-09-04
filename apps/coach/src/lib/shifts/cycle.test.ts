@@ -38,6 +38,13 @@ describe("arithmétique de jours", () => {
     expect(diffDays("2027-03-27", "2027-03-29")).toBe(2);
   });
 
+  it("référence : compte à rebours d'une course (30/08 -> 25/10 = 56 jours)", () => {
+    // Tableau de bord, carte « Prochaine course » : Goal.day est une chaîne
+    // de jour, jamais un DateTime — diffDays doit rester exact sur un écart
+    // de deux mois traversant août/septembre/octobre.
+    expect(diffDays("2026-08-30", "2026-10-25")).toBe(56);
+  });
+
   it("gère les années bissextiles", () => {
     expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
     expect(addDays("2026-02-28", 1)).toBe("2026-03-01");

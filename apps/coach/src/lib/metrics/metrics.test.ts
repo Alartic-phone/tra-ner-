@@ -11,6 +11,7 @@ import {
 import {
   acwrZone,
   computeAcwr,
+  computeEndLabelOffsets,
   computeFitnessSeries,
   computeFoster,
   toDailyLoads,
@@ -18,6 +19,7 @@ import {
 } from "./load.ts";
 import {
   computeHeartRateZones,
+  computeMovingAverageHr,
   computePaceZones,
   estimateVmaFromRace,
   paceAtVmaPercent,
@@ -26,7 +28,12 @@ import {
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
-import { computeReadiness, meanAndStdDev, shouldCancelSession } from "./readiness.ts";
+import {
+  computeReadiness,
+  findLatestReadinessMeasurement,
+  meanAndStdDev,
+  shouldCancelSession,
+} from "./readiness.ts";
 import {
   buildPrediction,
   classifyTrajectory,
@@ -35,6 +42,9 @@ import {
   estimatesForDistance,
   fitRiegelExponent,
   fractionOfVo2Max,
+  isCriticalSpeedInDomain,
+  isPlausiblePrediction,
+  pickReferenceEffort,
   predictTimeFromCriticalSpeed,
   predictTimeFromVdot,
   riegel,
@@ -49,6 +59,8 @@ import {
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeWeekStreak } from "./streak.ts";
+import { computeSportVolume } from "./volume.ts";
+import { longestRunProgression } from "./records.ts";
 
 const MAN: HeartRateProfile = { hrMax: 190, hrRest: 50, sex: "M" };
 
@@ -241,6 +253,56 @@ describe("ratio aigu/chronique", () => {
     expect(acwr.ratio).toBeNull();
     expect(acwr.zone).toBe("indeterminee");
   });
+
+  it("CTL et ratio aigu/chronique restent cohérents entre eux : même source, même fenêtre", () => {
+    // Reproduit la construction de loadFitnessSnapshot (repository.ts) : CTL
+    // et ACWR sont dérivés du même tableau `loads`. Avec un entraînement
+    // continu jusqu'à la veille du jour observé, une CTL substantielle ne
+    // peut pas coexister avec un ratio strictement nul — sans quoi la carte
+    // « État de forme » du tableau de bord afficherait deux nombres
+    // incohérents pour la même fenêtre, comme observé (CTL 53, ratio 0,00).
+    const loads = uniform(60);
+    const series = computeFitnessSeries(loads);
+    const current = series[series.length - 1]!;
+    const acwr = computeAcwr(loads, "2026-01-28");
+    expect(current.ctl).toBeGreaterThan(20);
+    expect(acwr.ratio).not.toBeNull();
+    expect(acwr.ratio).toBeGreaterThan(0);
+  });
+});
+
+describe("décalage des étiquettes de fin de série (graphique charge/forme)", () => {
+  it("référence : CTL 49 et ATL 31 (30/08/2026) sont assez éloignés, aucun décalage", () => {
+    // Amplitude de la série réelle sur 30 jours : environ 0 à 137 (charge du
+    // jour comprise) — l'écart CTL/ATL de 18 y est largement au-dessus du
+    // seuil de collision.
+    const offsets = computeEndLabelOffsets(49, 31, 137);
+    expect(offsets).toEqual({ ctlDy: 0, atlDy: 0 });
+  });
+
+  it("écarte les étiquettes quand CTL et ATL finissent à moins de 8 % de l'amplitude", () => {
+    // Écart de 3 sur une amplitude de 100 : 3 % < 8 %, collision.
+    const offsets = computeEndLabelOffsets(50, 47, 100);
+    expect(offsets.ctlDy).not.toBe(0);
+    expect(offsets.atlDy).not.toBe(0);
+    // Décalées en sens opposés, jamais du même côté.
+    expect(Math.sign(offsets.ctlDy)).not.toBe(Math.sign(offsets.atlDy));
+    // La plus grande valeur (CTL) part vers le haut (dy négatif).
+    expect(offsets.ctlDy).toBeLessThan(0);
+    expect(offsets.atlDy).toBeGreaterThan(0);
+  });
+
+  it("s'adapte à l'amplitude de la série plutôt qu'à un seuil absolu", () => {
+    // Même écart brut (3) que le cas de collision ci-dessus, mais une série
+    // bien plus resserrée (amplitude 20) : 3/20 = 15 % > 8 %, l'écart est
+    // proportionnellement plus grand, donc plus de collision.
+    const offsets = computeEndLabelOffsets(50, 47, 20);
+    expect(offsets).toEqual({ ctlDy: 0, atlDy: 0 });
+  });
+
+  it("ne divise jamais par zéro sur une série totalement plate", () => {
+    expect(() => computeEndLabelOffsets(40, 40, 0)).not.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -350,6 +412,50 @@ describe("zones de fréquence cardiaque (Karvonen)", () => {
     expect(result.byZone.get(2)).toBe(299);
     expect(result.byZone.get(4)).toBe(200);
     expect(result.unmeasured).toBe(101);
+  });
+});
+
+describe("FC moyenne pondérée par le temps en mouvement", () => {
+  it("exclut les arrêts, contrairement à une simple moyenne du flux", () => {
+    // 100 s à l'arrêt (vitesse nulle, FC élevée car juste après l'effort),
+    // puis 100 s en mouvement à FC stable. La moyenne brute serait tirée
+    // vers le haut par l'arrêt ; la moyenne en mouvement ne doit pas l'être.
+    const time = Array.from({ length: 201 }, (_, i) => i);
+    const heartrate = time.map((t) => (t < 100 ? 170 : 150));
+    const velocity = time.map((t) => (t < 100 ? 0 : 3));
+    const avg = computeMovingAverageHr(heartrate, time, velocity)!;
+    expect(avg).toBeCloseTo(150, 0);
+  });
+
+  it("référence : explique un écart de 1 à 2 bpm avec la valeur de la montre (20/08, 27/08)", () => {
+    // La montre exclut déjà les arrêts de sa propre moyenne (145 et 154 bpm
+    // signalés). Un flux avec quelques arrêts autour d'une FC stable illustre
+    // le même mécanisme : la moyenne en mouvement se rapproche de la valeur
+    // de la montre, pas de la moyenne brute du flux complet.
+    const moving = Array.from({ length: 3000 }, () => 150);
+    const stopped = Array.from({ length: 60 }, () => 120); // un feu, un ravito…
+    const heartrate = [...moving, ...stopped, ...moving];
+    const time = heartrate.map((_, i) => i);
+    const velocity = heartrate.map((_, i) => (i >= 3000 && i < 3060 ? 0 : 3));
+
+    const rawAverage = heartrate.reduce((a, b) => a + b, 0) / heartrate.length;
+    const movingAverage = computeMovingAverageHr(heartrate, time, velocity)!;
+    expect(movingAverage).toBeCloseTo(150, 0);
+    expect(movingAverage).toBeGreaterThan(rawAverage);
+  });
+
+  it("retombe sur null sans flux de vitesse, pour ne pas inventer un filtre", () => {
+    const time = [0, 1, 2];
+    const heartrate = [140, 145, 150];
+    expect(computeMovingAverageHr(heartrate, time, undefined)).toBeNull();
+  });
+
+  it("ignore les échantillons où la vitesse ou la FC manque", () => {
+    const time = [0, 1, 2, 3];
+    const heartrate = [140, null, 150, 155];
+    const velocity = [2, 2, null, 2];
+    // Seul l'intervalle [2,3] (FC 155, vitesse 2) est exploitable.
+    expect(computeMovingAverageHr(heartrate, time, velocity)).toBe(155);
   });
 });
 
@@ -636,9 +742,40 @@ describe("vitesse critique", () => {
   });
 
   it("prédit un chrono à partir du modèle", () => {
-    const cs = { csMps: 4.5, dPrimeM: 150, r2: 1, sampleCount: 5 };
+    const cs = { csMps: 4.5, dPrimeM: 150, r2: 1, sampleCount: 5, maxSampleDurationS: 1800 };
     // (10000 - 150) / 4,5 = 2188,9 s
     expect(predictTimeFromCriticalSpeed(cs, 10000)).toBeCloseTo(2188.9, 0);
+  });
+
+  it("retient la durée du plus long effort réellement utilisé, pas la borne déclarée", () => {
+    // Domaine déclaré jusqu'à 30 min, mais aucun effort de référence ne
+    // dépasse 20 min ici : le plus long RÉELLEMENT utilisé doit être retenu.
+    const efforts = [180, 300, 600, 900, 1200].map((t) => ({
+      durationS: t,
+      distanceM: 4.5 * t + 150,
+    }));
+    const cs = computeCriticalSpeed(efforts)!;
+    expect(cs.maxSampleDurationS).toBe(1200);
+  });
+
+  it("référence : projette le marathon hors du domaine d'un modèle basé sur 2-30 min", () => {
+    // 5'09/km, R² 0,999, 5 efforts — reproduit le cas signalé (projection
+    // marathon en 3:36:59 malgré un domaine de validité de 2 à 30 minutes).
+    const csMps = 1000 / (5 * 60 + 9);
+    const cs = {
+      csMps,
+      dPrimeM: 120,
+      r2: 0.999,
+      sampleCount: 5,
+      maxSampleDurationS: 1800, // 30 minutes, le plus long effort de référence
+    };
+    const marathonTimeS = predictTimeFromCriticalSpeed(cs, 42195)!;
+    expect(marathonTimeS).toBeGreaterThan(3 * 3600); // largement > 2×30 min
+    expect(isCriticalSpeedInDomain(marathonTimeS, cs)).toBe(false);
+
+    // Un 10 km projeté reste dans le domaine (proche de la durée de référence).
+    const tenKTimeS = predictTimeFromCriticalSpeed(cs, 10000)!;
+    expect(isCriticalSpeedInDomain(tenKTimeS, cs)).toBe(true);
   });
 });
 
@@ -715,7 +852,10 @@ describe("synthèse des prédictions", () => {
     expect(p.confidenceNotes.some((n) => n.includes("divergent"))).toBe(true);
   });
 
-  it("signale un modèle unique sans recoupement", () => {
+  it("un seul modèle plausible ne suffit plus : la prédiction devient non disponible", () => {
+    // Avant le garde-fou de plausibilité, un modèle unique produisait quand
+    // même une fourchette (confiance dégradée). Le garde-fou est plus
+    // strict : moins de deux modèles retenus, pas de prédiction du tout.
     const p = buildPrediction(
       10000,
       [
@@ -723,10 +863,58 @@ describe("synthèse des prédictions", () => {
         { source: "vdot", timeS: null },
       ],
       { sourceAgeDays: 10, sampleCount: 5 },
-    )!;
-    expect(p.bySource).toHaveLength(1);
-    expect(p.confidence).toBeLessThan(0.7);
-    expect(p.confidenceNotes.some((n) => n.includes("seul modèle"))).toBe(true);
+    );
+    expect(p).toBeNull();
+  });
+
+  describe("garde-fou de plausibilité (allure entre 3'00 et 12'00/km)", () => {
+    it("classe correctement les bornes du domaine", () => {
+      // 12 km en 1 h -> 5'00/km : plausible.
+      expect(isPlausiblePrediction(3600, 12000)).toBe(true);
+      // 12 km en 7 h 13 -> largement hors domaine.
+      expect(isPlausiblePrediction(7 * 3600 + 13 * 60, 12000)).toBe(false);
+      // Juste sous 3'00/km et juste au-dessus de 12'00/km : exclus.
+      expect(isPlausiblePrediction(179 * 12, 12000)).toBe(false);
+      expect(isPlausiblePrediction(721 * 12, 12000)).toBe(false);
+    });
+
+    it("référence : reproduit le cas signalé — un modèle à 7h13 pollue une prédiction sur 12 km", () => {
+      // Riegel et VDOT sont sains (~1h04, cohérent avec le chrono visé du
+      // profil), la vitesse critique dérape à 7h13 (confusion probable
+      // d'unité en amont). Sans garde-fou, la médiane à trois modèles
+      // serait tirée vers le haut et la fourchette irait jusqu'à 14h00.
+      const p = buildPrediction(
+        12000,
+        [
+          { source: "riegel", timeS: 3847 }, // 1h04m07s
+          { source: "vdot", timeS: 3840 }, // 1h04m00s
+          { source: "vitesse_critique", timeS: 7 * 3600 + 13 * 60 }, // 7h13 : hors domaine
+        ],
+        { sourceAgeDays: 20, sampleCount: 6 },
+      )!;
+      expect(p).not.toBeNull();
+      expect(p.bySource).toHaveLength(2);
+      expect(p.bySource.every((e) => e.source !== "vitesse_critique")).toBe(true);
+      expect(p.excluded).toHaveLength(1);
+      expect(p.excluded[0]!.source).toBe("vitesse_critique");
+      // La fourchette reste sur les deux modèles sains, jamais étirée
+      // jusqu'à 14h00 par le modèle aberrant.
+      expect(p.slowestTimeS).toBeLessThan(4200); // < 1 h 10
+      expect(p.confidenceNotes.some((n) => n.includes("hors du domaine"))).toBe(true);
+    });
+
+    it("sans garde-fou disponible (un seul modèle plausible), la prédiction est retirée plutôt que faussée", () => {
+      const p = buildPrediction(
+        12000,
+        [
+          { source: "riegel", timeS: 3847 },
+          { source: "vdot", timeS: 7 * 3600 },
+          { source: "vitesse_critique", timeS: 14 * 3600 },
+        ],
+        { sourceAgeDays: 20, sampleCount: 6 },
+      );
+      expect(p).toBeNull();
+    });
   });
 
   it("ne prédit rien sans aucune estimation valide", () => {
@@ -760,6 +948,34 @@ describe("estimatesForDistance", () => {
     // 10 km est plus long que la référence : le chrono prédit doit être plus lent.
     expect(bySource.riegel!).toBeGreaterThan(1200 * (10000 / 4200));
   });
+
+  it("mergeBestEfforts conserve le jour de l'effort gagnant (générique sur T)", () => {
+    const merged = mergeBestEfforts([
+      { durationS: 1800, distanceM: 5500, day: "2026-08-10" },
+      { durationS: 1800, distanceM: 5861, day: "2026-08-29" }, // gagne, plus loin
+      { durationS: 600, distanceM: 2000, day: "2026-08-15" },
+    ]);
+    const thirtyMin = merged.find((e) => e.durationS === 1800)!;
+    expect(thirtyMin.distanceM).toBe(5861);
+    expect(thirtyMin.day).toBe("2026-08-29");
+  });
+
+  it("référence : la date du plus récent effort utilisé n'est plus inconnue", () => {
+    // pickReferenceEffort désigne le même effort que celui daté par
+    // repository.ts (predictDistance) : les deux ne doivent jamais diverger.
+    const efforts = [
+      { durationS: 300, distanceM: 1062, day: "2026-08-20" },
+      { durationS: 1800, distanceM: 5861, day: "2026-08-29" },
+      { durationS: 600, distanceM: 2103, day: "2026-08-25" },
+    ];
+    const reference = pickReferenceEffort(efforts);
+    expect(reference?.day).toBe("2026-08-29");
+    expect(reference?.durationS).toBe(1800);
+  });
+
+  it("pickReferenceEffort renvoie null sans aucun effort", () => {
+    expect(pickReferenceEffort([])).toBeNull();
+  });
 });
 
 describe("classifyTrajectory", () => {
@@ -775,6 +991,25 @@ describe("classifyTrajectory", () => {
 
   it("classe 'retard' quand la prédiction est nettement plus lente", () => {
     expect(classifyTrajectory(4200, targetTimeS)).toBe("retard");
+  });
+
+  describe("objectif en fourchette (E1)", () => {
+    // Référence : chrono visé 1h03-1h07 (3780-4020 s).
+    const target = { minS: 3780, maxS: 4020 };
+
+    it("'avance' plus rapide que la borne basse", () => {
+      expect(classifyTrajectory(3700, target)).toBe("avance");
+    });
+
+    it("'dans_les_temps' n'importe où dans la fourchette", () => {
+      expect(classifyTrajectory(3780, target)).toBe("dans_les_temps");
+      expect(classifyTrajectory(3900, target)).toBe("dans_les_temps");
+      expect(classifyTrajectory(4020, target)).toBe("dans_les_temps");
+    });
+
+    it("'retard' plus lent que la borne haute", () => {
+      expect(classifyTrajectory(4100, target)).toBe("retard");
+    });
   });
 });
 
@@ -875,8 +1110,100 @@ describe("série hebdomadaire (streak)", () => {
     expect(computeWeekStreak(days, TODAY)).toBe(2);
   });
 
-  it("vaut zéro sans activité cette semaine, même avec un historique récent", () => {
-    expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(0);
+  it("une semaine en cours SANS activité ne casse pas une série qui continue la semaine précédente", () => {
+    // La semaine courante (24/08) n'a encore rien ; celle d'avant (17/08) a
+    // couru : la série n'est pas rompue, elle est juste "en attente" de la
+    // sortie de cette semaine. Avant le correctif, ce cas retombait à 0.
+    expect(computeWeekStreak(["2026-08-19"], TODAY)).toBe(1);
+  });
+
+  it("vaut zéro sans activité cette semaine ET sans continuité la semaine précédente", () => {
+    // Trou entre la semaine courante (24/08, vide) et la seule activité
+    // historique, huit jours avant le début de cette fenêtre.
+    expect(computeWeekStreak(["2026-08-01"], TODAY)).toBe(0);
+  });
+
+  it("référence : au moins une course chaque semaine depuis le 20/07, observée un mercredi sans sortie hebdomadaire encore faite", () => {
+    // Reproduit le cas réel : douze semaines consécutives de course jusqu'au
+    // 24/08 inclus, puis un mercredi (02/09) où la semaine en cours n'a pas
+    // encore de sortie. La série ne doit pas retomber à 0.
+    const mondays = [
+      "2026-06-15",
+      "2026-06-22",
+      "2026-06-29",
+      "2026-07-06",
+      "2026-07-13",
+      "2026-07-20",
+      "2026-07-27",
+      "2026-08-03",
+      "2026-08-10",
+      "2026-08-17",
+      "2026-08-24",
+    ];
+    expect(computeWeekStreak(mondays, "2026-09-02")).toBe(mondays.length);
+  });
+});
+
+describe("volume hebdomadaire par sport", () => {
+  // Semaine du 24 au 30/08/2026 : trois courses (25, 27, 29/08) réellement
+  // enregistrées, aucun vélo — oracle de référence vérifié manuellement.
+  const WEEK_ACTIVITIES = [
+    { type: "Run", distanceM: 8964 }, // 25/08, "Morning run"
+    { type: "Run", distanceM: 5009.5 }, // 27/08, "Reprise"
+    { type: "Run", distanceM: 10714 }, // 29/08, "Test de seuil"
+  ];
+
+  it("additionne le volume de course sur la semaine de référence", () => {
+    const { runKm, rideKm } = computeSportVolume(WEEK_ACTIVITIES);
+    expect(runKm).toBeCloseTo(24.6875, 3);
+    expect(rideKm).toBe(0);
+  });
+
+  it("compte les séances tapis (VirtualRun) comme de la course", () => {
+    const { runKm } = computeSportVolume([{ type: "VirtualRun", distanceM: 5000 }]);
+    expect(runKm).toBe(5);
+  });
+
+  it("ne mélange jamais vélo et course dans le même total", () => {
+    const { runKm, rideKm } = computeSportVolume([
+      ...WEEK_ACTIVITIES,
+      { type: "Ride", distanceM: 30000 },
+    ]);
+    expect(runKm).toBeCloseTo(24.6875, 3);
+    expect(rideKm).toBe(30);
+  });
+
+  it("ignore les sports ni course ni vélo (musculation, rameur…)", () => {
+    const { runKm, rideKm } = computeSportVolume([{ type: "WeightTraining", distanceM: 0 }]);
+    expect(runKm).toBe(0);
+    expect(rideKm).toBe(0);
+  });
+});
+
+describe("progression du record de distance", () => {
+  it("référence : 6,84 -> 7,32 -> 8,00 -> 8,96 -> 10,71 km, sans jamais fusionner deux records proches", () => {
+    const runs = [
+      { day: "2026-07-24", distanceM: 6840 },
+      { day: "2026-07-30", distanceM: 6500 }, // ne bat pas le record : absent de la progression
+      { day: "2026-08-14", distanceM: 7320 },
+      { day: "2026-08-20", distanceM: 8000 },
+      { day: "2026-08-25", distanceM: 8964 },
+      { day: "2026-08-27", distanceM: 5009.5 }, // plus courte, n'apparaît pas
+      { day: "2026-08-29", distanceM: 10714 },
+    ];
+    expect(longestRunProgression(runs)).toEqual([
+      { day: "2026-07-24", distanceM: 6840 },
+      { day: "2026-08-14", distanceM: 7320 },
+      { day: "2026-08-20", distanceM: 8000 },
+      { day: "2026-08-25", distanceM: 8964 },
+      { day: "2026-08-29", distanceM: 10714 },
+    ]);
+    // 8964 m ne doit jamais être confondu avec 9000 m (arrondi à 1 décimale
+    // en km) : le record précédent et le nouveau doivent rester distincts.
+    const progression = longestRunProgression(runs);
+    const previous = progression[progression.length - 2]!;
+    expect((previous.distanceM / 1000).toFixed(2)).toBe("8.96");
+    expect((previous.distanceM / 1000).toFixed(1)).toBe("9.0"); // la régression à éviter
   });
 });
 
@@ -979,5 +1306,63 @@ describe("règle d'arrêt de l'accueil (shouldCancelSession)", () => {
         restingHrBaselineMean: 55,
       }),
     ).toBe(false);
+  });
+});
+
+describe("dernière mesure disponible (fallback readiness)", () => {
+  // Reproduit les fichiers bruts COROS réels : VFC disponible seulement à
+  // partir du 23/08, FC de repos presque tous les jours, et le 29/08 (dernier
+  // jour importé) n'a NI VFC NI FC de repos — le capteur n'a pas encore
+  // synchronisé cette mesure au moment de l'export.
+  const HISTORY = [
+    { day: "2026-08-29", hrv: null, restingHr: null },
+    { day: "2026-08-28", hrv: 51, restingHr: 56 },
+    { day: "2026-08-27", hrv: 46, restingHr: 56 },
+    { day: "2026-08-26", hrv: 31, restingHr: 57 },
+    { day: "2026-08-25", hrv: 59, restingHr: 54 },
+    { day: "2026-08-24", hrv: 49, restingHr: 57 },
+    { day: "2026-08-23", hrv: 57, restingHr: 59 },
+    { day: "2026-08-22", hrv: null, restingHr: 57 },
+    { day: "2026-08-21", hrv: null, restingHr: 53 },
+  ];
+
+  it("remonte à la dernière mesure complète quand celle du jour manque", () => {
+    // Il n'y a que 6 jours avec VFC avant le 29/08 (23 -> 28 inclus) : pas
+    // assez pour 7 échantillons de baseline, donc pas de résultat exploitable
+    // avec seulement cet historique.
+    expect(findLatestReadinessMeasurement(HISTORY)).toBeNull();
+  });
+
+  it("expose la date de la mesure retenue dès qu'il y a assez d'historique", () => {
+    const longerHistory = [
+      ...HISTORY,
+      { day: "2026-08-20", hrv: 55, restingHr: 54 },
+      { day: "2026-08-19", hrv: 52, restingHr: 60 },
+    ];
+    const measurement = findLatestReadinessMeasurement(longerHistory);
+    expect(measurement?.measurementDay).toBe("2026-08-28");
+    expect(measurement?.hrv).toBe(51);
+    expect(measurement?.restingHr).toBe(56);
+  });
+
+  it("calcule la plage habituelle sur les jours DISPONIBLES, pas calendaires", () => {
+    // Historique plus large avec un vrai trou calendaire (rien le 17 et 18) :
+    // les 7 échantillons doivent quand même être les 7 dernières valeurs
+    // réellement mesurées avant la mesure retenue, pas une fenêtre de 7 jours
+    // calendaires qui en manquerait deux.
+    const withCalendarGap = [
+      { day: "2026-08-25", hrv: 59, restingHr: 54 },
+      { day: "2026-08-24", hrv: 49, restingHr: 57 },
+      { day: "2026-08-23", hrv: 57, restingHr: 59 },
+      { day: "2026-08-22", hrv: 50, restingHr: 57 },
+      { day: "2026-08-19", hrv: 52, restingHr: 60 }, // trou les 20 et 21
+      { day: "2026-08-18", hrv: 53, restingHr: 57 },
+      { day: "2026-08-17", hrv: 54, restingHr: 57 },
+      { day: "2026-08-16", hrv: 55, restingHr: 57 },
+    ];
+    const measurement = findLatestReadinessMeasurement(withCalendarGap);
+    expect(measurement?.measurementDay).toBe("2026-08-25");
+    // Moyenne des 7 VFC disponibles avant le 25/08 (49,57,50,52,53,54,55).
+    expect(measurement?.hrvBaseline.mean).toBeCloseTo((49 + 57 + 50 + 52 + 53 + 54 + 55) / 7, 6);
   });
 });

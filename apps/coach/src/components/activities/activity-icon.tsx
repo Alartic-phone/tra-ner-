@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Activity as ActivityIconFallback, Bike, Footprints, Waves } from "lucide-react";
 
 /**
@@ -9,15 +10,17 @@ export function ActivityTypeIcon({
   type,
   size = 16,
   className,
+  style,
 }: {
   type: string;
   size?: number;
   className?: string;
+  style?: CSSProperties;
 }) {
-  if (/run/i.test(type)) return <Footprints size={size} className={className} aria-hidden />;
-  if (/ride|bike|cycl/i.test(type)) return <Bike size={size} className={className} aria-hidden />;
-  if (/swim/i.test(type)) return <Waves size={size} className={className} aria-hidden />;
-  return <ActivityIconFallback size={size} className={className} aria-hidden />;
+  if (/run/i.test(type)) return <Footprints size={size} className={className} style={style} aria-hidden />;
+  if (/ride|bike|cycl/i.test(type)) return <Bike size={size} className={className} style={style} aria-hidden />;
+  if (/swim/i.test(type)) return <Waves size={size} className={className} style={style} aria-hidden />;
+  return <ActivityIconFallback size={size} className={className} style={style} aria-hidden />;
 }
 
 /** Teinte associée au sport (cercle d'icône, pastille de filtre). */

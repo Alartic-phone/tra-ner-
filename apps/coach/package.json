@@ -22,7 +22,8 @@
     "import:coros:fit": "tsx scripts/import-coros-fit.ts",
     "sync:strava": "tsx scripts/sync-strava.ts",
     "photos:fetch": "tsx scripts/fetch-photos.ts",
-    "export": "tsx scripts/export.ts"
+    "export": "tsx scripts/export.ts",
+    "check:duplicates": "tsx scripts/check-duplicates.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

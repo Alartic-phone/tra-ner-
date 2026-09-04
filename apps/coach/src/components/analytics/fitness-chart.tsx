@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { formatDayShort } from "@/lib/time.ts";
 import { weekdayLabel } from "@/lib/shifts/day.ts";
+import { computeEndLabelOffsets } from "@/lib/metrics/load.ts";
 
 /** Durée et amorti partagés par tous les graphiques temporels : tracé
  * progressif de gauche à droite au chargement, jamais instantané. */
@@ -72,6 +73,18 @@ export function FitnessChart({
   const firstReliable = rows.find((r) => r.reliable)?.day;
   const unreliableUntil =
     firstReliable && rows[0] && firstReliable !== rows[0].day ? firstReliable : null;
+
+  // Écarte les étiquettes de fin de série quand CTL et ATL finissent trop
+  // proches l'une de l'autre pour tenir leurs deux nombres sans se chevaucher
+  // (observé le 30/08 dans les données réelles).
+  const valueRange =
+    rows.length > 0
+      ? Math.max(...rows.flatMap((r) => [r.ctl, r.atl])) -
+        Math.min(...rows.flatMap((r) => [r.ctl, r.atl]))
+      : 1;
+  const { ctlDy: ctlLabelDy, atlDy: atlLabelDy } = last
+    ? computeEndLabelOffsets(last.ctl, last.atl, valueRange)
+    : { ctlDy: 0, atlDy: 0 };
   const raceInRange =
     raceDay && rows[0] && rows[rows.length - 1] && raceDay >= rows[0].day && raceDay <= rows[rows.length - 1]!.day
       ? raceDay
@@ -124,11 +137,21 @@ export function FitnessChart({
             labelFormatter={(d: string) => dayTooltipLabel(d)}
             formatter={(value: number, name: string) => [Math.round(value), name]}
           />
+          {/* Payload explicite plutôt que la génération automatique : Recharts
+              construit une ligne de légende par ÉLÉMENT GRAPHIQUE, pas par
+              série. `legendType="none"` sur les Area (ci-dessous) n'exclut
+              pas la ligne, il la rend seulement sans icône — Condition
+              physique et Fatigue apparaissaient donc deux fois chacune (une
+              fois pour l'Area, une fois pour la Line). */}
           <Legend
             verticalAlign="top"
             height={24}
-            iconType="plainline"
             wrapperStyle={{ fontSize: 11, color: "var(--color-muted)" }}
+            payload={[
+              { value: "Charge du jour", type: "rect", color: "var(--chart-neutral)" },
+              { value: "Condition physique (42 j)", type: "plainline", color: "var(--chart-1)" },
+              { value: "Fatigue (7 j)", type: "plainline", color: "var(--chart-2)" },
+            ]}
           />
 
           {raceInRange ? (
@@ -199,6 +222,7 @@ export function FitnessChart({
                 position: "right",
                 fill: "var(--chart-1)",
                 fontSize: 11,
+                dy: ctlLabelDy,
               }}
             />
           ) : null}
@@ -211,6 +235,7 @@ export function FitnessChart({
                 position: "right",
                 fill: "var(--chart-2)",
                 fontSize: 11,
+                dy: atlLabelDy,
               }}
             />
           ) : null}

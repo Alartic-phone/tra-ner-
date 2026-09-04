@@ -6,7 +6,7 @@ import { GenerateButton } from "@/components/plan/generate-button.tsx";
 import { PlanView } from "@/components/plan/plan-view.tsx";
 import { Card, CardBody, CardHeader } from "@/components/ui/card.tsx";
 import { formatDayLong } from "@/lib/time.ts";
-import { formatDistance, formatDuration } from "@/lib/utils.ts";
+import { formatDistance, formatTimeRange } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,8 @@ export default async function PlanPage() {
           include: { workouts: true, revisions: true },
         })
       : null;
+
+  const goalTargetRange = goal ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS) : null;
 
   return (
     <div className="p-4 md:p-6">
@@ -45,7 +47,7 @@ export default async function PlanPage() {
               <p>
                 Objectif enregistré : <strong>{goal.name}</strong>,{" "}
                 {formatDistance(goal.distanceM)} le {formatDayLong(goal.day)}
-                {goal.targetTimeS ? `, chrono visé ${formatDuration(goal.targetTimeS)}` : ""}.
+                {goalTargetRange ? `, chrono visé ${goalTargetRange}` : ""}.
               </p>
               <p>
                 La génération de plan appelle l&apos;API Claude, dont la clé
@@ -65,7 +67,7 @@ export default async function PlanPage() {
               <p>
                 <strong>{goal.name}</strong> — {formatDistance(goal.distanceM)} le{" "}
                 {formatDayLong(goal.day)}
-                {goal.targetTimeS ? `, chrono visé ${formatDuration(goal.targetTimeS)}` : ""}.
+                {goalTargetRange ? `, chrono visé ${goalTargetRange}` : ""}.
               </p>
               <p>
                 Aucun plan généré pour l&apos;instant. La génération peut prendre

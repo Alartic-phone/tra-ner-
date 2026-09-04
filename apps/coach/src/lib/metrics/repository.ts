@@ -2,7 +2,7 @@ import { prisma } from "../db.ts";
 import { loadStreams } from "../streams.ts";
 import { isRun, RUN_TYPES } from "../strava/mapping.ts";
 import { buildTracePath } from "../trace.ts";
-import { addDays, mondayOf, type Day } from "../shifts/day.ts";
+import { addDays, diffDays, mondayOf, type Day } from "../shifts/day.ts";
 import { today } from "../time.ts";
 import {
   DEFAULT_DURATIONS,
@@ -12,6 +12,7 @@ import {
 } from "./best-efforts.ts";
 import { computeDecoupling } from "./decoupling.ts";
 import { computeGap } from "./gap.ts";
+import { longestRunProgression } from "./records.ts";
 import {
   computeAcwr,
   computeFitnessSeries,
@@ -27,10 +28,21 @@ import {
   type Sex,
   type TrimpMethod,
 } from "./trimp.ts";
-import { computeHeartRateZones, computePaceZones, timeInZones } from "./zones.ts";
-import { buildPrediction, estimatesForDistance, type Prediction } from "./prediction.ts";
+import {
+  computeHeartRateZones,
+  computeMovingAverageHr,
+  computePaceZones,
+  timeInZones,
+} from "./zones.ts";
+import {
+  buildPrediction,
+  estimatesForDistance,
+  pickReferenceEffort,
+  type Prediction,
+} from "./prediction.ts";
 import {
   computeReadiness,
+  findLatestReadinessMeasurement,
   meanAndStdDev,
   shouldCancelSession,
   type ReadinessResult,
@@ -78,6 +90,13 @@ export type ActivityMetrics = {
   gapPaceSPerKm: number | null;
   decouplingPct: number | null;
   bestEfforts: Array<{ durationS: number; distanceM: number }>;
+  /**
+   * FC moyenne à conserver : recalculée depuis le flux, pondérée par le
+   * temps en mouvement (cf. `computeMovingAverageHr`), quand un flux vitesse
+   * est disponible ; sinon la valeur importée de la source est conservée
+   * telle quelle.
+   */
+  avgHr: number | null;
 };
 
 /**
@@ -100,6 +119,7 @@ export async function computeActivityMetrics(
       gapPaceSPerKm: null,
       decouplingPct: null,
       bestEfforts: [],
+      avgHr: null,
     };
   }
 
@@ -158,12 +178,23 @@ export async function computeActivityMetrics(
         )
       : [];
 
+  // La FC moyenne affichée doit être pondérée par le temps en mouvement,
+  // comme l'allure — pas par le temps écoulé (cf. computeMovingAverageHr).
+  // Sans flux vitesse pour départager mouvement et arrêt, la valeur importée
+  // de la source est conservée telle quelle.
+  const movingAvgHr =
+    streams?.heartrate && streams.time
+      ? computeMovingAverageHr(streams.heartrate, streams.time, streams.velocity_smooth)
+      : null;
+  const avgHr = movingAvgHr != null ? Math.round(movingAvgHr) : activity.avgHr;
+
   return {
     trimp,
     trimpMethod,
     gapPaceSPerKm: gap?.gapSPerKm ?? null,
     decouplingPct: decoupling?.decouplingPct ?? null,
     bestEfforts,
+    avgHr,
   };
 }
 
@@ -182,6 +213,7 @@ export async function persistActivityMetrics(
       gapPaceSPerKm: metrics.gapPaceSPerKm,
       gapEstimated: true,
       decouplingPct: metrics.decouplingPct,
+      avgHr: metrics.avgHr,
       metricsComputedAt: new Date(),
     },
   });
@@ -402,11 +434,16 @@ export async function loadZoneSecondsByActivity(
   return out;
 }
 
-/** Meilleurs efforts consolidés sur une période, pour la vitesse critique. */
+/**
+ * Meilleurs efforts consolidés sur une période, pour la vitesse critique.
+ * `day` est conservé (jour de l'activité qui a produit le meilleur effort
+ * pour cette durée) : c'est ce qui permet de dater la performance de
+ * référence utilisée par les prédictions plutôt que de la laisser inconnue.
+ */
 export async function loadBestEfforts(from: Day, to: Day) {
   const rows = await prisma.bestEffort.findMany({
     where: { day: { gte: from, lte: to } },
-    select: { durationS: true, distanceM: true },
+    select: { durationS: true, distanceM: true, day: true },
   });
   return mergeBestEfforts(rows);
 }
@@ -473,9 +510,13 @@ export async function predictDistance(
 ): Promise<Prediction | null> {
   const efforts = await loadBestEfforts(from, to);
   if (efforts.length === 0) return null;
+  // Même effort de référence que celui utilisé par Riegel/VDOT
+  // (pickReferenceEffort) : c'est sa date qui date la prédiction.
+  const reference = pickReferenceEffort(efforts);
   return buildPrediction(distanceM, estimatesForDistance(distanceM, efforts), {
-    sourceAgeDays: null,
+    sourceAgeDays: reference ? diffDays(reference.day, to) : null,
     sampleCount: efforts.length,
+    referenceDay: reference?.day ?? null,
   });
 }
 
@@ -503,73 +544,58 @@ export type Freshness = {
   cancelled: boolean;
 };
 
-const FRESHNESS_BASELINE_DAYS = 30;
-const FRESHNESS_MIN_SAMPLES = 7;
-
-async function computeFreshnessForDay(day: Day): Promise<Freshness | null> {
-  const [metric, history] = await Promise.all([
-    prisma.healthMetric.findUnique({ where: { day } }),
-    prisma.healthMetric.findMany({
-      where: { day: { gte: addDays(day, -FRESHNESS_BASELINE_DAYS), lt: day } },
-      select: { hrv: true, restingHr: true },
-    }),
-  ]);
-  if (metric?.hrv == null || metric.restingHr == null) return null;
-
-  const hrvSamples = history.map((h) => h.hrv).filter((v): v is number => v != null);
-  const restingHrSamples = history.map((h) => h.restingHr).filter((v): v is number => v != null);
-  if (hrvSamples.length < FRESHNESS_MIN_SAMPLES || restingHrSamples.length < FRESHNESS_MIN_SAMPLES) {
-    return null;
-  }
-
-  const hrvBaseline = meanAndStdDev(hrvSamples);
-  const restingHrBaseline = meanAndStdDev(restingHrSamples);
-
-  const result = computeReadiness({
-    hrv: metric.hrv,
-    restingHr: metric.restingHr,
-    hrvBaselineMean: hrvBaseline.mean,
-    hrvBaselineSd: hrvBaseline.sd,
-    restingHrBaselineMean: restingHrBaseline.mean,
-  });
-  const cancelled = shouldCancelSession({
-    hrv: metric.hrv,
-    restingHr: metric.restingHr,
-    hrvBaselineMean: hrvBaseline.mean,
-    hrvBaselineSd: hrvBaseline.sd,
-    restingHrBaselineMean: restingHrBaseline.mean,
-  });
-
-  return {
-    day,
-    isStale: false,
-    hrv: { value: metric.hrv, baselineMean: hrvBaseline.mean, baselineSd: hrvBaseline.sd },
-    restingHr: {
-      value: metric.restingHr,
-      baselineMean: restingHrBaseline.mean,
-      baselineSd: restingHrBaseline.sd,
-    },
-    result,
-    cancelled,
-  };
-}
+/**
+ * Combien de jours d'historique on interroge pour trouver la dernière mesure
+ * complète et sa plage habituelle. Volontairement large (60 j) : c'est
+ * `findLatestReadinessMeasurement` qui fait le vrai travail de recherche des
+ * 7 échantillons DISPONIBLES (pas calendaires) juste avant cette mesure —
+ * une fenêtre calendaire fixe de 30 j sous-échantillonnerait ou raterait
+ * carrément la baseline dès que le capteur a des trous.
+ */
+const FRESHNESS_LOOKBACK_DAYS = 60;
 
 /**
- * Fraîcheur du jour, pour l'accueil. Si le jour demandé n'a pas de mesure (ou
- * pas assez d'historique pour une plage habituelle), on cherche en arrière
- * jusqu'à 14 jours : « la dernière connue AVEC sa date, jamais un "non
- * disponible" sec » (consigne de refonte). `null` seulement si rien
- * d'exploitable n'existe sur toute la fenêtre.
+ * Fraîcheur du jour, pour l'accueil. Remonte à la dernière mesure COMPLÈTE
+ * disponible plutôt que de perdre l'information si celle du jour manque
+ * (avant le réveil, en sortie de poste, capteur pas encore synchronisé) :
+ * « la dernière connue AVEC sa date, jamais un "non disponible" sec »
+ * (consigne de refonte). `null` seulement si aucune mesure complète n'a 7
+ * échantillons disponibles pour établir sa plage habituelle.
  */
 export async function loadFreshness(day: Day): Promise<Freshness | null> {
-  const current = await computeFreshnessForDay(day);
-  if (current) return current;
+  const history = await prisma.healthMetric.findMany({
+    where: { day: { gte: addDays(day, -FRESHNESS_LOOKBACK_DAYS), lte: day } },
+    orderBy: { day: "desc" },
+    select: { day: true, hrv: true, restingHr: true },
+  });
 
-  for (let i = 1; i <= 14; i++) {
-    const past = await computeFreshnessForDay(addDays(day, -i));
-    if (past) return { ...past, isStale: true };
-  }
-  return null;
+  const measurement = findLatestReadinessMeasurement(history);
+  if (!measurement) return null;
+
+  const readinessInput = {
+    hrv: measurement.hrv,
+    restingHr: measurement.restingHr,
+    hrvBaselineMean: measurement.hrvBaseline.mean,
+    hrvBaselineSd: measurement.hrvBaseline.sd,
+    restingHrBaselineMean: measurement.restingHrBaseline.mean,
+  };
+
+  return {
+    day: measurement.measurementDay,
+    isStale: measurement.measurementDay !== day,
+    hrv: {
+      value: measurement.hrv,
+      baselineMean: measurement.hrvBaseline.mean,
+      baselineSd: measurement.hrvBaseline.sd,
+    },
+    restingHr: {
+      value: measurement.restingHr,
+      baselineMean: measurement.restingHrBaseline.mean,
+      baselineSd: measurement.restingHrBaseline.sd,
+    },
+    result: computeReadiness(readinessInput),
+    cancelled: shouldCancelSession(readinessInput),
+  };
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */
@@ -668,20 +694,12 @@ export async function loadLongestRunProgression(): Promise<
   { day: Day; distanceM: number }[]
 > {
   const runs = await prisma.activity.findMany({
-    where: { type: { in: ["Run", "TrailRun", "VirtualRun"] } },
+    where: { type: { in: [...RUN_TYPES] } },
     orderBy: { startDay: "asc" },
     select: { startDay: true, distanceM: true },
   });
 
-  const progression: { day: Day; distanceM: number }[] = [];
-  let best = 0;
-  for (const run of runs) {
-    if (run.distanceM > best) {
-      best = run.distanceM;
-      progression.push({ day: run.startDay, distanceM: run.distanceM });
-    }
-  }
-  return progression;
+  return longestRunProgression(runs.map((r) => ({ day: r.startDay, distanceM: r.distanceM })));
 }
 
 /**

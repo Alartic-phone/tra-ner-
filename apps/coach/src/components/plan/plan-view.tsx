@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardBody, CardHeader } from "@/components/ui/card.tsx";
 import type { PhaseOutput } from "@/lib/coach/schema.ts";
 import { formatDayLong, formatDayShort, today } from "@/lib/time.ts";
-import { formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
+import { formatDistance, formatDuration, formatPace, formatTimeRange } from "@/lib/utils.ts";
 import { diffDays, mondayOf, weekdayLabel, type Day } from "@/lib/shifts/day.ts";
 
 type PlanWithDetails = TrainingPlan & {
@@ -76,12 +76,14 @@ export function PlanView({ goal, plan }: { goal: Goal; plan: PlanWithDetails }) 
   const totalDays = Math.max(1, diffDays(plan.startDay, plan.endDay));
   const todayPct = Math.max(0, Math.min(100, (diffDays(plan.startDay, now) / totalDays) * 100));
 
+  const goalTargetRange = formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS);
+
   return (
     <div className="space-y-5">
       <Card elevated>
         <CardHeader
           title={goal.name}
-          hint={`${formatDistance(goal.distanceM)} — ${formatDayLong(goal.day)}${goal.targetTimeS ? ` — visé : ${formatDuration(goal.targetTimeS)}` : ""}`}
+          hint={`${formatDistance(goal.distanceM)} — ${formatDayLong(goal.day)}${goalTargetRange ? ` — visé : ${goalTargetRange}` : ""}`}
           action={<GenerateButton goalId={goal.id} mode="regenerate" />}
         />
       </Card>

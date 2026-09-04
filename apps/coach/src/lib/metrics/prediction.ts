@@ -179,7 +179,23 @@ export type CriticalSpeed = {
   /** Coefficient de détermination de la régression, dans [0, 1]. */
   r2: number;
   sampleCount: number;
+  /**
+   * Durée du plus long effort de référence réellement utilisé par la
+   * régression (pas la borne déclarée `maxDurationS`, qui peut dépasser ce
+   * qui est réellement disponible).
+   */
+  maxSampleDurationS: number;
 };
+
+/**
+ * Une projection au-delà de deux fois la durée du plus long effort de
+ * référence sort du domaine que la régression a effectivement observé :
+ * extrapoler un marathon depuis des efforts de 2 à 30 minutes n'a plus de
+ * valeur prédictive, seulement l'apparence d'en avoir une.
+ */
+export function isCriticalSpeedInDomain(timeS: number, cs: CriticalSpeed): boolean {
+  return timeS <= cs.maxSampleDurationS * 2;
+}
 
 /**
  * Modèle de vitesse critique par régression linéaire distance/temps.
@@ -232,6 +248,7 @@ export function computeCriticalSpeed(
     dPrimeM: intercept,
     r2: ssTot > 0 ? 1 - ssRes / ssTot : 0,
     sampleCount: n,
+    maxSampleDurationS: Math.max(...points.map((p) => p.durationS)),
   };
 }
 
@@ -250,10 +267,44 @@ export function predictTimeFromCriticalSpeed(
 
 export type PredictionSource = "riegel" | "vdot" | "vitesse_critique";
 
+/**
+ * Domaine de plausibilité d'une allure de course à pied. En-deçà de 3'00/km,
+ * c'est un sprint qu'aucun modèle de fond n'a vocation à prédire ; au-delà de
+ * 12'00/km, ce n'est plus de la course. Un modèle dont la sortie tombe hors
+ * de cette plage n'est pas « une estimation prudente », c'est le symptôme
+ * d'un modèle mal alimenté (confusion d'unité, extrapolation dégénérée) — il
+ * ne doit jamais polluer l'agrégat.
+ */
+export const PLAUSIBLE_PACE_S_PER_KM = { min: 180, max: 720 } as const;
+
+export function isPlausiblePrediction(timeS: number, distanceM: number): boolean {
+  if (distanceM <= 0) return false;
+  const paceSPerKm = timeS / (distanceM / 1000);
+  return paceSPerKm >= PLAUSIBLE_PACE_S_PER_KM.min && paceSPerKm <= PLAUSIBLE_PACE_S_PER_KM.max;
+}
+
+export const SOURCE_LABELS: Record<PredictionSource, string> = {
+  riegel: "Riegel",
+  vdot: "VDOT (Daniels)",
+  vitesse_critique: "Vitesse critique",
+};
+
+function formatPaceLabel(timeS: number, distanceM: number): string {
+  const paceSPerKm = timeS / (distanceM / 1000);
+  const m = Math.floor(paceSPerKm / 60);
+  const s = Math.round(paceSPerKm % 60);
+  return `${m}'${String(s).padStart(2, "0")}/km`;
+}
+
 export type Prediction = {
   distanceM: number;
-  /** Estimations retenues, par modèle. */
+  /** Estimations retenues (plausibles), par modèle. */
   bySource: Array<{ source: PredictionSource; timeS: number }>;
+  /**
+   * Modèles exclus de l'agrégat car hors du domaine de plausibilité —
+   * affichés à part, jamais mélangés à la fourchette.
+   */
+  excluded: Array<{ source: PredictionSource; timeS: number }>;
   /** Médiane des modèles disponibles. */
   medianTimeS: number;
   /** Bornes de la fourchette affichée. */
@@ -266,6 +317,14 @@ export type Prediction = {
   confidence: number;
   /** Raisons lisibles de la confiance accordée, affichées telles quelles. */
   confidenceNotes: string[];
+  /**
+   * Jour de la performance de référence (le même effort que celui utilisé
+   * par Riegel/VDOT, cf. `pickReferenceEffort`) — `null` seulement si aucun
+   * effort n'était disponible. Toujours affiché, pas seulement quand elle
+   * est vieille : une date connue vaut mieux qu'une ancienneté taisant sa
+   * propre source.
+   */
+  referenceDay: string | null;
 };
 
 /**
@@ -278,13 +337,26 @@ export type Prediction = {
 export function buildPrediction(
   distanceM: number,
   estimates: ReadonlyArray<{ source: PredictionSource; timeS: number | null }>,
-  context: { sourceAgeDays: number | null; sampleCount: number },
+  context: { sourceAgeDays: number | null; sampleCount: number; referenceDay?: string | null },
 ): Prediction | null {
-  const valid = estimates
-    .filter((e): e is { source: PredictionSource; timeS: number } => e.timeS != null && e.timeS > 0)
+  const computed = estimates.filter(
+    (e): e is { source: PredictionSource; timeS: number } => e.timeS != null && e.timeS > 0,
+  );
+
+  // Un modèle hors du domaine de plausibilité n'est pas une estimation
+  // prudente à conserver dans l'agrégat, c'est le symptôme d'un modèle mal
+  // alimenté (référence trop courte extrapolée trop loin, régression
+  // dégénérée…). Il est écarté, affiché à part, jamais mélangé à la
+  // fourchette.
+  const excluded = computed.filter((e) => !isPlausiblePrediction(e.timeS, distanceM));
+  const valid = computed
+    .filter((e) => isPlausiblePrediction(e.timeS, distanceM))
     .sort((a, b) => a.timeS - b.timeS);
 
-  if (valid.length === 0) return null;
+  // Moins de deux modèles plausibles : pas assez pour une fourchette
+  // significative, la prédiction entière devient non disponible plutôt que
+  // de s'appuyer sur un seul modèle qui pourrait tout autant être aberrant.
+  if (valid.length < 2) return null;
 
   const times = valid.map((e) => e.timeS);
   const median =
@@ -299,11 +371,15 @@ export function buildPrediction(
   const notes: string[] = [];
   let confidence = 1;
 
-  if (valid.length === 1) {
-    confidence *= 0.6;
-    notes.push("Un seul modèle disponible : aucun recoupement possible.");
-  } else if (valid.length === 2) {
+  if (valid.length === 2) {
     confidence *= 0.85;
+  }
+
+  for (const e of excluded) {
+    notes.push(
+      `${SOURCE_LABELS[e.source]} exclu de la fourchette : allure hors du domaine de ` +
+        `plausibilité (${formatPaceLabel(e.timeS, distanceM)}).`,
+    );
   }
 
   if (spread > 0.1) {
@@ -338,11 +414,13 @@ export function buildPrediction(
   return {
     distanceM,
     bySource: valid,
+    excluded,
     medianTimeS: median,
     fastestTimeS: fastest * (1 - margin),
     slowestTimeS: slowest * (1 + margin),
     confidence: Math.max(0, Math.min(1, confidence)),
     confidenceNotes: notes,
+    referenceDay: context.referenceDay ?? null,
   };
 }
 
@@ -356,11 +434,24 @@ export function buildPrediction(
  * erreur : c'est à `buildPrediction` de décider quoi faire d'une entrée sans
  * données (il renvoie `null`).
  */
+/**
+ * L'effort de plus longue durée disponible : signal le plus proche d'un
+ * effort d'endurance soutenu, donc le moins déformé par la filière
+ * anaérobie. Sert de référence à la fois pour Riegel/VDOT et pour dater la
+ * performance de référence (repository.ts) — les deux doivent désigner
+ * exactement le même effort, jamais deux sélections qui divergent.
+ */
+export function pickReferenceEffort<T extends BestEffort>(efforts: readonly T[]): T | null {
+  if (efforts.length === 0) return null;
+  return efforts.reduce((best, e) => (e.durationS > best.durationS ? e : best));
+}
+
 export function estimatesForDistance(
   distanceM: number,
   efforts: readonly BestEffort[],
 ): Array<{ source: PredictionSource; timeS: number | null }> {
-  if (efforts.length === 0) {
+  const reference = pickReferenceEffort(efforts);
+  if (!reference) {
     return [
       { source: "riegel", timeS: null },
       { source: "vdot", timeS: null },
@@ -368,7 +459,6 @@ export function estimatesForDistance(
     ];
   }
 
-  const reference = efforts.reduce((best, e) => (e.durationS > best.durationS ? e : best));
   const vdot = vdotFromRace(reference.distanceM, reference.durationS);
   const cs = computeCriticalSpeed(efforts);
 
@@ -385,18 +475,30 @@ export function estimatesForDistance(
 export type TrajectoryStatus = "avance" | "dans_les_temps" | "retard";
 
 /**
- * Classe une prédiction de chrono par rapport à un objectif chiffré.
+ * Classe une prédiction de chrono par rapport à un objectif.
  *
- * Simple seuil applicatif, PAS une formule tirée de la littérature — la
- * tolérance par défaut (2 %) absorbe le bruit normal d'une prédiction
- * multi-modèles sans le sur-interpréter comme un vrai écart de forme.
+ * L'objectif est une fourchette (borne basse = le plus rapide encore
+ * réaliste, borne haute), pas un point unique — un chrono visé l'est
+ * quasiment toujours. En avance : plus rapide que la borne basse. En retard :
+ * plus lent que la borne haute. Entre les deux, dans les temps.
+ *
+ * `targetTimeS` accepte aussi un nombre unique pour compatibilité (objectif
+ * pas encore élargi en fourchette) : dans ce cas, simple seuil applicatif —
+ * PAS une formule tirée de la littérature — la tolérance par défaut (2 %)
+ * absorbe le bruit normal d'une prédiction multi-modèles sans le
+ * sur-interpréter comme un vrai écart de forme.
  */
 export function classifyTrajectory(
   predictedTimeS: number,
-  targetTimeS: number,
+  target: number | { minS: number; maxS: number },
   toleranceFraction = 0.02,
 ): TrajectoryStatus {
-  const delta = (predictedTimeS - targetTimeS) / targetTimeS;
+  if (typeof target !== "number") {
+    if (predictedTimeS < target.minS) return "avance";
+    if (predictedTimeS > target.maxS) return "retard";
+    return "dans_les_temps";
+  }
+  const delta = (predictedTimeS - target) / target;
   if (delta <= -toleranceFraction) return "avance";
   if (delta >= toleranceFraction) return "retard";
   return "dans_les_temps";

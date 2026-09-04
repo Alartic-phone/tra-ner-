@@ -6,10 +6,16 @@ import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { ProgressRing } from "@/components/ui/progress-ring.tsx";
 import { loadBestEfforts, predictDistance } from "@/lib/metrics/repository.ts";
 import { DEFAULT_DISTANCES } from "@/lib/metrics/best-efforts.ts";
-import { classifyTrajectory, computeCriticalSpeed, predictTimeFromCriticalSpeed } from "@/lib/metrics/prediction.ts";
+import {
+  classifyTrajectory,
+  computeCriticalSpeed,
+  isCriticalSpeedInDomain,
+  predictTimeFromCriticalSpeed,
+  SOURCE_LABELS,
+} from "@/lib/metrics/prediction.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { formatDayLong, today } from "@/lib/time.ts";
-import { formatClock, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
+import { formatClock, formatDistance, formatDuration, formatPace, formatTimeRange } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +52,13 @@ export default async function SimulatorPage() {
 
   const criticalSpeed = computeCriticalSpeed(efforts);
   const trajectory = goal ? await predictDistance(goal.distanceM, from, now) : null;
+  const goalTarget =
+    goal?.targetTimeMinS != null && goal.targetTimeMaxS != null
+      ? { minS: goal.targetTimeMinS, maxS: goal.targetTimeMaxS }
+      : null;
+  const goalTargetRange = goal
+    ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS)
+    : null;
 
   return (
     <div className="p-4 md:p-6">
@@ -78,8 +91,10 @@ export default async function SimulatorPage() {
               </p>
             ) : !trajectory ? (
               <p className="text-xs text-[var(--color-muted)]">
-                Prédiction <Unavailable reason="Aucun meilleur effort sur les 365 derniers jours" /> —
-                aucun meilleur effort exploitable sur la période.
+                Prédiction <Unavailable reason="Aucun meilleur effort sur les 365 derniers jours" /> —{" "}
+                {efforts.length === 0
+                  ? "aucun meilleur effort exploitable sur la période."
+                  : "les modèles disponibles à partir des efforts de référence tombent hors du domaine de plausibilité (allure entre 3'00 et 12'00/km) pour cette distance."}
               </p>
             ) : (
               <div className="flex flex-wrap items-center gap-5">
@@ -100,21 +115,26 @@ export default async function SimulatorPage() {
                       (fourchette {formatDuration(trajectory.fastestTimeS)}–
                       {formatDuration(trajectory.slowestTimeS)})
                     </span>
-                    {goal.targetTimeS ? (
-                      <Badge tone={TRAJECTORY_TONE[classifyTrajectory(trajectory.medianTimeS, goal.targetTimeS)]}>
-                        {TRAJECTORY_LABEL[classifyTrajectory(trajectory.medianTimeS, goal.targetTimeS)]}
+                    {goalTargetRange ? (
+                      <Badge tone={TRAJECTORY_TONE[classifyTrajectory(trajectory.medianTimeS, goalTarget!)]}>
+                        {TRAJECTORY_LABEL[classifyTrajectory(trajectory.medianTimeS, goalTarget!)]}
                       </Badge>
                     ) : null}
                   </div>
-                  {goal.targetTimeS ? (
+                  {goalTargetRange ? (
                     <p className="text-xs text-[var(--color-muted)]">
-                      Chrono visé : {formatDuration(goal.targetTimeS)}.
+                      Chrono visé : {goalTargetRange}.
                     </p>
                   ) : (
                     <p className="text-xs text-[var(--color-faint)]">
                       Aucun chrono cible défini pour cet objectif — pas de classification possible.
                     </p>
                   )}
+                  {trajectory.referenceDay ? (
+                    <p className="text-[11px] text-[var(--color-faint)]">
+                      Performance de référence : {formatDayLong(trajectory.referenceDay)}.
+                    </p>
+                  ) : null}
                   {trajectory.confidenceNotes.length > 0 ? (
                     <ul className="list-inside list-disc text-[11px] text-[var(--color-faint)]">
                       {trajectory.confidenceNotes.map((note) => (
@@ -122,6 +142,19 @@ export default async function SimulatorPage() {
                       ))}
                     </ul>
                   ) : null}
+                  <ul className="tabular space-y-0.5 text-[11px] text-[var(--color-muted)]">
+                    {trajectory.bySource.map((e) => (
+                      <li key={e.source}>
+                        {SOURCE_LABELS[e.source]} : {formatDuration(e.timeS)}
+                      </li>
+                    ))}
+                    {trajectory.excluded.map((e) => (
+                      <li key={e.source} className="text-[var(--color-faint)] line-through">
+                        {SOURCE_LABELS[e.source]} : {formatDuration(e.timeS)} — non applicable, hors
+                        du domaine de validité
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}
@@ -175,10 +208,27 @@ export default async function SimulatorPage() {
                     <tbody className="tabular">
                       {DEFAULT_DISTANCES.map((distanceM) => {
                         const timeS = predictTimeFromCriticalSpeed(criticalSpeed, distanceM);
+                        const inDomain = timeS != null && isCriticalSpeedInDomain(timeS, criticalSpeed);
                         return (
                           <tr key={distanceM} className="border-b border-[var(--color-border)] last:border-0">
                             <td className="px-2 py-1.5">{DISTANCE_LABELS[distanceM] ?? formatDistance(distanceM)}</td>
-                            <td className="px-2 py-1.5 text-right">{formatClock(timeS)}</td>
+                            <td
+                              className={
+                                inDomain
+                                  ? "px-2 py-1.5 text-right"
+                                  : "px-2 py-1.5 text-right text-[var(--color-faint)]"
+                              }
+                            >
+                              {timeS == null ? (
+                                "—"
+                              ) : inDomain ? (
+                                formatClock(timeS)
+                              ) : (
+                                <span title={`${formatClock(timeS)} projeté`}>
+                                  extrapolation hors domaine
+                                </span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

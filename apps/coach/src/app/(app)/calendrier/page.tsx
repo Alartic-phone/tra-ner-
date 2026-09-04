@@ -4,10 +4,11 @@ import { prisma } from "@/lib/db.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadReplacementStats, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { addDays, mondayOf, type Day } from "@/lib/shifts/day.ts";
-import { formatDayShort, formatMonth, today } from "@/lib/time.ts";
+import { formatDayShort, formatMonth, toLocalHour, today } from "@/lib/time.ts";
 import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
 import { WeekGrid } from "@/components/calendar/week-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
+import { normalizeActivityName } from "@/lib/activity-names.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,15 @@ export default async function CalendarPage({
     loadReplacementStats(addDays(now, -90), now),
     prisma.activity.findMany({
       where: { startDay: { gte: gridFrom, lte: gridTo } },
-      select: { id: true, startDay: true, distanceM: true, movingTimeS: true, name: true, type: true },
+      select: {
+        id: true,
+        startDay: true,
+        distanceM: true,
+        movingTimeS: true,
+        name: true,
+        type: true,
+        startedAt: true,
+      },
       orderBy: { startedAt: "asc" },
     }),
     prisma.plannedWorkout.findMany({
@@ -105,7 +114,7 @@ export default async function CalendarPage({
         .filter((a) => a.startDay === resolved.day)
         .map((a) => ({
           id: a.id,
-          name: a.name,
+          name: normalizeActivityName(a.name, a.type, toLocalHour(a.startedAt)),
           type: a.type,
           distanceM: a.distanceM,
           movingTimeS: a.movingTimeS,

@@ -337,6 +337,22 @@ function RulesCard({ rules }: { rules: AvailabilityRules }) {
             "Délai après une nuit avant une séance de qualité (h)",
             "VMA, seuil et côtes sont interdits pendant ce délai.",
           )}
+          {num(
+            "qualityMinSessionMin",
+            "Durée minimale pour une séance de qualité (min)",
+            "Échauffement + corps de séance + retour au calme.",
+          )}
+          <div>
+            <Label htmlFor="lateEvening">Pas de qualité à partir de</Label>
+            <Input
+              id="lateEvening"
+              type="time"
+              value={form.lateEveningTime}
+              onChange={(e) => setForm({ ...form, lateEveningTime: e.target.value })}
+              className="mt-1"
+            />
+            <Hint>Un créneau qui démarre après cette heure reste facile, jamais qualité.</Hint>
+          </div>
           <div>
             <Label htmlFor="nightCodes">Codes considérés comme nuit</Label>
             <Input
