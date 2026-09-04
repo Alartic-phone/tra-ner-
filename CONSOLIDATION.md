@@ -114,6 +114,24 @@ refixés en mieux, sur le même terrain.
 À ce stade, les cinq correctifs des étapes 3.1–3.4 se sont tous retrouvés,
 directement ou par une version plus aboutie d'eux-mêmes, dans le code final.
 
+## Étape 5 — lint et régression trouvée grâce à lui
+
+`next lint` échouait depuis le tout début de la consolidation
+("Failed to patch ESLint..."). En creusant au lieu d'accepter ça comme une
+incompatibilité de version figée : `eslint.config.mjs` consommait
+`eslint-config-next` comme un tableau flat-config alors que cette version
+(déjà la plus récente disponible) exporte encore sa configuration au
+format legacy — corrigé avec `FlatCompat`.
+
+Une fois le lint fonctionnel, il a immédiatement trouvé une **vraie
+régression** qu'aucune fusion précédente n'avait signalée : le bandeau de
+chiffres de la page activité affichait de nouveau « 0.00 km » et une
+allure calculée depuis zéro pour les séances sans distance (musculation,
+rameur) — exactement le bug qu'`efa6732` avait corrigé, perdu sur ce bloc
+précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
+dédié). C'est le meilleur argument pour ne jamais laisser un outil de
+vérification "de côté" dans une consolidation de cette taille.
+
 ## Étape 4 — les trois décisions mélangées de `ab69bf2`
 
 Le commit original mélangeait trois décisions sans rapport ; traitées
