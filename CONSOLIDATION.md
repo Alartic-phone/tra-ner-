@@ -49,7 +49,36 @@ commit du tronc lui-même, corrigée au passage.
 
 ## Étape 3.2 — `worktree-fix-hr-zones` (commit `c68c8c3` uniquement)
 
-*(à venir — fusion suivante)*
+Cherry-pick isolé (`git cherry-pick -x c68c8c3`), sans le second commit
+(`ab69bf2`, traité à part en étape 4). C'est le correctif le plus sensible
+de toute la consolidation : `computeHeartRateZones` change de signature
+(`(thresholdHr, hrMaxCap?)` au lieu de `(hrMax, hrRest)`, Karvonen retiré
+du calcul des zones). **Un seul système de zones existe désormais dans tout
+le code**, calé sur le seuil 175 bpm — vérifié Z1 <140 / Z2 140-158 / Z3
+158-166 / Z4 166-179 / Z5 179+, verrouillé par test dans `metrics.test.ts`
+(hérité du commit lui-même, inchangé).
+
+| Fichier | Sort |
+|---|---|
+| `lib/metrics/zones.ts`, `lib/metrics/repository.ts`, `lib/coach/context.ts`, `components/profile/profile-form.tsx`, `components/analytics/zone-chart.tsx`, `lib/metrics/load.ts` | **Réappliqué**, fusion propre (conflits limités aux imports ou triviaux). |
+| `app/(app)/activites/[id]/page.tsx`, `app/(app)/page.tsx` | **Réappliqué**, conflit résolu en combinant la nouvelle signature de zones avec les ajouts du tronc (`hasDistance`, `displayName`, `weekRideKm`) déjà en place. |
+| `app/(app)/analyses/page.tsx` | **Déjà couvert**, fusion automatique sans conflit. |
+
+**Audit complémentaire, indispensable pour cette règle précise** : la
+recherche de tous les appels à `computeHeartRateZones(` dans `src/` a
+révélé **trois sites que ce commit n'a jamais connus** (créés par le tronc
+après son écriture) et qui appelaient encore la fonction avec l'ancienne
+signature `(hrMax, hrRest)` — un bug silencieux (les types restent
+compatibles, TypeScript ne le détecte pas) qui aurait réintroduit Karvonen
+par la bande :
+- `app/(app)/activites/page.tsx` (page liste) — **corrigé**.
+- `lib/export/gather.ts` (système d'export du tronc) — **corrigé**.
+- `app/debug/components/page.tsx` (page de démonstration du design system, données d'exemple) — **corrigé** (valeurs d'exemple alignées sur le seuil canonique 175/190).
+
+Pas de nouveau test ajouté pour ces trois sites : ce sont du câblage
+d'interface, hors du périmètre couvert par Vitest dans ce projet (cf.
+CLAUDE.md, seules les fonctions de calcul pures sont testées) — cohérent
+avec la convention déjà suivie par `af535b5`/`21bdccb` plus haut.
 
 ## Étape 3.3 — `worktree-coach-finitions`
 
