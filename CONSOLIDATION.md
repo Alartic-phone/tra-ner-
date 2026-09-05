@@ -185,15 +185,27 @@ appliquée à une décision produit plutôt qu'à une fusion.
 
 **Ce que ça inverse d'un non-négociable de l'étape 3** : « fraîcheur qui
 retombe sur la dernière mesure » (correctif `9615ba9`/`a906abe`) faisait
-partie des points que la consolidation devait absolument préserver — ce
-n'est plus contredit par erreur, c'est retiré par décision explicite et
-informée de l'utilisateur, pour une raison sans rapport avec la
-correction du calcul (abandon d'un import manuel fastidieux, pas un doute
-sur la justesse de `findLatestReadinessMeasurement`).
+partie des points que la consolidation devait absolument préserver.
+Formulation exacte de l'utilisateur, à garder telle quelle : **la fraîcheur
+n'est pas revenue à un bug, elle a été retirée sur sa décision, la source
+de données n'existant plus** — rien à voir avec un doute sur la justesse
+de `findLatestReadinessMeasurement` (jamais fautive), tout à voir avec
+l'abandon d'un import manuel jugé trop fastidieux pour sa valeur.
 
-Remplacement de la fraîcheur sur l'accueil : en attente du choix de
-l'utilisateur entre plusieurs options proposées (charge d'entraînement,
-dénivelé de la semaine, prochain jalon) — rien codé avant sa réponse.
+**Remplacement sur l'accueil, choisi par l'utilisateur parmi trois
+options montrées** (charge d'entraînement / dénivelé de la semaine /
+prochain jalon) : la charge d'entraînement (ratio aigu/chronique),
+« la seule des trois qui répond à *est-ce que je peux y aller
+aujourd'hui* ». Deux conditions posées et tenues à la lettre :
+- le garde-fou d'historique de `c68c8c3` s'applique intégralement (zone
+  `indeterminee` → `<Unavailable />`, jamais un chiffre ni un verdict) ;
+- libellé français explicite (« Charge · en progression maîtrisée »),
+  valeur numérique en second avec son marqueur « est. » visible — jamais
+  « ACWR 1,12 » nu.
+
+Un seul chiffre, un seul verdict sur l'accueil : la monotonie/contrainte
+de Foster reste sur `/analyses` uniquement, pas de retour au tableau de
+bord surchargé qu'on vient de démonter.
 
 ## Après l'étape 5 — six points relevés en parcourant l'accueil (05/09/2026)
 
