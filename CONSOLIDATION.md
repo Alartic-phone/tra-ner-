@@ -157,6 +157,34 @@ précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
 dédié). C'est le meilleur argument pour ne jamais laisser un outil de
 vérification "de côté" dans une consolidation de cette taille.
 
+## Après l'étape 5 — bug OAuth Strava trouvé en tentant la reconnexion
+
+En tentant de reconnecter Strava (pour retenter la case #9), échec avec
+« État OAuth invalide ». Hypothèse initiale de l'utilisateur : régression
+de `ab69bf2` (le cookie de state dépendrait de la session supprimée avec
+`lib/auth.ts`) — **infirmée par diff** : le seul changement de ce commit
+sur `reglages/actions.ts`/`callback/route.ts` retire des gardes
+`isAuthenticated()`, sans toucher au cookie `strava_oauth_state`, qui n'a
+jamais dépendu de la session.
+
+**Vraie cause, préexistante depuis le tout premier commit Strava
+(`b4caae1`)** : `redirect_uri` retombe sur la constante codée en dur
+`"http://localhost:3000"` quand `PUBLIC_URL` est vide (cas local) —
+indépendamment de l'hôte réellement visité par le navigateur. Le cookie de
+state, sans attribut `Domain`, est *host-only* : posé sur `127.0.0.1` il
+n'est jamais renvoyé si Strava redirige vers `localhost`. Révélé
+maintenant parce que l'URL suggérée pour ouvrir l'app était `127.0.0.1`,
+pas par le retrait d'authentification.
+
+**Réappliqué avec un renforcement demandé** : `reglages/actions.ts` dérive
+l'hôte de la requête entrante au lieu d'une constante figée ;
+`generateOAuthState()`/`verifyOAuthState()` (nouveau, `lib/strava/oauth.ts`)
+stockent le state **chiffré** (AES-256-GCM authentifié, pas en clair) dans
+le cookie httpOnly/sameSite=lax/10 min, comparé en temps constant — ferme
+la voie du « cookie tossing » en plus du décalage d'hôte. Test verrou
+ajouté (`oauth.test.ts`, 6 cas : state absent, cookie absent, state
+différent, cookie altéré/rejoué depuis une autre origine).
+
 ## Étape 4 — les trois décisions mélangées de `ab69bf2`
 
 Le commit original mélangeait trois décisions sans rapport ; traitées
