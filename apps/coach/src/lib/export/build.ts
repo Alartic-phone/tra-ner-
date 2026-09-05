@@ -4,6 +4,7 @@ import { buildActivitiesCsv, buildHealthCsv, buildSplitsCsv, buildWeeksCsv } fro
 import { buildZip } from "./zip.ts";
 import { exportFileName, resolvePeriod } from "./period.ts";
 import { exportDataSchema } from "./schema.ts";
+import { assertNoSecrets } from "./security.ts";
 import { prisma } from "../db.ts";
 import { addDays, minDay } from "../shifts/day.ts";
 import { today as todayFn } from "../time.ts";
@@ -59,6 +60,7 @@ export async function buildExportFile(input: {
 
   if (input.format === "md") {
     const content = buildMarkdownExport(data);
+    assertNoSecrets(content);
     return {
       filename: exportFileName(data.meta.exportedAt, input.scope, "md"),
       content,
@@ -69,6 +71,7 @@ export async function buildExportFile(input: {
 
   if (input.format === "json") {
     const content = JSON.stringify(exportDataSchema.parse(data), null, 2);
+    assertNoSecrets(content);
     return {
       filename: exportFileName(data.meta.exportedAt, input.scope, "json"),
       content,
@@ -77,12 +80,14 @@ export async function buildExportFile(input: {
     };
   }
 
-  const zip = buildZip([
+  const csvFiles = [
     { name: "activites.csv", content: buildActivitiesCsv(data) },
     { name: "sante.csv", content: buildHealthCsv(data) },
     { name: "semaines.csv", content: buildWeeksCsv(data) },
     { name: "splits.csv", content: buildSplitsCsv(data) },
-  ]);
+  ];
+  for (const file of csvFiles) assertNoSecrets(file.content);
+  const zip = buildZip(csvFiles);
   return {
     filename: exportFileName(data.meta.exportedAt, input.scope, "zip"),
     content: zip,
