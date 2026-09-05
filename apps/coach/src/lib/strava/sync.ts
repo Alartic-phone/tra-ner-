@@ -1,5 +1,6 @@
 import { gzipSync } from "node:zlib";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.ts";
 import {
   StravaAuthError,
@@ -11,6 +12,7 @@ import {
 } from "./client.ts";
 import { isRun, toActivityData } from "./mapping.ts";
 import { getProfileStatus, persistActivityMetrics } from "../metrics/repository.ts";
+import { assertPrismaClientIsCurrent } from "../schema-guard.ts";
 import {
   STREAM_KEYS,
   activityDetailSchema,
@@ -194,6 +196,33 @@ async function runIncremental(payload: unknown): Promise<void> {
   await prisma.stravaAccount.updateMany({ data: { lastSyncAt: new Date() } });
 }
 
+/**
+ * Remplace tous les tours d'une activité par une nouvelle liste, de façon
+ * atomique : la suppression des anciens tours et la création des nouveaux
+ * n'ont lieu que TOUTES LES DEUX, ou aucune des deux.
+ *
+ * Le 05/09/2026, ces deux opérations enchaînées hors transaction ont coûté
+ * les tours d'une vraie activité : `deleteMany` avait déjà été validé quand
+ * `createMany` a échoué (client Prisma périmé, champ `isManual` inconnu).
+ * Un remplacement qui détruit avant d'avoir vérifié que la recréation
+ * fonctionne n'est pas un remplacement, c'est une perte de données
+ * conditionnelle. `$transaction` annule la suppression si la recréation
+ * échoue, quelle qu'en soit la raison.
+ */
+export async function replaceLaps(
+  activityId: string,
+  rows: Array<Omit<Prisma.LapCreateManyInput, "activityId">>,
+  // Paramètre injectable uniquement pour le test verrou (base SQLite jetable) —
+  // le code applicatif ne passe jamais ce troisième argument et reçoit donc
+  // toujours le singleton partagé.
+  client: Pick<typeof prisma, "$transaction" | "lap"> = prisma,
+): Promise<void> {
+  await client.$transaction([
+    client.lap.deleteMany({ where: { activityId } }),
+    client.lap.createMany({ data: rows.map((row) => ({ ...row, activityId })) }),
+  ]);
+}
+
 async function runActivityDetail(payload: unknown): Promise<void> {
   const { stravaId } = activityPayload.parse(payload);
   const detail = await getActivity(BigInt(stravaId), activityDetailSchema);
@@ -202,10 +231,9 @@ async function runActivityDetail(payload: unknown): Promise<void> {
   const laps = detail.laps ?? [];
   if (laps.length === 0) return;
 
-  await prisma.lap.deleteMany({ where: { activityId } });
-  await prisma.lap.createMany({
-    data: laps.map((lap) => ({
-      activityId,
+  await replaceLaps(
+    activityId,
+    laps.map((lap) => ({
       lapIndex: lap.lap_index,
       name: lap.name ?? null,
       distanceM: lap.distance,
@@ -223,7 +251,7 @@ async function runActivityDetail(payload: unknown): Promise<void> {
       // un vrai tour posé au bouton par l'athlète n'a pas de numéro de split.
       isManual: lap.split == null,
     })),
-  });
+  );
 }
 
 async function runActivityStreams(payload: unknown): Promise<void> {
@@ -285,10 +313,17 @@ export type WorkerReport = {
  * Appelée par le bouton « Synchroniser », par le webhook et par le cron. Le
  * budget de temps évite qu'une requête HTTP reste bloquée sur un import de
  * plusieurs heures.
+ *
+ * Contrôle de version au démarrage : un client Prisma périmé (worktree ou
+ * checkout dont le `node_modules` n'a pas vu `prisma generate` depuis la
+ * dernière migration) doit être détecté ICI, avant la première écriture —
+ * pas au milieu d'une transaction de remplacement (cf. `replaceLaps`).
  */
 export async function runSyncWorker(
   options: { maxJobs?: number; budgetMs?: number } = {},
 ): Promise<WorkerReport> {
+  assertPrismaClientIsCurrent();
+
   const maxJobs = options.maxJobs ?? 50;
   const budgetMs = options.budgetMs ?? 20_000;
   const startedAt = Date.now();

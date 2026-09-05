@@ -212,38 +212,50 @@ export async function persistActivityMetrics(
 ): Promise<void> {
   const metrics = await computeActivityMetrics(activityId, profile);
 
-  await prisma.activity.update({
-    where: { id: activityId },
-    data: {
-      trimp: metrics.trimp,
-      trimpMethod: metrics.trimpMethod,
-      gapPaceSPerKm: metrics.gapPaceSPerKm,
-      gapEstimated: true,
-      decouplingPct: metrics.decouplingPct,
-      avgHr: metrics.avgHr,
-      metricsComputedAt: new Date(),
-    },
-  });
+  // Lu avant la transaction : une lecture n'a rien à faire dans une
+  // transaction dont le seul rôle est de garantir l'atomicité d'écritures.
+  const activity =
+    metrics.bestEfforts.length > 0
+      ? await prisma.activity.findUnique({ where: { id: activityId }, select: { startDay: true } })
+      : null;
 
-  // Purge inconditionnelle : si l'activité n'est plus éligible aux meilleurs
-  // efforts (ex. un vélo dont le type a été corrigé, ou le passage du filtre
-  // course-à-pied introduit ensuite), d'anciennes lignes ne doivent pas
-  // survivre simplement parce que la nouvelle liste est vide.
-  await prisma.bestEffort.deleteMany({ where: { activityId } });
-  if (metrics.bestEfforts.length > 0) {
-    const activity = await prisma.activity.findUnique({
+  // Toutes les écritures de cette fonction dans UNE transaction : la purge
+  // des anciens meilleurs efforts (ligne suivante) ne doit jamais être
+  // validée seule si la recréation qui la remplace échoue derrière — c'est
+  // exactement le motif qui a fait perdre les tours d'une vraie activité le
+  // 05/09/2026 (cf. replaceLaps() dans lib/strava/sync.ts).
+  await prisma.$transaction([
+    prisma.activity.update({
       where: { id: activityId },
-      select: { startDay: true },
-    });
-    await prisma.bestEffort.createMany({
-      data: metrics.bestEfforts.map((e) => ({
-        activityId,
-        durationS: e.durationS,
-        distanceM: e.distanceM,
-        day: activity?.startDay ?? "",
-      })),
-    });
-  }
+      data: {
+        trimp: metrics.trimp,
+        trimpMethod: metrics.trimpMethod,
+        gapPaceSPerKm: metrics.gapPaceSPerKm,
+        gapEstimated: true,
+        decouplingPct: metrics.decouplingPct,
+        avgHr: metrics.avgHr,
+        metricsComputedAt: new Date(),
+      },
+    }),
+    // Purge inconditionnelle : si l'activité n'est plus éligible aux
+    // meilleurs efforts (ex. un vélo dont le type a été corrigé, ou le
+    // passage du filtre course-à-pied introduit ensuite), d'anciennes
+    // lignes ne doivent pas survivre simplement parce que la nouvelle liste
+    // est vide.
+    prisma.bestEffort.deleteMany({ where: { activityId } }),
+    ...(metrics.bestEfforts.length > 0
+      ? [
+          prisma.bestEffort.createMany({
+            data: metrics.bestEfforts.map((e) => ({
+              activityId,
+              durationS: e.durationS,
+              distanceM: e.distanceM,
+              day: activity?.startDay ?? "",
+            })),
+          }),
+        ]
+      : []),
+  ]);
 }
 
 export type RecomputeReport = { processed: number; skipped: number; total: number };
