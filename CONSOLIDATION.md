@@ -157,6 +157,54 @@ précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
 dédié). C'est le meilleur argument pour ne jamais laisser un outil de
 vérification "de côté" dans une consolidation de cette taille.
 
+## Après l'étape 5 — incident : perte puis restauration des tours du 29/08
+
+En tentant de re-synchroniser l'activité du 29/08 pour la case #9, mon
+script pointait par erreur vers le **dépôt principal** au lieu de ce
+worktree — chemin absolu mal copié. Le dépôt principal a son propre
+`node_modules`, jamais régénéré depuis le 31 août : son client Prisma
+ignorait totalement le champ `isManual` (ajouté par la migration de
+l'étape 2). Séquence réelle : `runActivityDetail` a fait `deleteMany` (12
+tours supprimés, validé) puis `createMany` a échoué à la validation
+(« Unknown argument isManual ») **avant d'écrire quoi que ce soit** — les
+12 tours de "Test de seuil" étaient vides en base, la vraie base de
+production.
+
+**Restauration**, avec le feu vert explicite de l'utilisateur et trois
+conditions posées par lui : (1) nouvelle sauvegarde de l'état cassé avant
+toute écriture, (2) requête de restauration montrée avant exécution,
+strictement ciblée sur les lignes `Lap` de cette activité, (3) vérification
+après coup. Restauré depuis `dev.db.avant-resync-lap-2908-*.bak` (prise
+avant l'incident) : 12/12 tours revenus, splits #5-8 vérifiés valeur par
+valeur (5:02/174 · 5:02/173 · 4:48/180 · 4:44/183), 143 activités et 204
+tours hors 29/08 identiques avant/après — rien d'autre n'a bougé.
+
+**Cause corrigée, pas seulement le symptôme** (demande explicite de
+l'utilisateur) :
+- `lib/schema-guard.ts` (nouveau) : compare schema.prisma au client Prisma
+  généré réellement chargé, refuse de continuer si un champ déclaré est
+  inconnu du client. Câblé au tout début de `runSyncWorker()` — le
+  problème doit être détecté avant la première écriture, pas au milieu
+  d'une transaction.
+- `deleteMany` + `createMany` réunis dans `prisma.$transaction([...])`
+  partout où ce motif touchait des données réelles : `replaceLaps()`
+  (nouveau, `lib/strava/sync.ts`, site exact de l'incident) et
+  `persistActivityMetrics()` (`lib/metrics/repository.ts`, même motif sur
+  `bestEffort`, jamais déclenché par hasard jusqu'ici mais tout aussi
+  fragile).
+- Tests verrous : `schema-guard.test.ts` (reproduit exactement le
+  scénario — `isManual` déclaré, absent d'un client fabriqué pour le
+  test) et `sync.replace-laps.test.ts` (base SQLite jetable réelle, force
+  une violation de contrainte unique pendant la recréation, vérifie que
+  les 12 tours d'origine survivent intacts).
+
+**Case #9 toujours non cochée** : ce correctif protège l'avenir, il ne
+change rien au fait que Strava n'a, à ce jour, jamais renvoyé de tour avec
+`split` nul pour cette activité. Aucune nouvelle tentative de
+re-synchronisation n'a été relancée depuis (consigne explicite de
+l'utilisateur : pas de nouvelle synchronisation tant que les trois
+correctifs ci-dessus n'étaient pas faits).
+
 ## Après l'étape 5 — bug OAuth Strava trouvé en tentant la reconnexion
 
 En tentant de reconnecter Strava (pour retenter la case #9), échec avec
