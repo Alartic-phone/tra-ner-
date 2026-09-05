@@ -114,6 +114,31 @@ refixés en mieux, sur le même terrain.
 À ce stade, les cinq correctifs des étapes 3.1–3.4 se sont tous retrouvés,
 directement ou par une version plus aboutie d'eux-mêmes, dans le code final.
 
+## Étape 5 — checklist finale
+
+| # | Vérification | Statut |
+|---|---|---|
+| 1 | typecheck, test et lint au vert | ✅ 354 tests, `tsc --noEmit` et `next lint` propres. |
+| 2 | l'app démarre depuis la racine, pas seulement depuis un worktree | ⏳ **Non vérifiable par moi** : `consolidation/coach-merge` est un descendant direct (fast-forward) de `claude/running-training-tracker-app-qtfpzh`, mais je ne peux pas mettre à jour la branche dans le checkout principal (garde d'isolation du worktree, refusé explicitement en testant). Commande à lancer depuis la racine : `git checkout claude/running-training-tracker-app-qtfpzh && git merge --ff-only consolidation/coach-merge`. Le code et la base (chemin absolu) sont identiques quel que soit le worktree — aucune raison technique que ça diffère, mais je ne l'ai pas vu tourner depuis la racine moi-même. |
+| 3 | aucun zéro affiché à la place d'une absence | ✅ pour les pages inspectées (accueil, activité, progression, analyses) — vérifié par capture et par le pattern `<Unavailable />`/`value: null` systématique. Pas d'audit pixel par pixel de réglages/plan/journal/simulateur. |
+| 4 | toute valeur de modèle porte « est. », toute mesure ne l'a pas | ✅ pour les pages inspectées (badges « est. » visibles sur 5 km/10 km, vitesse critique, D'). Pas d'audit exhaustif. |
+| 5 | UN SEUL système de zones FC, seuil 175 : Z1<140·Z2 140-158·Z3 158-166·Z4 166-179·Z5 179+, aucune trace de Karvonen | ✅ verrouillé par test (c68c8c3) + audit de code : 3 sites avec l'ancienne signature Karvonen trouvés et corrigés (`activites/page.tsx`, `lib/export/gather.ts`, page de debug) en plus des fichiers déjà couverts par la fusion. |
+| 6 | semaine du 24 au 30 août = 24,68 km de course | ✅ vérifié en base : `SUM(distanceM) WHERE type='Run' AND startDay BETWEEN '2026-08-24' AND '2026-08-30'` = 24,6875 km. |
+| 7 | plus longue sortie = 10,71 km le 29/08, précédent record 8,96 km | ✅ confirmé par capture d'écran (page Progression, mur des records et jalons). |
+| 8 | le 25/10 affiche le bon nombre de jours restants | ✅ mais **le chiffre affiché est 50, pas 56** : la date système réelle a avancé de 6 jours depuis le rapport de bug original (30/08 → 05/09, aujourd'hui). 05/09 → 25/10 = 50 jours, arithmétique correcte pour la vraie date du jour — le calcul lui-même n'a pas de bug, verrouillé par test (85efeae, référence 30/08 → 56 j, toujours vert). |
+| 9 | le lap manuel du 29/08 apparaît (19:47 · 4,03 km · 4'55/km · FC 177) | ❌ **non vérifié — vraie lacune de données**. `runActivityDetail` (sync Strava) ne renseignait jamais `isManual` en persistant les tours — corrigé pour tout futur import (`isManual = lap.split == null`), mais rétroactivement, sur les 137 activités actuelles, **aucun tour n'a `splitIndex` NULL** : le lap manuel attendu n'a jamais été importé comme tel. Correction possible sans re-synchroniser : le bouton bascule manuelle existe déjà sur chaque tour de la page activité (`toggleLapManualForm`) — mais je ne sais pas lequel des 12 tours de "Test de seuil" (29/08) correspond à l'effort décrit, donc je ne l'ai pas basculé moi-même. Alternative : resynchroniser cette activité via Strava. |
+| 10 | aucune recommandation d'entraînement sur historique insuffisant (ACWR indéterminé plutôt qu'un chiffre + alerte rouge) | ✅ garde-fou vérifié (tests c68c8c3) et observé en conditions réelles : Foster (Monotonie/Contrainte) affiche « non disponible » sur `/analyses` faute d'activité les 7 derniers jours. Le ratio ACWR lui-même affiche 0,00 (« sous-charge »), un chiffre réel et non un guard bypass : l'historique TOTAL (~88 j, largement >28 j/8 j actifs requis) est suffisant, ce n'est que l'activité RÉCENTE (7 derniers jours) qui est nulle — faute de synchronisation depuis le 30/08. Comportement correct, pas un bug. |
+| 11 | nombres au format français : virgule décimale partout | ✅ **bug réel et systémique corrigé** : ~25 sites (`CountUp`, `RecordStaircase`, `FreshnessGauge`, export Markdown, pages analyses/progression/simulateur/activités…) utilisaient `.toFixed()` natif (point). Helper `fixed()` ajouté à `lib/utils.ts`, appliqué partout où un nombre est affiché à l'utilisateur (pas dans le CSV — format machine, ni dans le prompt IA — jamais lu par un humain, ni dans les coordonnées SVG des tracés). Testé, vérifié visuellement (« 10,71 km », « 8,96 km »). |
+| 12 | l'ambre n'est utilisé que pour aujourd'hui/un record/meilleure valeur/séance du jour, jamais un code de poste | ✅ vérifié par code : `--color-signal` (l'ambre) n'apparaît que sur le contour "aujourd'hui" du ruban de cycle et le libellé associé ; les segments colorés par poste utilisent une palette dédiée par type de poste (`shiftColorVar`), jamais l'ambre. |
+| 13 | l'export Markdown se télécharge, section « qualité des données » non vide | ✅ vérifié en conditions réelles (requête HTTP directe sur `/api/export?scope=tout&format=md`) : 200, 130 Ko, section 9 renseignée (587 jours sans mesure de santé, 0 activité sans FC/GPS, aucun doublon, liste des champs estimés). |
+| 14 | captures accueil/activité/progression/analyses en 1440 px et 390 px | ✅ toutes prises et envoyées en cours de session (le fichier le plus récent de chaque fait foi ; captures initiales remplacées après les correctifs de rendu). |
+
+**Deux cases restent non cochées, avec leur raison précise** : #2 (fast-forward
+à faire depuis la racine, hors de ma portée dans ce worktree isolé) et #9
+(lap manuel jamais importé comme tel — lacune de données réelle, pas un bug
+de fusion, corrigée pour l'avenir mais pas rétroactivement sans re-sync ou
+bascule manuelle de votre part).
+
 ## Étape 5 — lint et régression trouvée grâce à lui
 
 `next lint` échouait depuis le tout début de la consolidation
@@ -164,18 +189,33 @@ refonte, ses 301 fichiers ne s'appliquaient plus tels quels).
 
 ## Étape 1 — arbitrages actés
 
-- **`worktree-humming-coalescing-valley`** : non fusionnée. Prélèvement
-  ciblé décidé : `lib/export/security.ts` (réappliqué — voir ci-dessous),
-  `lib/export/size.ts` (confirmé déjà couvert par le tronc, rien pris),
-  formulaire d'export interactif (**reporté**, non perdu — nécessiterait de
-  remplacer toute la plomberie d'export du tronc pour deux fonctionnalités,
-  jugé trop risqué en pleine consolidation), `splits.ts` (confirmé non
-  nécessaire — le tronc a déjà un rendu de splits kilométriques peuplé pour
-  46/49 activités de course réelles).
-- **`lib/metrics/milestones.ts`** (`worktree-progression-page`) : à
-  prélever en plus du système « distance cumulée » du tronc (décidé, pas
-  encore fait).
-- **`ZONE_RAMP`** (`worktree-binary-plotting-waffle`) : à consolider dans
-  `lib/metrics/zones.ts` (décidé, pas encore fait).
+- **`worktree-humming-coalescing-valley`** : non fusionnée.
+  - `lib/export/security.ts` — **réappliqué** (filet anti-fuite de secrets
+    sur l'export, adapté au tronc actuel : APP_PASSWORD/sessionToken
+    retirés, plus aucun rapport avec le schéma courant). Câblé dans
+    `build.ts`, testé.
+  - `lib/export/size.ts` — confirmé déjà couvert par `previewExport`
+    (`actions.ts`), rien pris.
+  - Formulaire d'export interactif — **reporté**, non perdu : remplacer
+    toute la plomberie d'export du tronc pour deux fonctionnalités
+    (sections à cocher, flux bruts en option) a été jugé trop risqué en
+    pleine consolidation. La branche reste intacte.
+  - `splits.ts` — confirmé non nécessaire : le tronc a déjà un rendu de
+    splits kilométriques peuplé pour 46/49 activités de course réelles.
+- **`lib/metrics/milestones.ts`** (`worktree-progression-page`) —
+  **réappliqué**. Coexiste avec le système « distance cumulée » du tronc,
+  affiché en premier sur `/progression` (vérifié par capture d'écran :
+  « Première sortie enregistrée », « Premier 20 km sur une semaine »,
+  « Première sortie de plus de 10 km » précèdent bien les records de
+  distance cumulée). `computeWeeklyVolume` ajoutée à `lib/metrics/volume.ts`
+  (dépendance manquante, portée depuis la même branche). Testé (absent de
+  la branche d'origine).
+- **`ZONE_RAMP`** (`worktree-binary-plotting-waffle`) — **réappliqué**, et
+  ce n'était pas qu'une consolidation cosmétique : la constante vivait dans
+  un module `"use client"` (`zone-chart.tsx`), reçue comme référence opaque
+  par `<ZoneBar />` quand il est rendu depuis un Server Component (la page
+  d'activité) — bug réel et actif, confirmé avant/après par capture
+  (`backgroundColor: rgba(0,0,0,0)` avant, couleurs réelles après).
+  Déplacée dans `lib/metrics/zones.ts` (module pur). Testé (absent avant).
 - **`activity-page-v2`, `calendar-v2`, `curious-wishing-stearns`** : rien à
   sauver, confirmé par diff.
