@@ -157,6 +157,44 @@ précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
 dédié). C'est le meilleur argument pour ne jamais laisser un outil de
 vérification "de côté" dans une consolidation de cette taille.
 
+## Après l'étape 5 — abandon de l'import COROS manuel (05/09/2026)
+
+Décision de l'utilisateur, suite au point 2 relevé sur l'accueil (fraîcheur
+indisponible) : plus jamais d'import de fichiers FIT COROS à la main.
+Retrait de tout ce qui en dépend côté interface, sans supprimer de donnée
+ni de schéma — c'est la même prudence que le reste de la consolidation,
+appliquée à une décision produit plutôt qu'à une fusion.
+
+- Carte « Fraîcheur » de l'accueil retirée (VFC, FC repos, verdict, règle
+  d'arrêt shouldCancelSession) — Strava ne porte pas ces mesures, plus
+  aucune source ne les alimentera. « Cette semaine » et « Dernière
+  activité » remontent d'autant.
+- Nouvelle page discrète (Réglages > Historique santé,
+  `/reglages/sante`) : consultation brute des 88 jours archivés
+  (01/06-29/08/2026), aucun verdict recalculé.
+- Export Markdown : section 6 omise si aucune valeur exploitable sur la
+  période demandée (le cas normal désormais hors périodes qui recoupent le
+  bloc archivé), gardée sinon — numérotation des autres sections inchangée.
+- Code mort retiré : `lib/metrics/readiness.ts` en entier, `FreshnessGauge`,
+  `resolveFreshnessBadge`, `loadFreshness`/`Freshness`
+  (repository.ts) → remplacée par `loadHealthHistory()`, une lecture brute.
+  `getSyncStatus()` perd `corosWithStreams`.
+- Gardé, comme demandé : les scripts `import:coros`/`import:coros:fit`
+  (documentés manuels et optionnels dans le README), toutes les données
+  `HealthMetric` et le schéma Prisma.
+
+**Ce que ça inverse d'un non-négociable de l'étape 3** : « fraîcheur qui
+retombe sur la dernière mesure » (correctif `9615ba9`/`a906abe`) faisait
+partie des points que la consolidation devait absolument préserver — ce
+n'est plus contredit par erreur, c'est retiré par décision explicite et
+informée de l'utilisateur, pour une raison sans rapport avec la
+correction du calcul (abandon d'un import manuel fastidieux, pas un doute
+sur la justesse de `findLatestReadinessMeasurement`).
+
+Remplacement de la fraîcheur sur l'accueil : en attente du choix de
+l'utilisateur entre plusieurs options proposées (charge d'entraînement,
+dénivelé de la semaine, prochain jalon) — rien codé avant sa réponse.
+
 ## Après l'étape 5 — six points relevés en parcourant l'accueil (05/09/2026)
 
 L'utilisateur a ouvert l'app lui-même. Six points, traités dans l'ordre
