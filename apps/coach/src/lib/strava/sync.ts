@@ -219,6 +219,9 @@ async function runActivityDetail(payload: unknown): Promise<void> {
       avgCadence: lap.average_cadence ?? null,
       startedAt: lap.start_date ? new Date(lap.start_date) : null,
       splitIndex: lap.split ?? null,
+      // Strava numérote `split` pour les tours auto-générés (1 km, 1 mile) ;
+      // un vrai tour posé au bouton par l'athlète n'a pas de numéro de split.
+      isManual: lap.split == null,
     })),
   });
 }
