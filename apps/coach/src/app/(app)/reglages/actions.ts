@@ -1,11 +1,10 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getEnv, isStravaConfigured } from "@/lib/env.ts";
-import { buildAuthorizeUrl, disconnect } from "@/lib/strava/oauth.ts";
+import { STATE_COOKIE, STATE_TTL_S, buildAuthorizeUrl, disconnect, generateOAuthState } from "@/lib/strava/oauth.ts";
 import {
   enqueueIncrementalSync,
   runSyncWorker,
@@ -13,24 +12,31 @@ import {
   type WorkerReport,
 } from "@/lib/strava/sync.ts";
 
-const STATE_COOKIE = "strava_oauth_state";
-
 /** Redirige vers l'écran de consentement Strava. */
 export async function connectStrava(): Promise<void> {
   if (!isStravaConfigured()) redirect("/reglages?strava=non_configure");
 
   const env = getEnv();
-  const state = randomBytes(24).toString("base64url");
+  const { state, cookieValue } = generateOAuthState();
   const store = await cookies();
-  store.set(STATE_COOKIE, state, {
+  store.set(STATE_COOKIE, cookieValue, {
     httpOnly: true,
     sameSite: "lax", // Strava nous renvoie depuis son domaine.
     secure: env.NODE_ENV === "production",
     path: "/",
-    maxAge: 600,
+    maxAge: STATE_TTL_S,
   });
 
-  const base = env.PUBLIC_URL ?? "http://localhost:3000";
+  // `PUBLIC_URL` prime quand elle est configurée (déploiement). En local, où
+  // elle est vide, dériver l'hôte de la requête entrante plutôt qu'une
+  // constante codée en dur : le cookie ci-dessus est posé sur l'hôte
+  // réellement visité (localhost, 127.0.0.1…) et Strava doit y revenir
+  // exactement, sans quoi le cookie — sans attribut Domain, donc host-only —
+  // n'est jamais renvoyé par le navigateur au retour.
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host") ?? "localhost:3000";
+  const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
+  const base = env.PUBLIC_URL ?? `${proto}://${host}`;
   redirect(buildAuthorizeUrl(state, `${base}/api/strava/callback`));
 }
 

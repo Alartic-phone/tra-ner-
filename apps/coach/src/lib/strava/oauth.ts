@@ -1,5 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { prisma } from "../db.ts";
-import { encrypt } from "../crypto.ts";
+import { decrypt, encrypt, safeEqual } from "../crypto.ts";
 import { getEnv } from "../env.ts";
 import { tokenResponseSchema } from "./schemas.ts";
 
@@ -11,6 +12,40 @@ import { tokenResponseSchema } from "./schemas.ts";
  * charge d'entraînement) et `profile:read_all`.
  */
 export const STRAVA_SCOPES = "read,activity:read_all,profile:read_all";
+
+/**
+ * Protection CSRF de l'aller-retour OAuth (indépendante de toute notion de
+ * session utilisateur — l'app n'en a plus depuis le retrait de
+ * l'authentification, et ce cookie n'en a d'ailleurs jamais dépendu).
+ *
+ * La valeur posée en cookie est l'état aléatoire chiffré (AES-256-GCM,
+ * authentifié) plutôt que l'état en clair : un cookie modifié ou rejoué
+ * depuis une autre origine échoue au déchiffrement, sans quoi une simple
+ * égalité sur une valeur en clair suffirait à un attaquant qui parviendrait
+ * à déposer son propre cookie (« cookie tossing ») sur le même navigateur.
+ */
+export const STATE_COOKIE = "strava_oauth_state";
+export const STATE_TTL_S = 600;
+
+export function generateOAuthState(): { state: string; cookieValue: string } {
+  const state = randomBytes(24).toString("base64url");
+  return { state, cookieValue: encrypt(state) };
+}
+
+/** Vrai seulement si le cookie est présent, déchiffrable, et égal en temps
+ * constant à l'état renvoyé par Strava. Toute anomalie (cookie absent, state
+ * absent, cookie altéré ou rejoué depuis une autre origine) renvoie faux —
+ * jamais une exception qui laisserait deviner la cause à un attaquant. */
+export function verifyOAuthState(cookieValue: string | undefined, returnedState: string | null): boolean {
+  if (!cookieValue || !returnedState) return false;
+  let expected: string;
+  try {
+    expected = decrypt(cookieValue);
+  } catch {
+    return false;
+  }
+  return safeEqual(returnedState, expected);
+}
 
 export function buildAuthorizeUrl(state: string, redirectUri: string): string {
   const env = getEnv();

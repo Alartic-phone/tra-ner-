@@ -1,12 +1,9 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { safeEqual } from "@/lib/crypto.ts";
-import { exchangeCode } from "@/lib/strava/oauth.ts";
+import { STATE_COOKIE, exchangeCode, verifyOAuthState } from "@/lib/strava/oauth.ts";
 import { startBackfill } from "@/lib/strava/sync.ts";
 
 export const dynamic = "force-dynamic";
-
-const STATE_COOKIE = "strava_oauth_state";
 
 /** Retour d'autorisation Strava. */
 export async function GET(request: NextRequest) {
@@ -21,11 +18,11 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const store = await cookies();
-  const expected = store.get(STATE_COOKIE)?.value;
+  const cookieValue = store.get(STATE_COOKIE)?.value;
 
   // Protection CSRF : l'état renvoyé par Strava doit correspondre à celui
-  // déposé au moment de la redirection.
-  if (!code || !state || !expected || !safeEqual(state, expected)) {
+  // déposé (chiffré) au moment de la redirection.
+  if (!code || !verifyOAuthState(cookieValue, state)) {
     return NextResponse.redirect(new URL("/reglages?strava=etat_invalide", request.url));
   }
   store.delete(STATE_COOKIE);
