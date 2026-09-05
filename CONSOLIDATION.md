@@ -157,6 +157,40 @@ précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
 dédié). C'est le meilleur argument pour ne jamais laisser un outil de
 vérification "de côté" dans une consolidation de cette taille.
 
+## Après l'étape 5 — six points relevés en parcourant l'accueil (05/09/2026)
+
+L'utilisateur a ouvert l'app lui-même. Six points, traités dans l'ordre
+demandé — trois vrais bugs corrigés, deux causes de données identifiées
+(rien à corriger en base), un réglage jamais mis à jour depuis l'amorçage.
+
+1. **Badge « Feu vert » affiché sans mesure de fraîcheur** — corrigé.
+   `resolveFreshnessBadge()` (lib/home.ts), testé. Voir commit dédié.
+2. **Fraîcheur indisponible malgré des données COROS** — pas un bug
+   d'import. `HealthMetric` s'arrête au 29/08 (rien réimporté depuis, même
+   trou que Strava) ET `sleep-hrv.txt` est un export "Last 7 days" de
+   l'appli COROS — structurellement limité à une semaine glissante à
+   l'instant de l'export, jamais un historique complet comme
+   `resting-hr.txt`. Une seule capture faite (29/08 00:14) : 6 jours de
+   VFC en base (23 au 28/08), jamais assez pour la fenêtre de 7 jours que
+   `findLatestReadinessMeasurement` exige. Il faudra ré-exporter
+   régulièrement `sleep-hrv.txt` pour accumuler une vraie couverture.
+3. **Bandeau « Repos » alors qu'un poste d'après-midi était attendu** —
+   pas un bug de calcul (33 tests sur `shifts/cycle.ts`, toujours au vert,
+   vérifié par calcul manuel indépendant). Le cycle enregistré en base est
+   encore la valeur d'amorçage de `scripts/seed.ts` (ancre 26/08/2026,
+   jamais corrigée pour le vrai cycle F/6) : avec cette ancre, le 05/09
+   tombe bien en repos. Correction = mettre à jour Réglages > Cycle de
+   postes avec les vrais paramètres, pas une correction de code.
+4. **Barres de « Cette semaine » toujours des traits plats** — corrigé
+   (bug CSS, `h-24` mal placé dans la chaîne flex). Voir commit dédié.
+5. **Dernière activité affichant l'icône au lieu du tracé** — pas un bug.
+   Vérifié : `ActivityStream.availableStreamsJson` de "Course à pied en
+   soirée" (02/09) ne contient pas `latlng` — GPS réellement absent côté
+   Strava pour cette sortie. `getTracePath` se rabat sur `null`
+   correctement plutôt que d'inventer un tracé.
+6. **Ambre utilisé sur un code de poste (ruban)** — corrigé. Voir commit
+   dédié.
+
 ## Après l'étape 5 — compteurs Réglages sur des périmètres différents
 
 Page Réglages : « Activités importées » (134) et « Avec flux détaillés »
