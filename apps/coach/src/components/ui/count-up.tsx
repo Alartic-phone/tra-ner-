@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fixed } from "@/lib/utils.ts";
 
 /**
  * Anime un nombre vers sa valeur finale lors des changements. N'anime
@@ -68,5 +69,5 @@ export function CountUp({
     };
   }, [value, durationMs]);
 
-  return <>{display.toFixed(decimals)}</>;
+  return <>{fixed(display, decimals)}</>;
 }

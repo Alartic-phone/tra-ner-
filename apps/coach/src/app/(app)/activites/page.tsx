@@ -12,7 +12,7 @@ import {
 } from "@/lib/metrics/repository.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
-import { formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
+import { fixed, formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
 import { formatDayShort, formatInstant, toLocalHour } from "@/lib/time.ts";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
 
@@ -153,7 +153,7 @@ export default async function ActivitiesPage({
               <section key={week.weekStart}>
                 <h2 className="tabular text-xs font-medium text-[var(--color-muted)]">
                   {formatDayShort(week.weekStart)} – {formatDayShort(week.weekEnd)} ·{" "}
-                  {runKm.toFixed(2)} km course · {rideKm.toFixed(2)} km vélo · {week.items.length} sortie
+                  {fixed(runKm, 2)} km course · {fixed(rideKm, 2)} km vélo · {week.items.length} sortie
                   {week.items.length > 1 ? "s" : ""}
                 </h2>
                 <div className="mt-2 divide-y divide-[var(--color-border)] rounded-[var(--radius-card)] border border-[var(--color-border)]">

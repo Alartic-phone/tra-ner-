@@ -18,6 +18,7 @@ import {
 import { formatDayShort } from "@/lib/time.ts";
 import { weekdayLabel } from "@/lib/shifts/day.ts";
 import { computeEndLabelOffsets } from "@/lib/metrics/load.ts";
+import { fixed } from "@/lib/utils.ts";
 
 /** Durée et amorti partagés par tous les graphiques temporels : tracé
  * progressif de gauche à droite au chargement, jamais instantané. */
@@ -148,9 +149,24 @@ export function FitnessChart({
             height={24}
             wrapperStyle={{ fontSize: 11, color: "var(--color-muted)" }}
             payload={[
-              { value: "Charge du jour", type: "rect", color: "var(--chart-neutral)" },
-              { value: "Condition physique (42 j)", type: "plainline", color: "var(--chart-1)" },
-              { value: "Fatigue (7 j)", type: "plainline", color: "var(--chart-2)" },
+              {
+                value: "Charge du jour",
+                type: "rect",
+                color: "var(--chart-neutral)",
+                payload: { strokeDasharray: "0" },
+              },
+              {
+                value: "Condition physique (42 j)",
+                type: "plainline",
+                color: "var(--chart-1)",
+                payload: { strokeDasharray: "0" },
+              },
+              {
+                value: "Fatigue (7 j)",
+                type: "plainline",
+                color: "var(--chart-2)",
+                payload: { strokeDasharray: "0" },
+              },
             ]}
           />
 
@@ -334,7 +350,7 @@ export function AcwrChart({
             contentStyle={tooltipStyle}
             cursor={{ stroke: "var(--color-border-strong)", strokeWidth: 1 }}
             labelFormatter={(d: string) => dayTooltipLabel(d)}
-            formatter={(value: number) => [value.toFixed(2), "Ratio aigu/chronique"]}
+            formatter={(value: number) => [fixed(value, 2), "Ratio aigu/chronique"]}
           />
           <Area
             dataKey="ratio"

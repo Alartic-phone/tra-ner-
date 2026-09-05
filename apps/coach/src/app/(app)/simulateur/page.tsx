@@ -15,7 +15,14 @@ import {
 } from "@/lib/metrics/prediction.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { formatDayLong, today } from "@/lib/time.ts";
-import { formatClock, formatDistance, formatDuration, formatPace, formatTimeRange } from "@/lib/utils.ts";
+import {
+  fixed,
+  formatClock,
+  formatDistance,
+  formatDuration,
+  formatPace,
+  formatTimeRange,
+} from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -167,7 +174,7 @@ export default async function SimulatorPage() {
             hint="Régression distance/temps sur les meilleurs efforts de 2 à 30 minutes, 365 derniers jours."
             action={
               criticalSpeed ? (
-                <Badge tone={criticalSpeed.r2 > 0.99 ? "ok" : "warn"}>R² {criticalSpeed.r2.toFixed(3)}</Badge>
+                <Badge tone={criticalSpeed.r2 > 0.99 ? "ok" : "warn"}>R² {fixed(criticalSpeed.r2, 3)}</Badge>
               ) : null
             }
           />
@@ -185,7 +192,7 @@ export default async function SimulatorPage() {
                 <Stat
                   label="Vitesse critique"
                   value={formatPace(1000 / criticalSpeed.csMps)}
-                  hint={`${(criticalSpeed.csMps * 3.6).toFixed(2)} km/h · ${criticalSpeed.sampleCount} efforts`}
+                  hint={`${fixed(criticalSpeed.csMps * 3.6, 2)} km/h · ${criticalSpeed.sampleCount} efforts`}
                   estimated
                 />
                 <Stat

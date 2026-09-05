@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card.tsx";
 import { ErrorText, Hint, Input, Label } from "@/components/ui/field.tsx";
 import { DEFAULT_DISTANCES } from "@/lib/metrics/best-efforts.ts";
 import { danielsPaces, fitRiegelExponent, predictTimeFromVdot, riegel, vdotFromRace, RIEGEL_EXPONENT } from "@/lib/metrics/prediction.ts";
-import { formatClock, formatDistance, formatPace, parseClock } from "@/lib/utils.ts";
+import { fixed, formatClock, formatDistance, formatPace, parseClock } from "@/lib/utils.ts";
 
 /**
  * Calculateur interactif « et si » — aucune donnée serveur requise : tout le
@@ -185,7 +185,7 @@ export function RiegelCalculator({
             {paces ? (
               <div className="border-t border-[var(--color-border)] pt-3">
                 <h3 className="text-xs font-medium text-[var(--color-muted)]">
-                  Allures d&apos;entraînement (Daniels, VDOT {vdot!.toFixed(1)})
+                  Allures d&apos;entraînement (Daniels, VDOT {fixed(vdot!, 1)})
                 </h3>
                 <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
                   <div>Endurance lente : {formatPace(paces.easySlowSPerKm)}</div>

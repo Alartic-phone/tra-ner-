@@ -1,6 +1,7 @@
 import { minutesToTime } from "../../lib/shifts/day.ts";
 import type { FreeWindow } from "../../lib/shifts/availability.ts";
 import type { Day } from "../../lib/shifts/day.ts";
+import { fixed } from "../../lib/utils.ts";
 
 /**
  * Logique PURE de <CycleRibbon /> — fenêtrage mobile et textes (infobulle,
@@ -43,7 +44,7 @@ function windowsLabel(windows: readonly FreeWindow[]): string {
   return windows
     .map((w) => {
       const hours = w.durationMin / 60;
-      const hoursLabel = Number.isInteger(hours) ? `${hours} h` : `${hours.toFixed(1)} h`;
+      const hoursLabel = Number.isInteger(hours) ? `${hours} h` : `${fixed(hours, 1)} h`;
       return `${minutesToTime(w.startMin)}–${minutesToTime(w.endMin)} (${hoursLabel})`;
     })
     .join(" · ");

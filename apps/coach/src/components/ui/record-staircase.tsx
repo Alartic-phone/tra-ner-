@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { formatDayShort } from "@/lib/time.ts";
 import { DUR, EASE, STAGGER } from "@/lib/motion.ts";
+import { fixed } from "@/lib/utils.ts";
 import { barHeightsPct, type RecordPoint } from "./record-staircase-logic.ts";
 
 /**
@@ -41,7 +42,7 @@ export function RecordStaircase({
                 className="tabular mb-1 text-xs font-medium sm:text-sm"
                 style={{ color: isLast ? "var(--color-signal)" : "var(--color-text)" }}
               >
-                {r.value.toFixed(decimals)}
+                {fixed(r.value, decimals)}
               </span>
               {/* Hauteur du conteneur fixée explicitement : une hauteur en %
                   sur la barre (ci-dessous) ne se résout que contre un parent

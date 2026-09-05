@@ -1,5 +1,5 @@
 import type { ExportData } from "./schema.ts";
-import { formatTimeRange } from "../utils.ts";
+import { fixed, formatTimeRange } from "../utils.ts";
 
 /**
  * Rendu Markdown déterministe : mêmes données -> même fichier au caractère
@@ -11,7 +11,7 @@ import { formatTimeRange } from "../utils.ts";
 const NA = "non disponible";
 
 function fmtNum(v: number | null, decimals = 0): string {
-  return v == null ? NA : v.toFixed(decimals);
+  return v == null ? NA : fixed(v, decimals);
 }
 function fmtPaceSPerKm(v: number | null): string {
   if (v == null) return NA;
@@ -156,10 +156,10 @@ function section3Weeks(d: ExportData): string {
       ],
       d.weeks.map((w) => [
         `${w.weekStart} → ${w.weekEnd}`,
-        w.runKm.toFixed(2),
-        w.rideKm.toFixed(2),
+        fixed(w.runKm, 2),
+        fixed(w.rideKm, 2),
         String(w.sessions),
-        w.elevationM.toFixed(0),
+        fixed(w.elevationM, 0),
         fmtClock(w.durationS),
         fmtNum(w.trimp, 0),
         fmtNum(w.ctlEnd, 1),
@@ -185,7 +185,7 @@ function section4Activities(d: ExportData): string {
         a.day,
         a.name,
         a.type,
-        (a.distanceM / 1000).toFixed(2),
+        fixed(a.distanceM / 1000, 2),
         fmtClock(a.movingTimeS),
         fmtNum(a.elevationGainM, 0),
         a.avgHr != null ? String(a.avgHr) : NA,
@@ -209,7 +209,7 @@ function section5ActivityDetails(d: ExportData): string {
       det.splits.length > 0
         ? table(
             ["#", "Distance (m)", "Temps", "FC moy."],
-            det.splits.map((s) => [String(s.index), s.distanceM.toFixed(0), fmtClock(s.movingTimeS), s.avgHr != null ? String(s.avgHr) : NA]),
+            det.splits.map((s) => [String(s.index), fixed(s.distanceM, 0), fmtClock(s.movingTimeS), s.avgHr != null ? String(s.avgHr) : NA]),
           )
         : "Aucun split.",
     );
@@ -218,7 +218,7 @@ function section5ActivityDetails(d: ExportData): string {
       det.laps.length > 0
         ? table(
             ["#", "Distance (m)", "Temps", "FC moy.", "Manuel"],
-            det.laps.map((l) => [String(l.index), l.distanceM.toFixed(0), fmtClock(l.movingTimeS), l.avgHr != null ? String(l.avgHr) : NA, l.isManual ? "oui" : "non"]),
+            det.laps.map((l) => [String(l.index), fixed(l.distanceM, 0), fmtClock(l.movingTimeS), l.avgHr != null ? String(l.avgHr) : NA, l.isManual ? "oui" : "non"]),
           )
         : "Aucun tour.",
     );
@@ -233,7 +233,7 @@ function section5ActivityDetails(d: ExportData): string {
       det.bestEfforts.length > 0
         ? table(
             ["Durée", "Distance (m)"],
-            det.bestEfforts.map((e) => [fmtClock(e.durationS), e.distanceM.toFixed(0)]),
+            det.bestEfforts.map((e) => [fmtClock(e.durationS), fixed(e.distanceM, 0)]),
           )
         : "Aucun meilleur effort extrait.",
     );
@@ -274,7 +274,7 @@ function section7Records(d: ExportData): string {
           ? NA
           : r.unit === "s/km"
             ? fmtPaceSPerKm(r.value)
-            : `${r.value.toFixed(2)} ${r.unit}`,
+            : `${fixed(r.value, 2)} ${r.unit}`,
         r.day ?? "—",
       ]),
     ),
@@ -287,7 +287,7 @@ function section8Plan(d: ExportData): string {
     d.plan.goal
       ? (() => {
           const range = formatTimeRange(d.plan.goal.targetTimeMinS, d.plan.goal.targetTimeMaxS, fmtClock);
-          return `- Objectif : ${d.plan.goal.name}, le ${d.plan.goal.day}, ${(d.plan.goal.distanceM / 1000).toFixed(1)} km${range ? `, chrono visé ${range}` : ""}`;
+          return `- Objectif : ${d.plan.goal.name}, le ${d.plan.goal.day}, ${fixed(d.plan.goal.distanceM / 1000, 1)} km${range ? `, chrono visé ${range}` : ""}`;
         })()
       : "- Aucun objectif actif.",
   );
@@ -301,7 +301,7 @@ function section8Plan(d: ExportData): string {
             w.title,
             w.type,
             w.status,
-            w.targetDistanceM != null ? `${(w.targetDistanceM / 1000).toFixed(1)} km` : "—",
+            w.targetDistanceM != null ? `${fixed(w.targetDistanceM / 1000, 1)} km` : "—",
             w.targetDurationS != null ? fmtClock(w.targetDurationS) : "—",
             w.activityId ?? "—",
           ]),

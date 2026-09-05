@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { ActivityTypeIcon, sportColor } from "@/components/activities/activity-icon.tsx";
-import { cn } from "@/lib/utils.ts";
+import { cn, fixed } from "@/lib/utils.ts";
 import { minutesToTime, weekdayLabel } from "@/lib/shifts/day.ts";
 import type { ShiftTiming } from "@/lib/shifts/types.ts";
 import type { CalendarDay } from "./month-grid.tsx";
@@ -66,7 +66,7 @@ export function WeekGrid({ days, timings }: { days: CalendarDay[]; timings: Shif
                       color: "var(--color-ok)",
                     }}
                   >
-                    {minutesToTime(w.startMin)}–{minutesToTime(w.endMin)} · {(w.durationMin / 60).toFixed(1)} h
+                    {minutesToTime(w.startMin)}–{minutesToTime(w.endMin)} · {fixed(w.durationMin / 60, 1)} h
                     {!w.allowsQuality ? " · endurance seule" : ""}
                   </div>
                 ))

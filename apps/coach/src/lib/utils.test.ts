@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
   distributePercentages,
+  fixed,
   formatDistance,
   formatDistanceOrDuration,
   formatDuration,
   formatTimeRange,
 } from "./utils.ts";
+
+describe("fixed (virgule française, jamais un point)", () => {
+  it("remplace le point de toFixed par une virgule", () => {
+    expect(fixed(24.6875, 2)).toBe("24,69");
+    expect(fixed(0, 2)).toBe("0,00");
+  });
+
+  it("laisse les entiers sans séparateur (decimals=0)", () => {
+    expect(fixed(45, 0)).toBe("45");
+  });
+
+  it("gère les valeurs négatives (delta de fraîcheur, forme)", () => {
+    expect(fixed(-3.5, 1)).toBe("-3,5");
+  });
+});
 
 describe("formatDistanceOrDuration", () => {
   it("affiche la distance quand elle existe", () => {

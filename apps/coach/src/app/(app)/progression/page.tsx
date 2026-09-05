@@ -16,7 +16,7 @@ import {
   loadRecordWeek,
   predictDistance,
 } from "@/lib/metrics/repository.ts";
-import { formatClock, formatPace } from "@/lib/utils.ts";
+import { fixed, formatClock, formatPace } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -108,7 +108,7 @@ export default async function ProgressionPage() {
       <PhotoHero photo={photo} height={120}>
         <h1 className="text-lg font-semibold text-[var(--color-text)]">Progression</h1>
         <p className="tabular mt-0.5 text-sm text-[var(--color-text)]">
-          {yearTotalKm.toFixed(2)} km parcourus en {day.slice(0, 4)}
+          {fixed(yearTotalKm, 2)} km parcourus en {day.slice(0, 4)}
         </p>
       </PhotoHero>
 
@@ -117,7 +117,7 @@ export default async function ProgressionPage() {
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <RecordCard
             label="Plus longue sortie"
-            value={longestRun ? (longestRun.distanceM / 1000).toFixed(2) : null}
+            value={longestRun ? fixed(longestRun.distanceM / 1000, 2) : null}
             unit="km"
             day={longestRun?.day ?? null}
           />
@@ -135,7 +135,7 @@ export default async function ProgressionPage() {
           />
           <RecordCard
             label="Semaine record"
-            value={recordWeek ? recordWeek.km.toFixed(2) : null}
+            value={recordWeek ? fixed(recordWeek.km, 2) : null}
             unit="km"
             day={recordWeek?.weekStart ?? null}
           />

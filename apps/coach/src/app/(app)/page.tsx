@@ -29,6 +29,7 @@ import {
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { computeSportVolume } from "@/lib/metrics/volume.ts";
 import {
+  fixed,
   formatClock,
   formatDistance,
   formatPace,
@@ -222,9 +223,9 @@ export default async function HomePage() {
           size="md"
           trend={
             [
-              target != null ? `sur ${target.toFixed(0)} km visés` : null,
+              target != null ? `sur ${fixed(target, 0)} km visés` : null,
               // Vélo affiché à part, jamais mélangé au volume de course.
-              weekRideKm > 0 ? `+ ${weekRideKm.toFixed(1)} km vélo` : null,
+              weekRideKm > 0 ? `+ ${fixed(weekRideKm, 1)} km vélo` : null,
             ]
               .filter(Boolean)
               .join(" · ") || undefined

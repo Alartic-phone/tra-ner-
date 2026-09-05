@@ -7,7 +7,7 @@ import { updateShifts } from "@/app/(app)/calendrier/actions.ts";
 import { ActivityTypeIcon, sportColor } from "@/components/activities/activity-icon.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { cn, formatDistanceOrDuration } from "@/lib/utils.ts";
+import { cn, fixed, formatDistanceOrDuration } from "@/lib/utils.ts";
 import { formatDayLong } from "@/lib/time.ts";
 import type { ShiftTiming } from "@/lib/shifts/types.ts";
 import type { FreeWindow } from "@/lib/shifts/availability.ts";
@@ -314,7 +314,7 @@ function WeekSummary({ week, targetKm }: { week: CalendarDay[]; targetKm: number
         />
       </span>
       <span className="tabular whitespace-nowrap text-[10px] text-[var(--color-faint)]">
-        {realizedKm.toFixed(0)} / {targetKm.toFixed(0)} km — semaine de plan
+        {fixed(realizedKm, 0)} / {fixed(targetKm, 0)} km — semaine de plan
       </span>
     </div>
   );

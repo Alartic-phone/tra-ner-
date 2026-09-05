@@ -2,6 +2,7 @@ import { prisma } from "./db.ts";
 import { addDays, mondayOf, type Day } from "./shifts/day.ts";
 import { today } from "./time.ts";
 import { isRun, RUN_TYPES } from "./strava/mapping.ts";
+import { fixed } from "./utils.ts";
 
 /** Requêtes propres à /progression : nuage allure×FC, volume hebdomadaire, jalons. */
 
@@ -95,7 +96,7 @@ export async function loadMilestones(): Promise<Milestone[]> {
       bestDistance = run.distanceM;
       milestones.push({
         day: run.startDay,
-        label: `Record de la plus longue sortie : ${(bestDistance / 1000).toFixed(2)} km`,
+        label: `Record de la plus longue sortie : ${fixed(bestDistance / 1000, 2)} km`,
       });
     }
     cumulativeM += run.distanceM;

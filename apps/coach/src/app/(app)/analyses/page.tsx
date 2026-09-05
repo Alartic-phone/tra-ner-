@@ -18,7 +18,7 @@ import { computeCriticalSpeed } from "@/lib/metrics/prediction.ts";
 import type { InsufficientHistory } from "@/lib/metrics/load.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { today } from "@/lib/time.ts";
-import { formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
+import { fixed, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -250,7 +250,7 @@ export default async function AnalyticsPage({
             label="Monotonie"
             value={
               snapshot.foster.monotony != null ? (
-                snapshot.foster.monotony.toFixed(2)
+                fixed(snapshot.foster.monotony, 2)
               ) : (
                 <Unavailable
                   reason={
@@ -352,7 +352,7 @@ export default async function AnalyticsPage({
             action={
               criticalSpeed ? (
                 <Badge tone={criticalSpeed.r2 > 0.99 ? "ok" : "warn"}>
-                  R² {criticalSpeed.r2.toFixed(3)}
+                  R² {fixed(criticalSpeed.r2, 3)}
                 </Badge>
               ) : null
             }
@@ -362,7 +362,7 @@ export default async function AnalyticsPage({
               <Stat
                 label="Vitesse critique"
                 value={formatPace(1000 / criticalSpeed.csMps)}
-                hint={`${(criticalSpeed.csMps * 3.6).toFixed(2)} km/h · ${criticalSpeed.sampleCount} efforts`}
+                hint={`${fixed(criticalSpeed.csMps * 3.6, 2)} km/h · ${criticalSpeed.sampleCount} efforts`}
                 estimated
               />
               <Stat

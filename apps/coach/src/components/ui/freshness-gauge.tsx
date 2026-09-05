@@ -4,6 +4,7 @@
  * signature, mais suit les mêmes règles (pas de couleur seule porteuse de
  * sens — la valeur et l'écart sont toujours écrits en toutes lettres à côté).
  */
+import { fixed } from "@/lib/utils.ts";
 export function FreshnessGauge({
   label,
   value,
@@ -35,10 +36,10 @@ export function FreshnessGauge({
       <div className="flex items-baseline justify-between text-xs">
         <span className="text-[var(--color-muted)]">{label}</span>
         <span className="tabular text-[var(--color-text)]">
-          {value.toFixed(decimals)} {unit}
+          {fixed(value, decimals)} {unit}
           <span className="ml-1 text-[var(--color-faint)]">
             ({delta >= 0 ? "+" : ""}
-            {delta.toFixed(decimals)} vs habituel)
+            {fixed(delta, decimals)} vs habituel)
           </span>
         </span>
       </div>

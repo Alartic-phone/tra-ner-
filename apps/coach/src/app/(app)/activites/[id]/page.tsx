@@ -11,6 +11,7 @@ import { ActivityNotes } from "@/components/activities/activity-notes.tsx";
 import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
 import { toggleLapManualForm } from "./actions.ts";
 import {
+  fixed,
   formatClock,
   formatDistance,
   formatPace,
@@ -351,7 +352,7 @@ export default async function ActivityPage({
                 }}
               >
                 {activity.decouplingPct != null ? (
-                  `${activity.decouplingPct.toFixed(1)} %`
+                  `${fixed(activity.decouplingPct, 1)} %`
                 ) : (
                   <Unavailable reason="Exige un effort d'au moins 30 min avec allure et fréquence cardiaque" />
                 )}

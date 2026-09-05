@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatDayShort } from "@/lib/time.ts";
+import { fixed } from "@/lib/utils.ts";
 import type { WeeklyVolumePoint } from "@/lib/progression-repository.ts";
 
 /** Volume hebdomadaire, course et vélo distincts (deux sports, deux unités de vitesse — jamais fondus), cible du plan actif en pointillés. */
@@ -23,8 +24,8 @@ export function WeeklyVolumeChart({ points }: { points: WeeklyVolumePoint[] }) {
   return (
     <div>
       <p className="sr-only">
-        Sur les {points.length} dernières semaines : {totalRunKm.toFixed(1)} km de course et{" "}
-        {totalRideKm.toFixed(1)} km de vélo au total.
+        Sur les {points.length} dernières semaines : {fixed(totalRunKm, 1)} km de course et{" "}
+        {fixed(totalRideKm, 1)} km de vélo au total.
       </p>
       <div className="h-64 w-full" aria-hidden>
         <ResponsiveContainer width="100%" height="100%">
@@ -47,7 +48,7 @@ export function WeeklyVolumeChart({ points }: { points: WeeklyVolumePoint[] }) {
               fontSize: 11,
             }}
             labelFormatter={(d: string) => formatDayShort(d)}
-            formatter={(v: number, name: string) => [`${v.toFixed(1)} km`, name]}
+            formatter={(v: number, name: string) => [`${fixed(v, 1)} km`, name]}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="runKm" name="Course" stackId="volume" fill="var(--sport-run)" radius={[0, 0, 0, 0]} />

@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Nombre à décimales au format français (virgule, jamais point) — seule
+ * fonction que tout affichage de nombre décimal doit utiliser. `toFixed`
+ * natif produit toujours un point ; `toLocaleString("fr-FR")` peut aussi
+ * insérer des espaces insécables de groupement selon l'environnement, ce
+ * qu'on ne veut pas ici pour de petites valeurs.
+ */
+export function fixed(value: number, decimals: number): string {
+  return value.toFixed(decimals).replace(".", ",");
+}
+
 /** Formate une durée en secondes : "1 h 12 min", "42 min", "38 s". */
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null) return "—";
