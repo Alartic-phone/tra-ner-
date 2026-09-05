@@ -14,7 +14,7 @@ import { mondayOf, addDays, eachDay, diffDays } from "@/lib/shifts/day.ts";
 import { formatDayShort, today, currentHour, toLocalHour } from "@/lib/time.ts";
 import { readPhotoManifest } from "@/lib/photo-manifest.ts";
 import { pickPhoto, momentForContext } from "@/lib/photos.ts";
-import { buildTodayPhrase } from "@/lib/home.ts";
+import { buildTodayPhrase, resolveFreshnessBadge } from "@/lib/home.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
 import {
@@ -124,6 +124,10 @@ export default async function HomePage() {
     profileStatus.thresholdHr != null
       ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
       : undefined;
+  const freshnessBadge = resolveFreshnessBadge({
+    cancelled,
+    freshnessStatus: freshness?.result.status ?? null,
+  });
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 p-4 md:space-y-6 md:p-6">
@@ -150,9 +154,9 @@ export default async function HomePage() {
         <CardHeader
           title="Fraîcheur"
           action={
-            <Badge tone={cancelled ? "danger" : freshness?.result.status === "prudence" ? "warn" : "ok"}>
-              {cancelled ? "Repos" : freshness?.result.status === "prudence" ? "Prudence" : "Feu vert"}
-            </Badge>
+            freshnessBadge ? (
+              <Badge tone={freshnessBadge.tone}>{freshnessBadge.label}</Badge>
+            ) : undefined
           }
           hint={
             freshness
@@ -187,14 +191,19 @@ export default async function HomePage() {
       <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
         <Card className="p-4">
           <h2 className="text-sm font-medium text-[var(--color-muted)]">Cette semaine</h2>
-          <div className="mt-3 flex h-24 items-end gap-2">
+          <div className="mt-3 flex items-end gap-2">
             {weekDays.map((d) => {
               const km = runKmByDay.get(d) ?? 0;
               const isToday = d === day;
               const shiftCode = ribbonDays.find((r) => r.day === d)?.code ?? null;
               return (
                 <div key={d} className="flex flex-1 flex-col items-center gap-1">
-                  <div className="flex h-full w-full items-end">
+                  {/* La hauteur en % de la barre a besoin d'un ancêtre à
+                      hauteur EXPLICITE (pixels) pour se résoudre : posée sur
+                      la ligne du dessus avec `items-end` (donc pas étirée),
+                      elle retombait sur "auto" et les barres restaient des
+                      traits plats quel que soit le volume réel. */}
+                  <div className="flex h-24 w-full items-end">
                     <div
                       className="w-full rounded-t-[2px]"
                       style={{

@@ -1,4 +1,26 @@
 import type { FreeWindow } from "./shifts/availability.ts";
+import type { ReadinessStatus } from "./metrics/readiness.ts";
+
+export type FreshnessBadge = { tone: "danger" | "warn" | "ok"; label: string } | null;
+
+/**
+ * Badge « Fraîcheur » de l'accueil. `null` = aucun badge affiché — jamais un
+ * verdict par défaut quand la mesure manque. C'est le bug précis qu'on a
+ * passé trois semaines à traquer ailleurs (fraîcheur, records, zones FC) :
+ * un badge « Feu vert » s'affichait alors que `freshnessStatus` était `null`,
+ * l'opérateur ternaire `status === "prudence" ? … : "Feu vert"` retombant sur
+ * la branche par défaut au lieu de rendre l'absence de mesure.
+ */
+export function resolveFreshnessBadge(input: {
+  cancelled: boolean;
+  freshnessStatus: ReadinessStatus | null;
+}): FreshnessBadge {
+  if (input.cancelled) return { tone: "danger", label: "Repos" };
+  if (input.freshnessStatus === null) return null;
+  return input.freshnessStatus === "prudence"
+    ? { tone: "warn", label: "Prudence" }
+    : { tone: "ok", label: "Feu vert" };
+}
 
 /** "12 h 15" plutôt que "12:15" — cette phrase est de la prose, pas un tableau. */
 function formatHourFr(minutes: number): string {

@@ -105,7 +105,13 @@
   --chart-axis: #5d6779;
 
   /* Codes de poste. Repris de la base quand ils y sont personnalisés. */
-  --color-shift-m: #f59e0b;
+  /* --color-shift-m était #f59e0b (ambre) — quasi identique à --color-signal
+     (#f5a524), réservé à aujourd'hui/un record/la meilleure valeur/la séance
+     du jour (règle vérifiée à l'étape 5, ratée ici car aucune des deux
+     variables ne référence l'autre : la collision est dans la valeur, pas
+     dans le code). Remplacé par un sarcelle, hors de toute famille déjà
+     prise (ambre = signal, doré = --color-warn, corail = --color-serious). */
+  --color-shift-m: #14b8a6;
   --color-shift-a: #3b82f6;
   --color-shift-n: #7c3aed;
   --color-rest: #2b3444;

@@ -23,4 +23,29 @@ describe("globals.css", () => {
     expect(comment).toBeDefined();
     expect(comment).toContain("RARE PAR CONSTRUCTION");
   });
+
+  /**
+   * `--color-shift-m` valait #f59e0b — quasiment identique visuellement à
+   * `--color-signal` (#f5a524), sans qu'aucun code ne référence l'autre :
+   * la collision était dans la VALEUR, pas dans un usage croisé, donc
+   * invisible à toute recherche de `--color-signal` dans le code. Repéré à
+   * l'usage (05/09/2026), pas par la checklist de l'étape 5, qui ne
+   * vérifiait que l'absence de référence croisée. Ce test compare les
+   * valeurs RGB, pas les noms de variables.
+   */
+  it("aucune couleur de poste (--color-shift-*) ne se confond visuellement avec --color-signal", () => {
+    function hexOf(varName: string): [number, number, number] {
+      const hex = css.match(new RegExp(`${varName}:\\s*#([0-9a-fA-F]{6})`))?.[1];
+      expect(hex, `${varName} introuvable`).toBeDefined();
+      const n = parseInt(hex!, 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    const signal = hexOf("--color-signal");
+    for (const shiftVar of ["--color-shift-m", "--color-shift-a", "--color-shift-n"]) {
+      const [r, g, b] = hexOf(shiftVar);
+      const distance = Math.sqrt((r - signal[0]) ** 2 + (g - signal[1]) ** 2 + (b - signal[2]) ** 2);
+      expect(distance, `${shiftVar} trop proche de --color-signal`).toBeGreaterThan(60);
+    }
+  });
 });

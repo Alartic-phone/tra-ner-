@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { buildTodayPhrase } from "./home.ts";
+import { buildTodayPhrase, resolveFreshnessBadge } from "./home.ts";
+
+describe("resolveFreshnessBadge (jamais de verdict sans donnée)", () => {
+  it("n'affiche aucun badge quand la fraîcheur est indisponible", () => {
+    expect(resolveFreshnessBadge({ cancelled: false, freshnessStatus: null })).toBeNull();
+  });
+
+  it("« Feu vert » seulement quand une mesure existe et n'est pas en prudence", () => {
+    expect(resolveFreshnessBadge({ cancelled: false, freshnessStatus: "frais" })).toEqual({
+      tone: "ok",
+      label: "Feu vert",
+    });
+    expect(resolveFreshnessBadge({ cancelled: false, freshnessStatus: "correct" })).toEqual({
+      tone: "ok",
+      label: "Feu vert",
+    });
+  });
+
+  it("« Prudence » quand le statut de fraîcheur l'indique", () => {
+    expect(resolveFreshnessBadge({ cancelled: false, freshnessStatus: "prudence" })).toEqual({
+      tone: "warn",
+      label: "Prudence",
+    });
+  });
+
+  it("« Repos » prime sur tout le reste quand la séance est annulée, même sans mesure", () => {
+    expect(resolveFreshnessBadge({ cancelled: true, freshnessStatus: null })).toEqual({
+      tone: "danger",
+      label: "Repos",
+    });
+  });
+});
 
 describe("buildTodayPhrase", () => {
   it("poste travaillé avec matinée libre jusqu'à une heure donnée", () => {
