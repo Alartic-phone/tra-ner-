@@ -2,6 +2,24 @@
  * Zones de fréquence cardiaque et zones d'allure.
  */
 
+/**
+ * Rampe des 5 zones FC, partagée par `ZoneChart`, `ZoneBar` et le tableau de
+ * bord. Définie ici — un module PUR, jamais "use client" — plutôt que dans
+ * un composant client : un Server Component qui importerait une simple
+ * constante depuis un module "use client" la reçoit comme une référence
+ * opaque (mécanisme de "client reference" de React Server Components), pas
+ * comme le tableau réel — l'indexation renvoie alors silencieusement
+ * `undefined` (constaté : `backgroundColor: undefined` sur `<ZoneBar />`
+ * rendu depuis la page d'activité, un Server Component).
+ */
+export const ZONE_RAMP = [
+  "var(--zone-1)",
+  "var(--zone-2)",
+  "var(--zone-3)",
+  "var(--zone-4)",
+  "var(--zone-5)",
+] as const;
+
 export type HeartRateZone = {
   index: 1 | 2 | 3 | 4 | 5;
   name: string;

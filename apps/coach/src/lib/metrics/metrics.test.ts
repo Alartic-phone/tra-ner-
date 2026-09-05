@@ -28,6 +28,7 @@ import {
   paceAtVmaPercent,
   timeInZones,
   zoneForHeartRate,
+  ZONE_RAMP,
 } from "./zones.ts";
 import { computeGap, gradeFactor, minettiCost, smoothAltitude } from "./gap.ts";
 import { computeDecoupling, decouplingVerdict } from "./decoupling.ts";
@@ -581,6 +582,19 @@ describe("FC moyenne pondérée par le temps en mouvement", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe("ZONE_RAMP (rampe de couleurs des 5 zones)", () => {
+  it("expose une couleur par zone, dans l'ordre Z1 -> Z5", () => {
+    expect(ZONE_RAMP).toHaveLength(5);
+    expect(ZONE_RAMP[0]).toBe("var(--zone-1)");
+    expect(ZONE_RAMP[4]).toBe("var(--zone-5)");
+  });
+
+  it("est définie dans zones.ts, un module pur — jamais un composant \"use client\" (piège RSC : une constante importée depuis un module client devient une référence opaque pour un Server Component, ZoneBar/ZoneChart la reçoivent alors comme `undefined`)", () => {
+    const content = fs.readFileSync(path.resolve(HERE, "zones.ts"), "utf8");
+    expect(content).not.toMatch(/^"use client"/m);
+  });
+});
 
 describe("zones cardiaques — source unique", () => {
   it("aucune table de zones (noms + bornes) n'est dupliquée ailleurs dans src/", () => {

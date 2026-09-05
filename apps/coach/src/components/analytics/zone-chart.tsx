@@ -1,6 +1,7 @@
 "use client";
 
 import { distributePercentages, formatDuration } from "@/lib/utils.ts";
+import { ZONE_RAMP } from "@/lib/metrics/zones.ts";
 
 export type ZoneRow = {
   index: number;
@@ -9,15 +10,6 @@ export type ZoneRow = {
   fromBpm: number;
   toBpm: number;
 };
-
-/** Rampe des 5 zones FC, partagée avec `ZoneBar` (activités, calendrier). */
-export const ZONE_RAMP = [
-  "var(--zone-1)",
-  "var(--zone-2)",
-  "var(--zone-3)",
-  "var(--zone-4)",
-  "var(--zone-5)",
-];
 
 /** Couleur neutre de la ligne « sous Z1 » — en dessous de l'échelle des zones. */
 const BELOW_ZONE_1_COLOR = "var(--color-border-strong)";

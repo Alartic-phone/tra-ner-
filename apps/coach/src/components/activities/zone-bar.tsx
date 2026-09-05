@@ -1,6 +1,5 @@
-import { ZONE_RAMP } from "@/components/analytics/zone-chart.tsx";
 import { formatDuration } from "@/lib/utils.ts";
-import type { HeartRateZone } from "@/lib/metrics/zones.ts";
+import { ZONE_RAMP, type HeartRateZone } from "@/lib/metrics/zones.ts";
 
 /**
  * Barre horizontale segmentée par zone FC — l'information la plus utile pour
