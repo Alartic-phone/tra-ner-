@@ -3,6 +3,7 @@ import { addDays, mondayOf, type Day } from "./shifts/day.ts";
 import { today } from "./time.ts";
 import { isRun, RUN_TYPES } from "./strava/mapping.ts";
 import { fixed } from "./utils.ts";
+import { detectMilestones } from "./metrics/milestones.ts";
 
 /** Requêtes propres à /progression : nuage allure×FC, volume hebdomadaire, jalons. */
 
@@ -72,18 +73,35 @@ export type Milestone = { day: Day; label: string };
 
 /**
  * Jalons détectés automatiquement depuis les données réelles — jamais de
- * saisie manuelle (spec /progression). Deux familles, toutes deux dérivées
- * d'une somme ou d'un maximum réel :
+ * saisie manuelle (spec /progression). Trois familles, toutes dérivées d'une
+ * somme ou d'un maximum réel, jamais d'un événement saisi à la main :
+ *   - les « premières fois » (première sortie >10 km, premier semi, premier
+ *     20/40 km hebdomadaire, premier test de seuil/VMA planifié réalisé —
+ *     lib/metrics/milestones.ts), affichées EN PREMIER : ce sont elles qui
+ *     racontent le fil du suivi, pas un simple compteur ;
  *   - chaque nouveau record de plus longue sortie (déjà la donnée de
  *     <RecordStaircase />) ;
  *   - chaque franchissement d'un cap de kilométrage cumulé en course à pied.
+ * Les deux dernières familles restent triées par date décroissante entre
+ * elles ; les « premières fois » forment leur propre bloc au-dessus, dans
+ * l'ordre où elles ont eu lieu (le fil narratif se lit du début vers la fin).
  */
 export async function loadMilestones(): Promise<Milestone[]> {
-  const runs = await prisma.activity.findMany({
-    where: { type: { in: [...RUN_TYPES] } },
-    orderBy: { startDay: "asc" },
-    select: { startDay: true, distanceM: true },
-  });
+  const [runs, plannedWorkouts] = await Promise.all([
+    prisma.activity.findMany({
+      where: { type: { in: [...RUN_TYPES] } },
+      orderBy: { startDay: "asc" },
+      select: { startDay: true, distanceM: true, type: true },
+    }),
+    prisma.plannedWorkout.findMany({
+      select: { day: true, type: true, status: true },
+    }),
+  ]);
+
+  const firstTimeMilestones = detectMilestones(
+    runs.map((r) => ({ day: r.startDay, distanceM: r.distanceM, type: r.type })),
+    plannedWorkouts,
+  ).map((m): Milestone => ({ day: m.day, label: m.label }));
 
   const milestones: Milestone[] = [];
   let bestDistance = 0;
@@ -108,5 +126,8 @@ export async function loadMilestones(): Promise<Milestone[]> {
     }
   }
 
-  return milestones.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+  return [
+    ...firstTimeMilestones,
+    ...milestones.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0)),
+  ];
 }
