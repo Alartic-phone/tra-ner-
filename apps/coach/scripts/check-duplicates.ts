@@ -7,11 +7,17 @@
  * `stravaActivityId` qui ne protège que contre un doublon Strava-Strava.
  *
  * Ce script ne fait QUE lister les paires suspectes — il ne supprime jamais
- * rien. Deux activités sont suspectes quand leurs départs sont à moins de
- * 10 minutes d'écart ET leurs distances à moins de 5 % l'une de l'autre.
- * C'est à l'utilisateur de trancher laquelle garder : deux sorties réelles
- * et légitimes peuvent parfaitement partager ce profil (deux coureurs du
- * même groupe, par exemple), la suppression ne doit jamais être automatique.
+ * rien. Deux activités sont suspectes quand elles sont du MÊME type, leurs
+ * départs à moins de 10 minutes d'écart, ET leurs distances à moins de 5 %
+ * l'une de l'autre. C'est à l'utilisateur de trancher laquelle garder : deux
+ * sorties réelles et légitimes peuvent parfaitement partager ce profil (deux
+ * coureurs du même groupe, par exemple), la suppression ne doit jamais être
+ * automatique.
+ *
+ * Le type doit correspondre : Strava fait autorité pour les activités
+ * (COROS course / Garmin vélo y remontent tous les deux, cf. CLAUDE.md) —
+ * une course et une sortie vélo qui démarreraient proches dans le temps ne
+ * sont jamais « la même sortie », quelle que soit la proximité de distance.
  *
  *   npm run check:duplicates
  */
@@ -46,6 +52,8 @@ async function main(): Promise<void> {
       // peut plus être assez proche.
       const gapMin = (b.startedAt.getTime() - a.startedAt.getTime()) / 60_000;
       if (gapMin > MAX_START_GAP_MIN) break;
+
+      if (a.type !== b.type) continue;
 
       const maxDistance = Math.max(a.distanceM, b.distanceM);
       if (maxDistance === 0) continue; // Deux séances sans distance (musculation…) : rien à comparer.

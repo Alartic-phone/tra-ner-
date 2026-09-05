@@ -34,6 +34,22 @@ lisible. Ne jamais ajouter d'abstraction « au cas où ».
   interpoler reviendrait à fabriquer une mesure.
 - Les graphiques ne tronquent pas un axe sans le dire.
 
+## Sources de données : Strava fait autorité
+
+- COROS (course) et Garmin (vélo) remontent tous les deux vers Strava.
+  **Strava est la source de vérité pour les activités** — nom, distance,
+  durée, FC, tours. En cas d'écart entre Strava et un import COROS sur une
+  même sortie, **Strava gagne**, sans arbitrage au cas par cas.
+- Les fichiers FIT COROS (`npm run import:coros`, `import:coros:fit`) ne
+  servent qu'à ce que Strava ne porte pas : sommeil, VFC nocturne, FC de
+  repos, statut de récupération. Ils n'ont jamais vocation à dupliquer ou
+  concurrencer une activité déjà importée via Strava.
+- Conséquence pour `scripts/check-duplicates.ts` : deux enregistrements de
+  la même sortie provenant d'appareils différents (COROS + Garmin, par
+  exemple) mais arrivés tous les deux via Strava ne sont PAS des doublons
+  applicatifs — ce sont deux activités distinctes et réelles (une course,
+  une sortie vélo), Strava les traite déjà comme telles.
+
 ## Stack
 
 - **Next.js 15** (App Router) + **TypeScript strict**
