@@ -2,8 +2,7 @@
 // sources) ne portent pas sur le même périmètre — les afficher côte à côte
 // sans le dire a induit en erreur (cf. CONSOLIDATION.md, page Réglages
 // affichant "134 importées" / "137 avec flux détaillés" comme si c'était
-// comparable). Ce test échoue si un futur refactor confond les deux, ou si
-// `corosWithStreams` recompte le mauvais périmètre pour la ligne FIT.
+// comparable). Ce test échoue si un futur refactor confond les deux.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,11 +68,6 @@ describe("getSyncStatus (périmètres distincts, jamais confondus)", () => {
   it("withStreams compte toutes les sources confondues", async () => {
     const status = await getSyncStatus(client);
     expect(status.withStreams).toBe(3); // 2 Strava + 1 COROS
-  });
-
-  it("corosWithStreams ne compte que la source COROS — jamais réutilisé pour la ligne Strava", async () => {
-    const status = await getSyncStatus(client);
-    expect(status.corosWithStreams).toBe(1);
   });
 
   it("activities et withStreams diffèrent bien ici : les afficher côte à côte sans libellé explicite serait trompeur", async () => {

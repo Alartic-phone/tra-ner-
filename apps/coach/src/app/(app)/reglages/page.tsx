@@ -180,13 +180,17 @@ export default async function SettingsPage({
         </Card>
 
         <Card>
+          <CardHeader title="Historique santé" hint="Mesures COROS archivées (6-28 août 2026)." />
+          <CardBody>
+            <Link href="/reglages/sante" className="text-sm text-[var(--color-accent)] hover:underline">
+              Consulter l&apos;historique →
+            </Link>
+          </CardBody>
+        </Card>
+
+        <Card>
           <CardHeader title="État des intégrations" />
           <CardBody className="space-y-2 text-xs">
-            <Row
-              label="Import de fichiers FIT"
-              value={`manuel (COROS) · ${status.corosWithStreams} activité(s) COROS avec flux`}
-              hint="npm run import:coros puis import:coros:fit — sommeil, HRV nocturne et statut de récupération COROS, absents de Strava."
-            />
             <Row
               label="Génération de plan par Claude"
               value={isCoachConfigured() ? `activée · ${env.ANTHROPIC_MODEL}` : "clé API absente"}

@@ -4,23 +4,20 @@ import { PhotoHero } from "@/components/ui/photo-hero.tsx";
 import { CycleRibbon } from "@/components/ui/cycle-ribbon.tsx";
 import { HeroStat } from "@/components/ui/hero-stat.tsx";
 import { TraceThumb } from "@/components/ui/trace-thumb.tsx";
-import { FreshnessGauge } from "@/components/ui/freshness-gauge.tsx";
 import { ZoneBar } from "@/components/activities/zone-bar.tsx";
-import { Card, CardHeader } from "@/components/ui/card.tsx";
-import { Badge } from "@/components/ui/badge.tsx";
+import { Card } from "@/components/ui/card.tsx";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadCycleRibbonDays, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { mondayOf, addDays, eachDay, diffDays } from "@/lib/shifts/day.ts";
-import { formatDayShort, today, currentHour, toLocalHour } from "@/lib/time.ts";
+import { today, currentHour, toLocalHour } from "@/lib/time.ts";
 import { readPhotoManifest } from "@/lib/photo-manifest.ts";
 import { pickPhoto, momentForContext } from "@/lib/photos.ts";
-import { buildTodayPhrase, resolveFreshnessBadge } from "@/lib/home.ts";
+import { buildTodayPhrase } from "@/lib/home.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
 import {
   getProfileStatus,
   getTracePath,
-  loadFreshness,
   loadNextGoal,
   loadTodaysWorkout,
   loadWeeklyVolumeTargetKm,
@@ -52,7 +49,6 @@ export default async function HomePage() {
     weekRange,
     weekActivities,
     lastActivity,
-    freshness,
     todaysWorkout,
     weeklyTargetKm,
     user,
@@ -67,7 +63,6 @@ export default async function HomePage() {
       select: { startDay: true, distanceM: true, type: true },
     }),
     prisma.activity.findFirst({ orderBy: { startedAt: "desc" } }),
-    loadFreshness(day),
     loadTodaysWorkout(day),
     loadWeeklyVolumeTargetKm(day),
     prisma.user.findFirst({ select: { weeklyVolumeKm: true } }),
@@ -91,8 +86,6 @@ export default async function HomePage() {
     hour: currentHour(),
   });
   const photo = pickPhoto(day, moment, manifest);
-
-  const cancelled = freshness?.cancelled ?? false;
 
   const todayPhrase = todayShift
     ? buildTodayPhrase({
@@ -124,67 +117,18 @@ export default async function HomePage() {
     profileStatus.thresholdHr != null
       ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
       : undefined;
-  const freshnessBadge = resolveFreshnessBadge({
-    cancelled,
-    freshnessStatus: freshness?.result.status ?? null,
-  });
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-4 p-4 md:space-y-6 md:p-6">
-      <PhotoHero photo={cancelled ? null : photo} height={196} className={cancelled ? "bg-[var(--color-danger)]/10" : undefined}>
+      <PhotoHero photo={photo} height={196}>
         {todayPhrase ? (
           <p className="text-sm text-[var(--color-text)]">{todayPhrase}</p>
         ) : null}
-        <p
-          className="text-hero-number text-hero-xl mt-1"
-          style={{ color: cancelled ? "var(--color-danger)" : undefined }}
-        >
-          {cancelled
-            ? "Séance annulée"
-            : (todaysWorkout?.title ?? "Repos")}
-        </p>
-        {cancelled ? (
-          <p className="mt-1 text-sm text-[var(--color-text)]">Marche ou vélo en promenade.</p>
-        ) : todaysWorkout?.description ? (
+        <p className="text-hero-number text-hero-xl mt-1">{todaysWorkout?.title ?? "Repos"}</p>
+        {todaysWorkout?.description ? (
           <p className="mt-1 text-sm text-[var(--color-text)]">{todaysWorkout.description}</p>
         ) : null}
       </PhotoHero>
-
-      <Card>
-        <CardHeader
-          title="Fraîcheur"
-          action={
-            freshnessBadge ? (
-              <Badge tone={freshnessBadge.tone}>{freshnessBadge.label}</Badge>
-            ) : undefined
-          }
-          hint={
-            freshness
-              ? freshness.isStale
-                ? `Dernière mesure connue : ${formatDayShort(freshness.day)}.`
-                : undefined
-              : "Non disponible — nécessite au moins 7 jours de mesures antérieures."
-          }
-        />
-        {freshness ? (
-          <div className="grid gap-4 p-4 sm:grid-cols-2">
-            <FreshnessGauge
-              label="VFC"
-              value={freshness.hrv.value}
-              unit="ms"
-              baselineMean={freshness.hrv.baselineMean}
-              baselineSd={freshness.hrv.baselineSd}
-            />
-            <FreshnessGauge
-              label="FC repos"
-              value={freshness.restingHr.value}
-              unit="bpm"
-              baselineMean={freshness.restingHr.baselineMean}
-              baselineSd={freshness.restingHr.baselineSd}
-            />
-          </div>
-        ) : null}
-      </Card>
 
       <CycleRibbon days={ribbonDays} />
 

@@ -436,17 +436,33 @@ et reprend là où il s'est arrêté, ce qui est exactement le comportement
 attendu. Et la sauvegarde `VACUUM INTO` ne vaut que pour SQLite : avec
 PostgreSQL, utiliser `pg_dump`.
 
-## Import de l'historique COROS
+## Import de l'historique COROS (manuel, optionnel, abandonné en usage courant)
 
-Prévu en phase 8 (`scripts/import-coros.ts`). Strava ignore une partie de ce
-que calcule la montre — sommeil, HRV nocturne, statut de récupération, charge
-d'entraînement propriétaire. L'import COROS et l'import de fichiers `.fit`
-enrichiront les activités existantes (rapprochement par horodatage de départ,
-tolérance ±5 min) ou créeront des `HealthMetric`.
+`scripts/import-coros.ts` et `scripts/import-coros-fit.ts` lisent des
+exports collés à la main dans `data/coros-raw/` (sommeil, HRV nocturne,
+statut de récupération, charge d'entraînement propriétaire — tout ce que
+Strava ne fournit pas) et alimentent la table `HealthMetric`.
 
-Ces imports sont un **complément optionnel** : l'application est pleinement
-fonctionnelle sans eux, en mode dégradé, avec un indicateur clair dans
-l'interface quand une métrique n'est pas disponible.
+**Décision (septembre 2026) : plus aucun import manuel n'est fait en usage
+courant.** L'astreinte de recopier des exports COROS à la main n'en valait
+pas la peine. Les scripts restent dans le dépôt et fonctionnent — ce sont de
+purs compléments, l'application est pleinement opérationnelle sans eux — mais
+rien ne s'appuie plus dessus dans l'interface :
+
+- l'accueil n'affiche plus de carte « Fraîcheur » (VFC, FC de repos, verdict,
+  règle d'arrêt) — Strava n'expose pas ces mesures, et sans import COROS
+  elles ne sont jamais disponibles ;
+- les mesures déjà importées (6-28 août 2026) restent en base, consultables
+  sur une page discrète, **Réglages > Historique santé** — sans verdict
+  recalculé, juste les valeurs archivées ;
+- l'export Markdown n'inclut la section « Santé quotidienne » que pour une
+  période qui recoupe ce bloc archivé ; sinon elle est omise plutôt que
+  vide.
+
+Si l'import redevient utile un jour, les scripts sont toujours là et le
+schéma n'a pas bougé — il suffit de reposer des exports dans
+`data/coros-raw/` et de relancer `npm run import:coros` /
+`npm run import:coros:fit`.
 
 ## Tests
 

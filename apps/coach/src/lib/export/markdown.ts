@@ -37,6 +37,21 @@ function table(headers: string[], rows: string[][]): string {
   return rows.length > 0 ? `${head}\n${sep}\n${body}` : `${head}\n${sep}\n| ${headers.map(() => "—").join(" | ")} |`;
 }
 
+/** Aucune valeur exploitable sur aucun jour de la période — l'import COROS
+ * étant abandonné (voir README), c'est désormais le cas de toute période qui
+ * ne recoupe pas le bloc archivé (6-28 août 2026). */
+function healthSectionIsEmpty(d: ExportData): boolean {
+  return d.health.every(
+    (h) =>
+      h.hrv == null &&
+      h.restingHr == null &&
+      h.sleepDurationMin == null &&
+      h.sleepDeepMin == null &&
+      h.sleepScore == null &&
+      h.recoveryStatusPct == null,
+  );
+}
+
 export function buildMarkdownExport(data: ExportData): string {
   const sections = [
     section0Metadata(data),
@@ -45,11 +60,14 @@ export function buildMarkdownExport(data: ExportData): string {
     section3Weeks(data),
     section4Activities(data),
     section5ActivityDetails(data),
-    section6Health(data),
+    // Section numérotée 6 conservée quand la période archivée (août) est
+    // couverte — omise plutôt que vide sinon, pas une réécriture des autres
+    // numéros : le format doit rester stable d'un export à l'autre.
+    healthSectionIsEmpty(data) ? null : section6Health(data),
     section7Records(data),
     section8Plan(data),
     section9Quality(data),
-  ];
+  ].filter((s): s is string => s !== null);
   return sections.join("\n\n") + "\n";
 }
 

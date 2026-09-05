@@ -165,6 +165,36 @@ describe("buildMarkdownExport", () => {
       expect(md).not.toMatch(pattern);
     }
   });
+
+  it("omet la section 6 (Santé quotidienne) quand aucune valeur n'existe sur la période", () => {
+    // Cas normal depuis l'abandon de l'import COROS manuel : toute période
+    // qui ne recoupe pas le bloc archivé (6-28 août 2026) n'a plus de
+    // mesure du tout — mieux vaut ne pas montrer une section vide à chaque
+    // export plutôt que la garder pour une fonctionnalité qui n'alimentera
+    // plus jamais de nouvelle donnée.
+    const data = fixture();
+    data.health = data.health.map((h) => ({
+      ...h,
+      hrv: null,
+      restingHr: null,
+      sleepDurationMin: null,
+      sleepDeepMin: null,
+      sleepScore: null,
+      recoveryStatusPct: null,
+    }));
+    const md = buildMarkdownExport(data);
+    expect(md).not.toContain("## 6. Santé quotidienne");
+    // Les sections voisines restent présentes, sans décalage de numérotation.
+    expect(md).toContain("## 5. Détail des activités sélectionnées");
+    expect(md).toContain("## 7. Records et meilleurs efforts");
+  });
+
+  it("garde la section 6 dès qu'au moins un jour de la période a une valeur", () => {
+    const data = fixture();
+    data.health = data.health.map((h, i) => (i === 0 ? h : { ...h, hrv: null, restingHr: null, sleepDurationMin: null, sleepDeepMin: null, sleepScore: null, recoveryStatusPct: null }));
+    const md = buildMarkdownExport(data);
+    expect(md).toContain("## 6. Santé quotidienne");
+  });
 });
 
 describe("CSV builders", () => {

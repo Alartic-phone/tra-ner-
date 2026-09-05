@@ -40,12 +40,6 @@ import {
   pickReferenceEffort,
   type Prediction,
 } from "./prediction.ts";
-import {
-  computeReadiness,
-  findLatestReadinessMeasurement,
-  shouldCancelSession,
-  type ReadinessResult,
-} from "./readiness.ts";
 
 /**
  * Pont entre la base et le moteur de calcul. Le moteur reste pur : c'est ici
@@ -562,76 +556,38 @@ export async function loadPaceZones() {
   return vmaKmh ? computePaceZones(vmaKmh) : null;
 }
 
-export type FreshnessGauge = {
-  value: number;
-  baselineMean: number;
-  baselineSd: number;
-};
-
-export type Freshness = {
-  /** Jour réellement mesuré — peut différer de `day` si la mesure du jour manque (repli). */
-  day: Day;
-  /** Vrai si `day` (mesure) diffère du jour demandé : l'appelant doit le dire, jamais taire l'écart. */
-  isStale: boolean;
-  hrv: FreshnessGauge;
-  restingHr: FreshnessGauge;
-  result: ReadinessResult;
-  /** Règle d'arrêt de l'accueil (shouldCancelSession) — distincte de `result.status`. */
-  cancelled: boolean;
+export type HealthHistoryDay = {
+  day: string;
+  sleepDurationMin: number | null;
+  sleepDeepMin: number | null;
+  sleepScore: number | null;
+  hrv: number | null;
+  restingHr: number | null;
+  recoveryStatusPct: number | null;
+  source: string;
 };
 
 /**
- * Combien de jours d'historique on interroge pour trouver la dernière mesure
- * complète et sa plage habituelle. Volontairement large (60 j) : c'est
- * `findLatestReadinessMeasurement` qui fait le vrai travail de recherche des
- * 7 échantillons DISPONIBLES (pas calendaires) juste avant cette mesure —
- * une fenêtre calendaire fixe de 30 j sous-échantillonnerait ou raterait
- * carrément la baseline dès que le capteur a des trous.
+ * Historique brut des mesures COROS archivées — page discrète de
+ * consultation (Réglages > Historique santé), pas l'accueil. Aucun verdict
+ * calculé : l'import manuel COROS est abandonné (plus jamais de nouvelle
+ * mesure), ces lignes ne documentent qu'un bloc passé (6-28 août 2026).
+ * Renvoie `[]` si `HealthMetric` est vide — jamais une erreur.
  */
-const FRESHNESS_LOOKBACK_DAYS = 60;
-
-/**
- * Fraîcheur du jour, pour l'accueil. Remonte à la dernière mesure COMPLÈTE
- * disponible plutôt que de perdre l'information si celle du jour manque
- * (avant le réveil, en sortie de poste, capteur pas encore synchronisé) :
- * « la dernière connue AVEC sa date, jamais un "non disponible" sec »
- * (consigne de refonte). `null` seulement si aucune mesure complète n'a 7
- * échantillons disponibles pour établir sa plage habituelle.
- */
-export async function loadFreshness(day: Day): Promise<Freshness | null> {
-  const history = await prisma.healthMetric.findMany({
-    where: { day: { gte: addDays(day, -FRESHNESS_LOOKBACK_DAYS), lte: day } },
+export async function loadHealthHistory(): Promise<HealthHistoryDay[]> {
+  return prisma.healthMetric.findMany({
     orderBy: { day: "desc" },
-    select: { day: true, hrv: true, restingHr: true },
+    select: {
+      day: true,
+      sleepDurationMin: true,
+      sleepDeepMin: true,
+      sleepScore: true,
+      hrv: true,
+      restingHr: true,
+      recoveryStatusPct: true,
+      source: true,
+    },
   });
-
-  const measurement = findLatestReadinessMeasurement(history);
-  if (!measurement) return null;
-
-  const readinessInput = {
-    hrv: measurement.hrv,
-    restingHr: measurement.restingHr,
-    hrvBaselineMean: measurement.hrvBaseline.mean,
-    hrvBaselineSd: measurement.hrvBaseline.sd,
-    restingHrBaselineMean: measurement.restingHrBaseline.mean,
-  };
-
-  return {
-    day: measurement.measurementDay,
-    isStale: measurement.measurementDay !== day,
-    hrv: {
-      value: measurement.hrv,
-      baselineMean: measurement.hrvBaseline.mean,
-      baselineSd: measurement.hrvBaseline.sd,
-    },
-    restingHr: {
-      value: measurement.restingHr,
-      baselineMean: measurement.restingHrBaseline.mean,
-      baselineSd: measurement.restingHrBaseline.sd,
-    },
-    result: computeReadiness(readinessInput),
-    cancelled: shouldCancelSession(readinessInput),
-  };
 }
 
 /** La séance planifiée du jour, si un plan actif en propose une. */
