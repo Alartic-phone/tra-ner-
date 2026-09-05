@@ -204,6 +204,23 @@ export function acwrZone(ratio: number | null): AcwrZone {
   return "alerte";
 }
 
+/**
+ * Aucune recommandation d'entraînement ne sort d'un calcul dont l'historique
+ * est insuffisant : cette fonction met en mots la raison plutôt que de
+ * laisser le chiffre s'afficher quand même. Partagée par /analyses et la
+ * carte Charge de l'accueil — même garde-fou, même formulation.
+ */
+export function insufficientHistoryReason(info: InsufficientHistory): string {
+  if (info.activeDaysRequired != null && info.activeDays != null && info.activeDays < info.activeDaysRequired) {
+    return (
+      `historique insuffisant : ${info.activeDays} jour${info.activeDays > 1 ? "s" : ""} actif` +
+      `${info.activeDays > 1 ? "s" : ""} sur ${info.activeDaysRequired} requis dans les ` +
+      `${info.daysRequired} derniers jours`
+    );
+  }
+  return `historique insuffisant : ${info.daysAvailable} jour${info.daysAvailable > 1 ? "s" : ""} sur ${info.daysRequired}`;
+}
+
 export type FosterMetrics = {
   /** Somme des charges quotidiennes de la fenêtre — un simple total, jamais gardé. */
   weeklyLoad: number;

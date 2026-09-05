@@ -1,4 +1,30 @@
 import type { FreeWindow } from "./shifts/availability.ts";
+import type { AcwrZone } from "./metrics/load.ts";
+
+export type TrainingLoadLabel = { phrase: string; tone: "ok" | "warn" | "danger" | "default" };
+
+const ACWR_ZONE_PHRASES: Record<Exclude<AcwrZone, "indeterminee">, string> = {
+  "sous-charge": "en retrait",
+  optimale: "en progression maîtrisée",
+  prudence: "à surveiller",
+  alerte: "progression trop rapide",
+};
+
+/**
+ * Carte « Charge » de l'accueil (remplace la fraîcheur COROS, retirée le
+ * 05/09/2026). `null` = zone indéterminée : historique insuffisant pour
+ * qu'un ratio veuille dire quelque chose (cf. computeAcwr) — la carte doit
+ * alors se rabattre sur `<Unavailable />` avec sa raison, jamais un verdict
+ * affiché sans donnée suffisante. C'est la même règle, appliquée à un
+ * nouveau chiffre, que celle qui a fait retirer le badge « Feu vert » de
+ * l'ancienne carte Fraîcheur.
+ */
+export function describeTrainingLoad(zone: AcwrZone): TrainingLoadLabel | null {
+  if (zone === "indeterminee") return null;
+  const tone =
+    zone === "alerte" ? "danger" : zone === "prudence" ? "warn" : zone === "optimale" ? "ok" : "default";
+  return { phrase: `Charge · ${ACWR_ZONE_PHRASES[zone]}`, tone };
+}
 
 /** "12 h 15" plutôt que "12:15" — cette phrase est de la prose, pas un tableau. */
 function formatHourFr(minutes: number): string {

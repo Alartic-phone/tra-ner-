@@ -15,28 +15,12 @@ import {
   loadZoneDistribution,
 } from "@/lib/metrics/repository.ts";
 import { computeCriticalSpeed } from "@/lib/metrics/prediction.ts";
-import type { InsufficientHistory } from "@/lib/metrics/load.ts";
+import { insufficientHistoryReason } from "@/lib/metrics/load.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { today } from "@/lib/time.ts";
 import { fixed, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Aucune recommandation d'entraînement ne sort d'un calcul dont l'historique
- * est insuffisant : cette fonction met en mots la raison plutôt que de
- * laisser le chiffre s'afficher quand même.
- */
-function insufficientHistoryReason(info: InsufficientHistory): string {
-  if (info.activeDaysRequired != null && info.activeDays != null && info.activeDays < info.activeDaysRequired) {
-    return (
-      `historique insuffisant : ${info.activeDays} jour${info.activeDays > 1 ? "s" : ""} actif` +
-      `${info.activeDays > 1 ? "s" : ""} sur ${info.activeDaysRequired} requis dans les ` +
-      `${info.daysRequired} derniers jours`
-    );
-  }
-  return `historique insuffisant : ${info.daysAvailable} jour${info.daysAvailable > 1 ? "s" : ""} sur ${info.daysRequired}`;
-}
 
 const RANGES = [
   { key: "90", label: "3 mois", days: 90 },

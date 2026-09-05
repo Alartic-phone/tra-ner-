@@ -5,24 +5,28 @@ import { CycleRibbon } from "@/components/ui/cycle-ribbon.tsx";
 import { HeroStat } from "@/components/ui/hero-stat.tsx";
 import { TraceThumb } from "@/components/ui/trace-thumb.tsx";
 import { ZoneBar } from "@/components/activities/zone-bar.tsx";
-import { Card } from "@/components/ui/card.tsx";
+import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
+import { Unavailable } from "@/components/ui/badge.tsx";
+import { CountUp } from "@/components/ui/count-up.tsx";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadCycleRibbonDays, loadShiftRange } from "@/lib/shifts/repository.ts";
 import { mondayOf, addDays, eachDay, diffDays } from "@/lib/shifts/day.ts";
 import { today, currentHour, toLocalHour } from "@/lib/time.ts";
 import { readPhotoManifest } from "@/lib/photo-manifest.ts";
 import { pickPhoto, momentForContext } from "@/lib/photos.ts";
-import { buildTodayPhrase } from "@/lib/home.ts";
+import { buildTodayPhrase, describeTrainingLoad } from "@/lib/home.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
 import {
   getProfileStatus,
   getTracePath,
+  loadFitnessSnapshot,
   loadNextGoal,
   loadTodaysWorkout,
   loadWeeklyVolumeTargetKm,
   loadZoneSecondsByActivity,
 } from "@/lib/metrics/repository.ts";
+import { insufficientHistoryReason } from "@/lib/metrics/load.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { computeSportVolume } from "@/lib/metrics/volume.ts";
 import {
@@ -55,6 +59,7 @@ export default async function HomePage() {
     nextGoal,
     manifest,
     profileStatus,
+    fitnessSnapshot,
   ] = await Promise.all([
     loadCycleRibbonDays(day, rules),
     loadShiftRange(weekStart, weekEnd, rules),
@@ -69,7 +74,13 @@ export default async function HomePage() {
     loadNextGoal(),
     readPhotoManifest(),
     getProfileStatus(),
+    // `from = to = day` : seul `snapshot.acwr` (ratio du jour) sert ici, le
+    // garde-fou d'historique (historyStartDay) est le même qu'/analyses —
+    // computeAcwr ne dépend pas de `from`, seulement de `to` et des 120 j de
+    // charges qui le précèdent en interne.
+    loadFitnessSnapshot(day, day),
   ]);
+  const trainingLoad = describeTrainingLoad(fitnessSnapshot.acwr.zone);
 
   const todayRibbon = ribbonDays.find((d) => d.day === day);
   const todayShift = weekRange.byDay.get(day);
@@ -129,6 +140,33 @@ export default async function HomePage() {
           <p className="mt-1 text-sm text-[var(--color-text)]">{todaysWorkout.description}</p>
         ) : null}
       </PhotoHero>
+
+      <Card>
+        <CardHeader
+          title={trainingLoad?.phrase ?? "Charge d'entraînement"}
+          hint="ratio aigu/chronique, charges Strava — détail sur Analyses"
+        />
+        <div className="px-1 pb-1">
+          {fitnessSnapshot.acwr.ratio != null ? (
+            <Stat
+              label="ratio aigu/chronique"
+              value={<CountUp value={fitnessSnapshot.acwr.ratio} decimals={2} />}
+              estimated
+              tone={trainingLoad?.tone}
+            />
+          ) : (
+            <div className="px-4 pb-3">
+              <Unavailable
+                reason={
+                  fitnessSnapshot.acwr.insufficientHistory
+                    ? insufficientHistoryReason(fitnessSnapshot.acwr.insufficientHistory)
+                    : "Charge chronique nulle sur la période."
+                }
+              />
+            </div>
+          )}
+        </div>
+      </Card>
 
       <CycleRibbon days={ribbonDays} />
 

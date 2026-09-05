@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { buildTodayPhrase } from "./home.ts";
+import { buildTodayPhrase, describeTrainingLoad } from "./home.ts";
+
+describe("describeTrainingLoad (carte Charge de l'accueil)", () => {
+  it("aucun verdict sur historique indéterminé — jamais un chiffre inventé", () => {
+    expect(describeTrainingLoad("indeterminee")).toBeNull();
+  });
+
+  it("libellé et teinte pour chacune des quatre zones réelles", () => {
+    expect(describeTrainingLoad("sous-charge")).toEqual({ phrase: "Charge · en retrait", tone: "default" });
+    expect(describeTrainingLoad("optimale")).toEqual({
+      phrase: "Charge · en progression maîtrisée",
+      tone: "ok",
+    });
+    expect(describeTrainingLoad("prudence")).toEqual({ phrase: "Charge · à surveiller", tone: "warn" });
+    expect(describeTrainingLoad("alerte")).toEqual({
+      phrase: "Charge · progression trop rapide",
+      tone: "danger",
+    });
+  });
+});
 
 describe("buildTodayPhrase", () => {
   it("poste travaillé avec matinée libre jusqu'à une heure donnée", () => {
