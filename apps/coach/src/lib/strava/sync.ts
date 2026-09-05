@@ -434,15 +434,31 @@ export async function runSyncWorker(
   return { processed, failed, stoppedBy: "budget" };
 }
 
-export async function getSyncStatus() {
-  const [account, pending, running, failed, activities, withStreams] = await Promise.all([
-    prisma.stravaAccount.findFirst(),
-    prisma.syncJob.count({ where: { status: "pending" } }),
-    prisma.syncJob.count({ where: { status: "running" } }),
-    prisma.syncJob.count({ where: { status: "failed" } }),
-    prisma.activity.count({ where: { source: "strava" } }),
-    prisma.activity.count({ where: { hasStreams: true } }),
-  ]);
+/**
+ * `activities` (Strava uniquement) et `withStreams` (toutes sources) ne
+ * portent PAS sur le même périmètre — les affiche côte à côte sans le dire
+ * a déjà induit en erreur (cf. CONSOLIDATION.md) : chaque appelant doit
+ * libeller explicitement lequel il montre, jamais les traiter comme
+ * comparables tels quels. `corosWithStreams` existe pour la même raison :
+ * la ligne « Import de fichiers FIT » ne doit pas réutiliser `withStreams`
+ * (toutes sources) sous une étiquette qui laisse croire que ce sont des
+ * imports COROS.
+ */
+export async function getSyncStatus(
+  // Paramètre injectable uniquement pour le test verrou (base SQLite
+  // jetable) — le code applicatif ne le passe jamais.
+  client: Pick<typeof prisma, "stravaAccount" | "syncJob" | "activity"> = prisma,
+) {
+  const [account, pending, running, failed, activities, withStreams, corosWithStreams] =
+    await Promise.all([
+      client.stravaAccount.findFirst(),
+      client.syncJob.count({ where: { status: "pending" } }),
+      client.syncJob.count({ where: { status: "running" } }),
+      client.syncJob.count({ where: { status: "failed" } }),
+      client.activity.count({ where: { source: "strava" } }),
+      client.activity.count({ where: { hasStreams: true } }),
+      client.activity.count({ where: { source: "coros", hasStreams: true } }),
+    ]);
 
-  return { account, pending, running, failed, activities, withStreams };
+  return { account, pending, running, failed, activities, withStreams, corosWithStreams };
 }

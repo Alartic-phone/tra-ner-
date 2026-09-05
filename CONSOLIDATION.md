@@ -126,7 +126,7 @@ directement ou par une version plus aboutie d'eux-mêmes, dans le code final.
 | 6 | semaine du 24 au 30 août = 24,68 km de course | ✅ vérifié en base : `SUM(distanceM) WHERE type='Run' AND startDay BETWEEN '2026-08-24' AND '2026-08-30'` = 24,6875 km. |
 | 7 | plus longue sortie = 10,71 km le 29/08, précédent record 8,96 km | ✅ confirmé par capture d'écran (page Progression, mur des records et jalons). |
 | 8 | le 25/10 affiche le bon nombre de jours restants | ✅ mais **le chiffre affiché est 50, pas 56** : la date système réelle a avancé de 6 jours depuis le rapport de bug original (30/08 → 05/09, aujourd'hui). 05/09 → 25/10 = 50 jours, arithmétique correcte pour la vraie date du jour — le calcul lui-même n'a pas de bug, verrouillé par test (85efeae, référence 30/08 → 56 j, toujours vert). |
-| 9 | le lap manuel du 29/08 apparaît (19:47 · 4,03 km · 4'55/km · FC 177) | ❌ **conclusion négative, mais définitive cette fois — vraie lacune de données côté Strava, pas un bug applicatif**. Après reconnexion du compte, re-synchronisation ciblée de cette activité réussie sans erreur (garde-fou + transaction en place, cf. section incident ci-dessous) : Strava a bien répondu, les 12 tours ont été remplacés — et **aucun des 12 n'a `splitIndex` NULL**. Le lap manuel décrit n'a jamais existé côté Strava pour cette activité, reconnexion ou pas. Décision confirmée : ne pas basculer `isManual` à la main sur un split automatique (règle R1, « ne jamais inventer une donnée »). Suite actée avec l'utilisateur : le fichier FIT natif de la montre COROS est la seule piste restante — pas une correction en base. **Repère retrouvable en attendant** : le bloc d'effort du 29/08 correspond aux splits automatiques #5 à #8 de l'activité "Test de seuil" (`cmte6rflc00021wcr0b9262ac`) — 3,95 km en 19:36 à 4'58/km, FC 174-183. |
+| 9 | le lap manuel du 29/08 apparaît (19:47 · 4,03 km · 4'55/km · FC 177) | ⏹️ **close sans correction : donnée absente à la source.** Après reconnexion du compte, re-synchronisation ciblée de cette activité réussie sans erreur (garde-fou + transaction en place, cf. section incident) : Strava a bien répondu, les 12 tours ont été remplacés, et **aucun des 12 n'a `splitIndex` NULL**. Strava étant la source de vérité pour les activités (cf. CLAUDE.md), créer une exception `isManual` à la main pour cette seule activité contredirait cette règle même écrite pendant la consolidation — décision de ne rien faire de plus ici, actée par l'utilisateur. Le résultat de l'effort reste dans son journal d'entraînement personnel, hors périmètre de l'app. **Repère retrouvable** : le bloc d'effort du 29/08 correspond aux splits automatiques #5 à #8 de l'activité "Test de seuil" (`cmte6rflc00021wcr0b9262ac`) — 3,95 km en 19:36 à 4'58/km, FC 174-183. |
 | 10 | aucune recommandation d'entraînement sur historique insuffisant (ACWR indéterminé plutôt qu'un chiffre + alerte rouge) | ✅ garde-fou vérifié (tests c68c8c3) et observé en conditions réelles : Foster (Monotonie/Contrainte) affiche « non disponible » sur `/analyses` faute d'activité les 7 derniers jours. Le ratio ACWR lui-même affiche 0,00 (« sous-charge »), un chiffre réel et non un guard bypass : l'historique TOTAL (~88 j, largement >28 j/8 j actifs requis) est suffisant, ce n'est que l'activité RÉCENTE (7 derniers jours) qui est nulle — faute de synchronisation depuis le 30/08. Comportement correct, pas un bug. |
 | 11 | nombres au format français : virgule décimale partout | ✅ **bug réel et systémique corrigé** : ~25 sites (`CountUp`, `RecordStaircase`, `FreshnessGauge`, export Markdown, pages analyses/progression/simulateur/activités…) utilisaient `.toFixed()` natif (point). Helper `fixed()` ajouté à `lib/utils.ts`, appliqué partout où un nombre est affiché à l'utilisateur (pas dans le CSV — format machine, ni dans le prompt IA — jamais lu par un humain, ni dans les coordonnées SVG des tracés). Testé, vérifié visuellement (« 10,71 km », « 8,96 km »). |
 | 12 | l'ambre n'est utilisé que pour aujourd'hui/un record/meilleure valeur/séance du jour, jamais un code de poste | ✅ vérifié par code : `--color-signal` (l'ambre) n'apparaît que sur le contour "aujourd'hui" du ruban de cycle et le libellé associé ; les segments colorés par poste utilisent une palette dédiée par type de poste (`shiftColorVar`), jamais l'ambre. |
@@ -156,6 +156,27 @@ rameur) — exactement le bug qu'`efa6732` avait corrigé, perdu sur ce bloc
 précis lors de la fusion du cherry-pick `c68c8c3`. Corrigé (voir commit
 dédié). C'est le meilleur argument pour ne jamais laisser un outil de
 vérification "de côté" dans une consolidation de cette taille.
+
+## Après l'étape 5 — compteurs Réglages sur des périmètres différents
+
+Page Réglages : « Activités importées » (134) et « Avec flux détaillés »
+(137) affichés côte à côte, comme si le second incluait forcément le
+premier — impossible arithmétiquement, mais aucun des deux calculs n'était
+faux en soi : `getSyncStatus()` (`lib/strava/sync.ts`) filtrait le premier
+sur `source: "strava"` et le second sur `hasStreams: true` **sans filtre
+de source**, comptant donc aussi les 3 séances tapis `source: "coros"`
+(pas de contrepartie Strava — le tapis n'est jamais uploadé). Un troisième
+site avait le même défaut : la ligne « Import de fichiers FIT » (COROS)
+réutilisait ce même total toutes-sources sous une étiquette qui laissait
+croire que ces flux venaient tous de COROS.
+
+**Corrigé par libellé explicite** (pas par unification de périmètre — les
+deux chiffres restent utiles séparément) : « Importées depuis Strava » /
+« Avec flux, toutes sources » sur la carte Strava ; nouveau champ
+`corosWithStreams` (source COROS uniquement) pour la ligne FIT. Test
+verrou `sync.status-scope.test.ts` (base SQLite jetable, 4 cas) : vérifie
+que les trois compteurs restent sur des périmètres distincts et que la
+ligne FIT ne recompte jamais les activités Strava.
 
 ## Après l'étape 5 — incident : perte puis restauration des tours du 29/08
 

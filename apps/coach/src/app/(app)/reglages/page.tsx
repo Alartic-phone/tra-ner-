@@ -138,8 +138,16 @@ export default async function SettingsPage({
             )}
           </CardBody>
           <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
-            <Stat label="Activités importées" value={status.activities} />
-            <Stat label="Avec flux détaillés" value={status.withStreams} />
+            <Stat
+              label="Importées depuis Strava"
+              value={status.activities}
+              hint="hors import FIT COROS"
+            />
+            <Stat
+              label="Avec flux, toutes sources"
+              value={status.withStreams}
+              hint="Strava + FIT COROS"
+            />
             <Stat
               label="En file d'attente"
               value={status.pending}
@@ -176,7 +184,7 @@ export default async function SettingsPage({
           <CardBody className="space-y-2 text-xs">
             <Row
               label="Import de fichiers FIT"
-              value={`manuel (COROS) · ${status.withStreams} activité(s) avec flux`}
+              value={`manuel (COROS) · ${status.corosWithStreams} activité(s) COROS avec flux`}
               hint="npm run import:coros puis import:coros:fit — sommeil, HRV nocturne et statut de récupération COROS, absents de Strava."
             />
             <Row
