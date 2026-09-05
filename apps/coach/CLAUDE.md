@@ -158,3 +158,15 @@ commentaires expliquent *pourquoi*, pas *quoi*.
 
 `type(scope): description` en français, comme le reste du dépôt :
 `feat(coach):`, `fix(coach):`, `test(coach):`, `docs(coach):`.
+
+## Méthodologie : durée de vie d'un worktree
+
+Le travail se fait sur la branche principale, ou est fusionné dans la
+foulée. **Un worktree ne survit pas à la session qui l'a créé.**
+
+La consolidation de septembre 2026 (`CONSOLIDATION.md`) est partie de 14
+worktrees ouverts sur plusieurs semaines sans jamais être fusionnés — trois
+semaines de correctifs dispersés, certains redécouverts en double, un
+incident de perte de données pendant le rattrapage. Rien de tout ça
+n'aurait existé si chaque session avait fusionné ou abandonné son worktree
+avant de se terminer.
