@@ -71,7 +71,7 @@
 
   /* Rampe ordinale à teinte unique — réutilisée pour toute série ordonnée
      qui n'est PAS une intensité d'effort (ex. les phases de périodisation
-     du plan). Pour les zones FC, voir --zone-1..5 ci-dessous. */
+     du plan). Pour les zones FC, voir --zone-1..6 ci-dessous. */
   --chart-seq-1: #184f95;
   --chart-seq-2: #256abf;
   --chart-seq-3: #3987e5;
@@ -79,26 +79,33 @@
   --chart-seq-5: #9ec5f4;
 
   /*
-   * Zones de fréquence cardiaque (Karvonen, 5 zones — cf. metrics/zones.ts).
-   * Rampe « feu tricolore » multi-teinte plutôt qu'à teinte unique : c'est
-   * une entorse délibérée à la règle « jamais un arc-en-ciel » de la charte
-   * de graphiques, parce que c'est la convention universelle du secteur
-   * (Strava, Garmin, Whoop) et que c'est l'information la plus utile de
-   * l'app d'un coup d'œil. Validée avec le script de la skill dataviz
-   * (node validate_palette.js "…" --mode dark --surface "#11151d") :
-   * séparation daltonisme et plancher vision normale au vert, contraste
-   * au vert — une seule réserve documentée : la zone 3 (jaune) déborde
-   * légèrement la bande de clarté catégorielle idéale et se situe dans la
-   * zone « avertissement » (6-8 plutôt que ≥8) de séparation daltonienne
-   * face à la zone 4 — légal selon la skill À CONDITION d'un encodage
-   * secondaire, qui existe déjà ici (labels Z1-Z5 et bpm toujours affichés,
-   * jamais la couleur seule).
+   * Zones de fréquence cardiaque (% de la FC au seuil, 6 zones — cf.
+   * metrics/zones.ts, aucune trace de Karvonen). Rampe « feu tricolore »
+   * multi-teinte plutôt qu'à teinte unique : c'est une entorse délibérée à
+   * la règle « jamais un arc-en-ciel » de la charte de graphiques, parce que
+   * c'est la convention universelle du secteur (Strava, Garmin, Whoop) et
+   * que c'est l'information la plus utile de l'app d'un coup d'œil. Les cinq
+   * premières teintes (--zone-1..5) sont validées avec le script de la
+   * skill dataviz (node validate_palette.js "…" --mode dark --surface
+   * "#11151d") : séparation daltonisme et plancher vision normale au vert,
+   * contraste au vert — une seule réserve documentée : la zone 3 (jaune)
+   * déborde légèrement la bande de clarté catégorielle idéale et se situe
+   * dans la zone « avertissement » (6-8 plutôt que ≥8) de séparation
+   * daltonienne face à la zone 4 — légal selon la skill À CONDITION d'un
+   * encodage secondaire, qui existe déjà ici (labels Z1-Z6 et bpm toujours
+   * affichés, jamais la couleur seule). --zone-6 (nouvelle, sixième zone
+   * ajoutée par la refonte de l'accueil) prolonge la rampe en assombrissant
+   * le magenta de la zone 5 plutôt qu'en tournant vers une teinte déjà prise
+   * (le violet retomberait trop près du bleu de la zone 1) : mêmes teinte et
+   * saturation que --zone-5, luminosité réduite pour rester lisible tout en
+   * signalant « au-delà du rouge ».
    */
   --zone-1: #4179c8; /* récupération */
   --zone-2: #29a37a; /* endurance fondamentale */
   --zone-3: #b3ad05; /* endurance active */
   --zone-4: #f2460d; /* seuil */
-  --zone-5: #bf228a; /* VMA */
+  --zone-5: #bf228a; /* VO2max */
+  --zone-6: #7a1658; /* anaérobie */
 
   /* Chrome de graphique : grille et axes en retrait. */
   --chart-grid: #232a37;
@@ -114,7 +121,7 @@
    * Identité visuelle par sport (icône en cercle teinté, pastilles de
    * filtre). Purement décoratif — n'entre jamais dans un graphique de
    * données, où les couleurs ont un sens mesuré à respecter. Choisies pour
-   * rester visuellement distinctes de --zone-1..5 (l'intensité d'effort) et
+   * rester visuellement distinctes de --zone-1..6 (l'intensité d'effort) et
    * de --chart-1/2 (CTL/ATL), pour qu'un même bleu-orange ne soit pas lu à
    * tort comme une info de charge sur une carte d'activité.
    */

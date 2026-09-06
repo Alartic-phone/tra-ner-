@@ -3,7 +3,7 @@
  */
 
 /**
- * Rampe des 5 zones FC, partagée par `ZoneChart`, `ZoneBar` et le tableau de
+ * Rampe des 6 zones FC, partagée par `ZoneChart`, `ZoneBar` et le tableau de
  * bord. Définie ici — un module PUR, jamais "use client" — plutôt que dans
  * un composant client : un Server Component qui importerait une simple
  * constante depuis un module "use client" la reçoit comme une référence
@@ -18,10 +18,11 @@ export const ZONE_RAMP = [
   "var(--zone-3)",
   "var(--zone-4)",
   "var(--zone-5)",
+  "var(--zone-6)",
 ] as const;
 
 export type HeartRateZone = {
-  index: 1 | 2 | 3 | 4 | 5;
+  index: 1 | 2 | 3 | 4 | 5 | 6;
   name: string;
   /** Bornes en fraction de la FC au SEUIL (pas de la réserve cardiaque). */
   fromFraction: number;
@@ -41,7 +42,7 @@ export type HeartRateZone = {
  * l'utilisateur (FC seuil testée sur le terrain, ex. 175 bpm le 29/08/2026),
  * qui font foi — pas une formule de manuel. Avec un seuil à 175 bpm, ces
  * fractions redonnent Z1 < 140, Z2 140-158, Z3 159-166, Z4 167-179, Z5
- * 180-186, à l'arrondi près.
+ * 180-186, Z6 > 186, à l'arrondi près.
  *
  * La méthode de Karvonen (réserve cardiaque = FC_max − FC_repos) a été
  * retirée du calcul des zones : elle produisait des bornes différentes de
@@ -50,27 +51,28 @@ export type HeartRateZone = {
  * l'application.
  */
 const HR_ZONE_BOUNDS: Array<{
-  index: 1 | 2 | 3 | 4 | 5;
+  index: 1 | 2 | 3 | 4 | 5 | 6;
   name: string;
   from: number;
   to: number;
 }> = [
   { index: 1, name: "Récupération", from: 0, to: 0.8 },
-  { index: 2, name: "Endurance fondamentale", from: 0.8, to: 0.9 },
-  { index: 3, name: "Endurance active", from: 0.9, to: 0.95 },
-  { index: 4, name: "Seuil", from: 0.95, to: 1.02 },
-  { index: 5, name: "VMA", from: 1.02, to: 1.1 },
+  { index: 2, name: "Endurance fondamentale", from: 0.8, to: 159 / 175 },
+  { index: 3, name: "Endurance active", from: 159 / 175, to: 167 / 175 },
+  { index: 4, name: "Seuil", from: 167 / 175, to: 180 / 175 },
+  { index: 5, name: "VO2max", from: 180 / 175, to: 187 / 175 },
+  { index: 6, name: "Anaérobie", from: 187 / 175, to: 1.3 },
 ];
 
 /**
- * Cinq zones de fréquence cardiaque en pourcentage de la FC au seuil.
+ * Six zones de fréquence cardiaque en pourcentage de la FC au seuil.
  *
  * `thresholdHr` est la FC de seuil (lactate/anaérobie), mesurée sur le
  * terrain — la seule entrée qui détermine les bornes. `hrMaxCap`, s'il est
- * renseigné, fixe seulement le haut d'affichage de la zone 5 (elle est
- * ouverte par nature : rien n'empêche de dépasser 110 % du seuil sur un
- * sprint). Sans lui, ce haut reste la borne à 110 % — un simple plafond
- * d'axe, pas une mesure.
+ * renseigné, fixe seulement le haut d'affichage de la zone 6 (elle est
+ * ouverte par nature : rien n'empêche de dépasser le plafond par défaut sur
+ * un sprint). Sans lui, ce haut reste la borne à 130 % du seuil — un simple
+ * plafond d'axe, pas une mesure.
  */
 export function computeHeartRateZones(
   thresholdHr: number,
@@ -79,7 +81,7 @@ export function computeHeartRateZones(
   if (thresholdHr <= 0) return [];
 
   return HR_ZONE_BOUNDS.map((z) => {
-    const isTop = z.index === 5;
+    const isTop = z.index === 6;
     const to =
       isTop && hrMaxCap != null && hrMaxCap > thresholdHr * z.from
         ? hrMaxCap
@@ -102,6 +104,20 @@ export function zoneForHeartRate(hr: number, zones: readonly HeartRateZone[]): H
   }
   const last = zones[zones.length - 1];
   return last && hr >= last.toBpm ? last : null;
+}
+
+/**
+ * Fourchette affichable d'une zone, en bpm entiers non chevauchants (« 159-
+ * 166 » puis « 167-179 », jamais deux fois 166 ou 167). `fromBpm`/`toBpm`
+ * sont la borne EXCLUSIVE haute utilisée pour le classement (`zoneForHeartRate`) ;
+ * l'affichage humain veut la borne haute INCLUSE, d'où le -1. Les zones 1
+ * (récupération) et 6 (anaérobie) restent ouvertes (« < 140 », « > 186 »),
+ * jamais un intervalle fermé inventé à partir de 0 ou d'un plafond arbitraire.
+ */
+export function formatZoneBpmRange(zone: { index: number; fromBpm: number; toBpm: number }): string {
+  if (zone.index === 1) return `< ${zone.toBpm}`;
+  if (zone.index === 6) return `> ${zone.fromBpm - 1}`;
+  return `${zone.fromBpm}–${zone.toBpm - 1}`;
 }
 
 /**

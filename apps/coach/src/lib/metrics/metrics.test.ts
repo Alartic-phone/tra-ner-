@@ -25,6 +25,7 @@ import {
   computeMovingAverageHr,
   computePaceZones,
   estimateVmaFromRace,
+  formatZoneBpmRange,
   paceAtVmaPercent,
   timeInZones,
   zoneForHeartRate,
@@ -488,19 +489,31 @@ describe("agrégation des charges quotidiennes", () => {
 describe("zones de fréquence cardiaque (% de la FC au seuil)", () => {
   // FC seuil de référence utilisée dans le rapport de bug : 175 bpm, testée
   // le 29/08/2026. Les bornes attendues sont celles de la montre et du plan
-  // de l'utilisateur : Z1 <140, Z2 140-158, Z3 159-166, Z4 167-179, Z5 180+.
+  // de l'utilisateur : Z1 <140, Z2 140-158, Z3 159-166, Z4 167-179,
+  // Z5 180-186, Z6 >186 (six zones, cf. R5 de la refonte de l'accueil).
   const zones = computeHeartRateZones(175);
 
-  it("produit cinq zones en pourcentage du SEUIL, pas de la réserve cardiaque", () => {
-    expect(zones).toHaveLength(5);
+  it("produit six zones en pourcentage du SEUIL, pas de la réserve cardiaque", () => {
+    expect(zones).toHaveLength(6);
     expect(zones[0]!.toBpm).toBe(140);
     expect(zones[1]!.fromBpm).toBe(140);
-    expect(zones[1]!.toBpm).toBe(158);
-    expect(zones[2]!.fromBpm).toBe(158);
-    expect(zones[2]!.toBpm).toBe(166);
-    expect(zones[3]!.fromBpm).toBe(166);
-    expect(zones[3]!.toBpm).toBe(179);
-    expect(zones[4]!.fromBpm).toBe(179);
+    expect(zones[1]!.toBpm).toBe(159);
+    expect(zones[2]!.fromBpm).toBe(159);
+    expect(zones[2]!.toBpm).toBe(167);
+    expect(zones[3]!.fromBpm).toBe(167);
+    expect(zones[3]!.toBpm).toBe(180);
+    expect(zones[4]!.fromBpm).toBe(180);
+    expect(zones[4]!.toBpm).toBe(187);
+    expect(zones[5]!.fromBpm).toBe(187);
+  });
+
+  it("affiche des fourchettes entières non chevauchantes (formatZoneBpmRange)", () => {
+    expect(formatZoneBpmRange(zones[0]!)).toBe("< 140");
+    expect(formatZoneBpmRange(zones[1]!)).toBe("140–158");
+    expect(formatZoneBpmRange(zones[2]!)).toBe("159–166");
+    expect(formatZoneBpmRange(zones[3]!)).toBe("167–179");
+    expect(formatZoneBpmRange(zones[4]!)).toBe("180–186");
+    expect(formatZoneBpmRange(zones[5]!)).toBe("> 186");
   });
 
   it("ne dépend PAS de la FC de repos : deux profils au même seuil ont les mêmes zones", () => {
@@ -514,16 +527,16 @@ describe("zones de fréquence cardiaque (% de la FC au seuil)", () => {
     expect(zoneForHeartRate(155, b)!.index).toBe(2);
   });
 
-  it("plafonne l'affichage de la zone 5 sur la FC max si elle dépasse 110 % du seuil", () => {
-    const withCap = computeHeartRateZones(175, 192);
-    expect(withCap[4]!.toBpm).toBe(192);
+  it("plafonne l'affichage de la zone 6 sur la FC max si elle dépasse le plafond par défaut", () => {
+    const withCap = computeHeartRateZones(175, 195);
+    expect(withCap[5]!.toBpm).toBe(195);
     const withoutCap = computeHeartRateZones(175, null);
-    expect(withoutCap[4]!.toBpm).toBe(Math.round(175 * 1.1));
+    expect(withoutCap[5]!.toBpm).toBe(Math.round(175 * 1.3));
   });
 
   it("classe une fréquence dans la bonne zone", () => {
     expect(zoneForHeartRate(155, zones)!.index).toBe(2);
-    expect(zoneForHeartRate(200, zones)!.index).toBe(5);
+    expect(zoneForHeartRate(200, zones)!.index).toBe(6);
     expect(zoneForHeartRate(0, zones)!.index).toBe(1);
   });
 
@@ -583,11 +596,11 @@ describe("FC moyenne pondérée par le temps en mouvement", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("ZONE_RAMP (rampe de couleurs des 5 zones)", () => {
-  it("expose une couleur par zone, dans l'ordre Z1 -> Z5", () => {
-    expect(ZONE_RAMP).toHaveLength(5);
+describe("ZONE_RAMP (rampe de couleurs des 6 zones)", () => {
+  it("expose une couleur par zone, dans l'ordre Z1 -> Z6", () => {
+    expect(ZONE_RAMP).toHaveLength(6);
     expect(ZONE_RAMP[0]).toBe("var(--zone-1)");
-    expect(ZONE_RAMP[4]).toBe("var(--zone-5)");
+    expect(ZONE_RAMP[5]).toBe("var(--zone-6)");
   });
 
   it("est définie dans zones.ts, un module pur — jamais un composant \"use client\" (piège RSC : une constante importée depuis un module client devient une référence opaque pour un Server Component, ZoneBar/ZoneChart la reçoivent alors comme `undefined`)", () => {
@@ -598,10 +611,17 @@ describe("ZONE_RAMP (rampe de couleurs des 5 zones)", () => {
 
 describe("zones cardiaques — source unique", () => {
   it("aucune table de zones (noms + bornes) n'est dupliquée ailleurs dans src/", () => {
-    // Les cinq libellés, dans cet ordre, ne doivent apparaître ensemble
+    // Les six libellés, dans cet ordre, ne doivent apparaître ensemble
     // nulle part sauf dans zones.ts : c'est la signature d'une deuxième
     // table de zones recopiée à la main.
-    const signature = ["Récupération", "Endurance fondamentale", "Endurance active", "Seuil", "VMA"];
+    const signature = [
+      "Récupération",
+      "Endurance fondamentale",
+      "Endurance active",
+      "Seuil",
+      "VO2max",
+      "Anaérobie",
+    ];
     const root = path.resolve(HERE, "../..");
     const offenders: string[] = [];
 
@@ -1192,24 +1212,25 @@ describe("classifyTrajectory", () => {
 // ---------------------------------------------------------------------------
 
 describe("meilleurs efforts", () => {
-  // Sortie d'une heure : 20 minutes à 3 m/s, 10 minutes à 5 m/s, puis 3 m/s.
+  // Sortie d'une heure : 20 minutes à 3 m/s, 10 minutes à 4,5 m/s (allures
+  // toutes deux plausibles, cf. MIN_PLAUSIBLE_PACE_S_PER_KM), puis 3 m/s.
   const time = Array.from({ length: 3601 }, (_, i) => i);
   const distance = time.map((t) => {
     if (t <= 1200) return t * 3;
-    if (t <= 1800) return 3600 + (t - 1200) * 5;
-    return 6600 + (t - 1800) * 3;
+    if (t <= 1800) return 3600 + (t - 1200) * 4.5;
+    return 6300 + (t - 1800) * 3;
   });
 
   it("trouve la meilleure distance sur cinq minutes", () => {
     const efforts = bestDistanceForDurations({ time, distance }, [300]);
-    expect(efforts[0]!.distanceM).toBeCloseTo(1500, 0);
+    expect(efforts[0]!.distanceM).toBeCloseTo(1350, 0);
   });
 
   it("trouve la meilleure distance sur vingt minutes", () => {
     // La fenêtre optimale englobe le bloc rapide de 10 minutes.
     const efforts = bestDistanceForDurations({ time, distance }, [1200]);
     expect(efforts[0]!.distanceM).toBeGreaterThan(3600);
-    expect(efforts[0]!.distanceM).toBeCloseTo(4800, 0);
+    expect(efforts[0]!.distanceM).toBeCloseTo(4500, 0);
   });
 
   it("ignore les durées plus longues que l'activité", () => {
@@ -1217,13 +1238,15 @@ describe("meilleurs efforts", () => {
   });
 
   it("trouve le meilleur temps sur une distance", () => {
-    // 1 000 m au meilleur rythme (5 m/s) : 200 s.
+    // 1 000 m au meilleur rythme (4,5 m/s) : ~223 s (échantillonné à la seconde).
     const efforts = bestTimeForDistances({ time, distance }, [1000]);
-    expect(efforts[0]!.durationS).toBeCloseTo(200, 0);
+    expect(efforts[0]!.durationS).toBeCloseTo(223, 0);
   });
 
   it("écarte les reculs de distance dus au GPS", () => {
-    const noisy = [0, 10, 20, 15, 30, 40];
+    // Allure plausible (~4 m/s, 250 s/km) : le recul à l'index 3 (6 < 8) est
+    // le seul point sous test, pas la vitesse elle-même.
+    const noisy = [0, 4, 8, 6, 12, 16];
     const t = [0, 1, 2, 3, 4, 5];
     const efforts = bestDistanceForDurations({ time: t, distance: noisy }, [2]);
     expect(efforts[0]!.distanceM).toBeGreaterThan(0);
@@ -1237,6 +1260,18 @@ describe("meilleurs efforts", () => {
     const distanceGym = Array.from({ length: durationS + 1 }, (_, t) => (t / durationS) * 1130);
     const t = Array.from({ length: durationS + 1 }, (_, i) => i);
     expect(bestDistanceForDurations({ time: t, distance: distanceGym }, [3600])).toEqual([]);
+  });
+
+  it("écarte un « meilleur effort » plus rapide qu'un sprint humain plausible", () => {
+    // Cas réel observé (5.1) : "Night Run" du 12/07/2025, tapis de course
+    // COROS PACE Pro en mode `trainer`, pic de vitesse fictif à 109 s/km
+    // (33 km/h) sur la première minute avant recalage du capteur. Un vélo à
+    // cette vitesse serait plausible, une course à pied ne l'est jamais pour
+    // cet athlète (seuil mesuré 4'55/km) : le point ne doit pas exister.
+    const durationS = 60;
+    const distanceGlitch = Array.from({ length: durationS + 1 }, (_, t) => t * 9.2); // 9,2 m/s ≈ 109 s/km
+    const t = Array.from({ length: durationS + 1 }, (_, i) => i);
+    expect(bestDistanceForDurations({ time: t, distance: distanceGlitch }, [60])).toEqual([]);
   });
 
   it("fusionne les meilleurs efforts de plusieurs sorties", () => {
