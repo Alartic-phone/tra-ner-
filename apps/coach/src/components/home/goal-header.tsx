@@ -69,10 +69,13 @@ export function GoalHeader({ goal, today }: { goal: GoalHeaderData; today: Day }
             </div>
           </dl>
           {goal.notes ? <p className="mt-3 max-w-2xl text-sm text-[var(--color-muted)]">{goal.notes}</p> : null}
-
-          <RouteProfileDecoration />
         </div>
       </div>
+
+      {/* Pleine largeur de la section (même colonne que la page, jusqu'à
+          1200 px) — volontairement HORS de la grille auto/1fr ci-dessus,
+          qui ne couvrirait que la largeur de la colonne de texte. */}
+      <RouteProfileDecoration />
     </section>
   );
 }
@@ -93,10 +96,15 @@ function formatHms(seconds: number): string {
  * de départ (vert) et d'arrivée (ambre) : même convention que le tracé GPS
  * réel de la page activité (route-map.tsx).
  */
+// Viewbox large (0-1200, même échelle horizontale que la colonne de page
+// jusqu'à 1200 px) pour que la silhouette occupe toute la largeur de la
+// section sans jamais déformer les repères circulaires de départ/arrivée —
+// le rapport largeur/hauteur du viewBox reste proche de celui du bloc
+// rendu (w-full, h-12), donc pas de mise à l'échelle non uniforme.
 const PROFILE_POINTS: ReadonlyArray<[number, number]> = [
-  [0, 10], [20, 12], [40, 9], [60, 15], [80, 13],
-  [100, 19], [120, 17], [140, 23], [160, 21], [180, 28],
-  [200, 26], [220, 33], [240, 31], [260, 38], [280, 41], [300, 40],
+  [0, 10], [80, 12], [160, 9], [240, 15], [320, 13],
+  [400, 19], [480, 17], [560, 23], [640, 21], [720, 28],
+  [800, 26], [880, 33], [960, 31], [1040, 38], [1120, 41], [1200, 40],
 ];
 
 function RouteProfileDecoration() {
@@ -106,10 +114,10 @@ function RouteProfileDecoration() {
   const areaPoints = `${firstX},50 ${linePoints} ${lastX},50`;
 
   return (
-    <div className="mt-4 max-w-md">
-      <svg viewBox="0 0 300 50" className="h-12 w-full" aria-hidden>
+    <div className="mt-4 w-full">
+      <svg viewBox="0 0 1200 50" className="h-12 w-full" aria-hidden>
         {/* Graduations de distance, décoratives — pas un axe mesuré. */}
-        {[0, 75, 150, 225, 300].map((x) => (
+        {[0, 300, 600, 900, 1200].map((x) => (
           <line key={x} x1={x} y1="44" x2={x} y2="50" stroke="var(--color-border)" strokeWidth="1" />
         ))}
         <polygon points={areaPoints} fill="var(--color-accent)" fillOpacity="0.08" stroke="none" />
