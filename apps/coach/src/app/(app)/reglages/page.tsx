@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { Breadcrumb } from "@/components/breadcrumb.tsx";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
@@ -37,7 +38,9 @@ export default async function SettingsPage({
   const message = strava ? MESSAGES[strava] : undefined;
 
   return (
-    <div className="p-4 md:p-6">
+    <>
+      <Breadcrumb trail={[{ label: "Réglages" }]} />
+      <div className="p-4 md:p-6">
       <header>
         <h1 className="text-lg font-semibold">Réglages</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -200,7 +203,8 @@ export default async function SettingsPage({
           </CardBody>
         </Card>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

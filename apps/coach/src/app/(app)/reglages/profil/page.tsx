@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db.ts";
 import { ProfileForm } from "@/components/profile/profile-form.tsx";
+import { Breadcrumb } from "@/components/breadcrumb.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,9 @@ export default async function ProfilePage() {
   const user = await prisma.user.findFirst();
 
   return (
-    <div className="p-4 md:p-6">
+    <>
+      <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Profil" }]} />
+      <div className="p-4 md:p-6">
       <header>
         <h1 className="text-lg font-semibold">Profil</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -34,6 +37,7 @@ export default async function ProfilePage() {
           }}
         />
       </div>
-    </div>
+      </div>
+    </>
   );
 }
