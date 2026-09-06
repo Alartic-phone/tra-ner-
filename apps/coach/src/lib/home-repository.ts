@@ -120,18 +120,22 @@ export async function loadWeeklyLoadInputs(
     select: { startDay: true, endDay: true },
   });
 
-  const weekStarts: Day[] = [];
+  // Toujours au moins huit semaines réelles jusqu'à la semaine en cours,
+  // ÉTENDU par le plan s'il en sort (avant comme après) — un plan qui ne
+  // couvre qu'une semaine (saisie manuelle ponctuelle, ex. génération IA
+  // indisponible) ne doit jamais faire disparaître l'historique récent, et
+  // un plan de plusieurs semaines à venir doit rester visible en entier.
+  const currentWeekStart = mondayOf(today);
+  let rangeStart = addDays(currentWeekStart, -7 * 8);
+  let rangeEnd = currentWeekStart;
   if (plan) {
-    let w = mondayOf(plan.startDay);
-    const last = mondayOf(plan.endDay);
-    while (w <= last) {
-      weekStarts.push(w);
-      w = addDays(w, 7);
-    }
-  } else {
-    const currentWeekStart = mondayOf(today);
-    for (let i = 7; i >= 0; i--) weekStarts.push(addDays(currentWeekStart, -7 * i));
+    const planStart = mondayOf(plan.startDay);
+    const planEnd = mondayOf(plan.endDay);
+    if (planStart < rangeStart) rangeStart = planStart;
+    if (planEnd > rangeEnd) rangeEnd = planEnd;
   }
+  const weekStarts: Day[] = [];
+  for (let w = rangeStart; w <= rangeEnd; w = addDays(w, 7)) weekStarts.push(w);
 
   const from = weekStarts[0]!;
   const to = addDays(weekStarts[weekStarts.length - 1]!, 6);

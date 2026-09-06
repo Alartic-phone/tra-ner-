@@ -23,6 +23,10 @@ export const WORKOUT_LABELS: Record<
   sortie_longue: { label: "Sortie longue", tone: "ok", accent: "var(--color-ok)" },
   recuperation: { label: "Récupération", tone: "neutral", accent: "var(--color-info)" },
   repos: { label: "Repos", tone: "neutral", accent: "var(--color-faint)" },
+  // Hors du vocabulaire du générateur IA (workoutTypeSchema, lib/coach/schema.ts,
+  // qui ne connaît que des séances de course) : une séance de renforcement
+  // saisie manuellement en attendant la génération automatique du plan.
+  renfo: { label: "Renforcement", tone: "neutral", accent: "var(--color-info)" },
 };
 
 /** Rampe séquentielle déjà validée (zones FC) : les phases progressent dans

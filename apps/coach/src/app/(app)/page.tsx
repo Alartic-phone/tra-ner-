@@ -137,12 +137,21 @@ export default async function HomePage() {
         />
       ) : null}
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-8">
+      {/*
+       * `grid-cols-1` explicite en base : sans lui, une grille sans piste
+       * déclarée reste un unique conteneur "auto", qui grandit pour
+       * accueillir le contenu de sa colonne au lieu de se contraindre à la
+       * largeur du parent — la charge hebdomadaire (plusieurs semaines,
+       * texte non compressible) débordait la page de ~25 px à 390 px
+       * (trouvé à l'audit mobile). `min-w-0` sur chaque colonne pour la
+       * même raison côté item de grille.
+       */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="min-w-0 space-y-8">
           <WeeklyLoadChart bars={loadBars} hasPlan={weeklyLoad.hasPlan} />
           <TrainingLog activities={recentActivities} zones={hrZones} />
         </div>
-        <div className="space-y-8">
+        <div className="min-w-0 space-y-8">
           <div>
             <p className="mb-2 text-xs font-medium tracking-wide text-[var(--color-muted)]">
               PROCHAINE SÉANCE

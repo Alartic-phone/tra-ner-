@@ -225,7 +225,10 @@ export default async function ActivityPage({
 
         {manualLap ? (
           <div className="rounded-[var(--radius-card)] bg-[var(--color-surface)] p-4">
-            <p className="text-xs font-medium text-[var(--color-signal)]">Lap manuel</p>
+            {/* --color-info, pas --color-signal : l'ambre est réservé à cinq
+                usages précis (globals.css) qui n'incluent pas un simple
+                repère "entré à la main". */}
+            <p className="text-xs font-medium text-[var(--color-info)]">Lap manuel</p>
             <p className="tabular mt-1 font-[family-name:var(--font-mono)] text-sm">
               {formatClock(manualLap.movingTimeS)} · {formatDistance(manualLap.distanceM)} ·{" "}
               {isRunActivity ? formatPace(paceFromSpeed(manualLap.avgSpeedMps)) : formatSpeed(manualLap.avgSpeedMps)}

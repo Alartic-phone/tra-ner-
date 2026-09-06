@@ -1,12 +1,9 @@
-import { CycleRibbon } from "@/components/ui/cycle-ribbon.tsx";
 import { PhotoHero } from "@/components/ui/photo-hero.tsx";
 import { HeroStat } from "@/components/ui/hero-stat.tsx";
 import { ZoneBar } from "@/components/activities/zone-bar.tsx";
 import { TraceThumb } from "@/components/ui/trace-thumb.tsx";
 import { RecordStaircase } from "@/components/ui/record-staircase.tsx";
 import { TraceAtlas } from "@/components/ui/trace-atlas.tsx";
-import { getAvailabilityRules } from "@/lib/settings.ts";
-import { loadCycleRibbonDays } from "@/lib/shifts/repository.ts";
 import { readPhotoManifest } from "@/lib/photo-manifest.ts";
 import { pickPhoto, momentForContext } from "@/lib/photos.ts";
 import { today } from "@/lib/time.ts";
@@ -42,16 +39,14 @@ function syntheticLoop(centerLat: number, centerLng: number, seed: number): [num
 }
 
 export default async function ComponentsDebugPage() {
-  const rules = await getAvailabilityRules();
   const day = today();
-  const ribbonDays = await loadCycleRibbonDays(day, rules);
   const manifest = await readPhotoManifest();
   const moment = momentForContext({ shiftCode: null, isWorking: false, hour: new Date().getHours() });
   const photo = pickPhoto(day, moment, manifest);
 
   // Échantillon aligné sur l'exemple canonique de zones.ts (seuil 175 bpm).
-  const sampleZones = computeHeartRateZones(175, 190);
-  const sampleSecondsByZone = [420, 1560, 720, 240, 60];
+  const sampleZones = computeHeartRateZones(175, 195);
+  const sampleSecondsByZone = [420, 1560, 720, 240, 60, 10];
 
   const tracePath = buildTracePath(syntheticLoop(45.75, 4.85, 0));
   const atlasTraces = Array.from({ length: 7 }, (_, i) => syntheticLoop(45.75, 4.85, i));
@@ -62,24 +57,22 @@ export default async function ComponentsDebugPage() {
       <header>
         <h1 className="text-2xl font-semibold">Composants signature</h1>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
-          Point de contrôle B. Les sept composants de l&apos;étape 2, chacun avec des
-          données réelles quand elles existent (cycle de postes) ou clairement
-          synthétiques sinon (tracés — la base ne contient encore aucune activité).
+          Point de contrôle B. Six des sept composants de l&apos;étape 2 (le
+          septième, CycleRibbon, a été retiré par la refonte de l&apos;accueil —
+          remplacé par l&apos;agenda 7 jours), chacun avec des données réelles
+          quand elles existent ou clairement synthétiques sinon (tracés — la
+          base ne contient encore aucune activité au moment de cette capture).
         </p>
       </header>
 
-      <Section title="1. CycleRibbon" note="Avec le vrai cycle de postes stocké en base.">
-        <CycleRibbon days={ribbonDays} />
-      </Section>
-
-      <Section title="2. PhotoHero" note="Avec le pack de photos si disponible, sinon l'aplat de repli.">
+      <Section title="1. PhotoHero" note="Avec le pack de photos si disponible, sinon l'aplat de repli.">
         <PhotoHero photo={photo} height={196}>
           <p className="text-sm text-[var(--color-text)]">Poste d&apos;après-midi · matinée libre jusqu&apos;à 12 h 15</p>
           <p className="mt-1 text-hero-number text-hero-lg">Repos</p>
         </PhotoHero>
       </Section>
 
-      <Section title="3. HeroStat" note="Tailles md/lg/xl, estimé, absent, tendance.">
+      <Section title="2. HeroStat" note="Tailles md/lg/xl, estimé, absent, tendance.">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <HeroStat label="Distance" value={24.68} decimals={2} unit="km" size="md" />
           <HeroStat label="Allure" value={5.42} decimals={2} unit="min/km" size="lg" estimated />
@@ -88,14 +81,14 @@ export default async function ComponentsDebugPage() {
         </div>
       </Section>
 
-      <Section title="4. ZoneBar" note="Avec légende chiffrée (par défaut) puis en variante compacte (liste).">
+      <Section title="3. ZoneBar" note="Avec légende chiffrée (par défaut) puis en variante compacte (liste).">
         <div className="max-w-md space-y-4">
           <ZoneBar secondsByZone={sampleSecondsByZone} zones={sampleZones} />
           <ZoneBar secondsByZone={sampleSecondsByZone} zones={sampleZones} legend={false} />
         </div>
       </Section>
 
-      <Section title="5. TraceThumb" note="Avec tracé (synthétique), et sans GPS (repli icône).">
+      <Section title="4. TraceThumb" note="Avec tracé (synthétique), et sans GPS (repli icône).">
         <div className="flex items-center gap-4">
           <TraceThumb tracePath={tracePath} type="Run" size={80} />
           <TraceThumb tracePath={null} type="WeightTraining" size={80} />
@@ -103,7 +96,7 @@ export default async function ComponentsDebugPage() {
       </Section>
 
       <Section
-        title="6. RecordStaircase"
+        title="5. RecordStaircase"
         note="Données de référence de la refonte : 6,84 → 7,32 → 8,00 → 8,96 → 10,71 km."
       >
         <div className="max-w-xl">
@@ -120,7 +113,7 @@ export default async function ComponentsDebugPage() {
       </Section>
 
       <Section
-        title="7. TraceAtlas"
+        title="6. TraceAtlas"
         note="7 tracés synthétiques (démonstration) — en usage réel, moins de 5 tracés affiche l'état vide ci-dessous en second."
       >
         <div className="max-w-md space-y-4">

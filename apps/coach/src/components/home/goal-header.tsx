@@ -84,19 +84,45 @@ function formatHms(seconds: number): string {
   return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m} min`;
 }
 
-/** Silhouette décorative en faux plat descendant — jamais une mesure. */
+/**
+ * Silhouette décorative en faux plat descendant — jamais une mesure (aucun
+ * relevé d'altitude réel derrière ces points, choisis à la main). Une
+ * ondulation légère plutôt qu'une diagonale parfaite : une ancienne voie
+ * ferrée est réglementairement quasi plane, mais jamais mathématiquement
+ * droite — un peu de vie graphique sans prétendre à la précision. Repères
+ * de départ (vert) et d'arrivée (ambre) : même convention que le tracé GPS
+ * réel de la page activité (route-map.tsx).
+ */
+const PROFILE_POINTS: ReadonlyArray<[number, number]> = [
+  [0, 10], [20, 12], [40, 9], [60, 15], [80, 13],
+  [100, 19], [120, 17], [140, 23], [160, 21], [180, 28],
+  [200, 26], [220, 33], [240, 31], [260, 38], [280, 41], [300, 40],
+];
+
 function RouteProfileDecoration() {
+  const [firstX, firstY] = PROFILE_POINTS[0]!;
+  const [lastX, lastY] = PROFILE_POINTS[PROFILE_POINTS.length - 1]!;
+  const linePoints = PROFILE_POINTS.map(([x, y]) => `${x},${y}`).join(" ");
+  const areaPoints = `${firstX},50 ${linePoints} ${lastX},50`;
+
   return (
     <div className="mt-4 max-w-md">
-      <svg viewBox="0 0 300 40" className="h-8 w-full" aria-hidden>
+      <svg viewBox="0 0 300 50" className="h-12 w-full" aria-hidden>
+        {/* Graduations de distance, décoratives — pas un axe mesuré. */}
+        {[0, 75, 150, 225, 300].map((x) => (
+          <line key={x} x1={x} y1="44" x2={x} y2="50" stroke="var(--color-border)" strokeWidth="1" />
+        ))}
+        <polygon points={areaPoints} fill="var(--color-accent)" fillOpacity="0.08" stroke="none" />
         <polyline
-          points="0,10 60,14 120,18 180,24 240,29 300,33"
+          points={linePoints}
           fill="none"
           stroke="var(--color-border-strong)"
           strokeWidth="2"
-          strokeDasharray="4 4"
+          strokeLinejoin="round"
           strokeLinecap="round"
         />
+        <circle cx={firstX} cy={firstY} r="3.5" fill="var(--color-ok)" />
+        <circle cx={lastX} cy={lastY} r="3.5" fill="var(--color-signal)" />
       </svg>
       <p className="mt-0.5 text-[11px] text-[var(--color-faint)]">
         faux plat descendant, ancienne voie ferrée

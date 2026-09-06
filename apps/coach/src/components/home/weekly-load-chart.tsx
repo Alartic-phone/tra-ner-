@@ -41,7 +41,7 @@ export function WeeklyLoadChart({ bars, hasPlan }: { bars: readonly WeekLoadBar[
             const barHeightPct = axisMax > 0 ? (Math.max(bar.realizedKm, bar.plannedKm ?? 0) / axisMax) * 100 : 0;
             const showKm = bar.state === "done" || bar.state === "current";
             return (
-              <div key={bar.weekStart} className="flex flex-1 flex-col items-center gap-1">
+              <div key={bar.weekStart} className="flex min-w-0 flex-1 flex-col items-center gap-1">
                 <div className="flex w-full flex-1 items-end justify-center">
                   <div
                     className={`stagger-item w-full max-w-8 rounded-t-[3px] transition-[height] ${BAR_STYLE[bar.state]}`}
@@ -52,10 +52,12 @@ export function WeeklyLoadChart({ bars, hasPlan }: { bars: readonly WeekLoadBar[
                     title={`S${bar.index} — ${fixed(bar.realizedKm, 2)} km réalisés${bar.plannedKm != null ? `, ${fixed(bar.plannedKm, 1)} km prévus` : ""}`}
                   />
                 </div>
-                <span className="tabular text-[10px] text-[var(--color-faint)]">
+                <span className="tabular w-full truncate text-center text-[10px] text-[var(--color-faint)]">
                   {showKm && bar.realizedKm > 0 ? fixed(bar.realizedKm, 1) : ""}
                 </span>
-                <span className="text-[10px] text-[var(--color-muted)]">S{bar.index}</span>
+                <span className="w-full truncate text-center text-[10px] text-[var(--color-muted)]">
+                  S{bar.index}
+                </span>
               </div>
             );
           })}

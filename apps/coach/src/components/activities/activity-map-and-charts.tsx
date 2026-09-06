@@ -64,7 +64,14 @@ export function ActivityMapAndCharts({
           />
         </div>
       ) : null}
-      <div className="mt-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+      {/*
+       * `px-4`, jamais `-mx-4 px-4` : cette bande de graphiques vit dans un
+       * conteneur SANS padding horizontal (la carte au-dessus est pleine
+       * largeur à dessein) — un bleed en marge négative n'a donc rien à
+       * compenser et débordait de 16 px la largeur réelle de l'écran à
+       * 390 px (trouvé à l'audit mobile de la refonte).
+       */}
+      <div className="mt-4 overflow-x-auto px-4 sm:overflow-visible sm:px-0">
         <div className="min-w-[560px] sm:min-w-0">
           <ActivityCharts points={points} hasHr={hasHr} hrZones={hrZones} onHoverIndex={setHoverIndex} />
         </div>
