@@ -12,7 +12,7 @@ export default async function ProfilePage() {
       <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Profil" }]} />
       <div className="p-4 md:p-6">
       <header>
-        <h1 className="text-lg font-semibold">Profil</h1>
+        <h1 className="font-display text-lg font-semibold">Profil</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           Repères physiologiques dont dépendent la charge d&apos;entraînement et
           les zones. Rien n&apos;est deviné : un champ vide reste vide, et les

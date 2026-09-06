@@ -72,7 +72,7 @@ export default async function AnalyticsPage({
     <div className="p-4 md:p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Analyses</h1>
+          <h1 className="font-display text-lg font-semibold">Analyses</h1>
           <p className="mt-0.5 text-xs text-[var(--color-muted)]">
             Charge, forme et répartition d&apos;intensité.
           </p>

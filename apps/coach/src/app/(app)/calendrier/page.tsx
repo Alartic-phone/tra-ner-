@@ -141,7 +141,7 @@ export default async function CalendarPage({
     <div className="p-4 md:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold capitalize">
+          <h1 className="font-display text-lg font-semibold capitalize">
             {isWeekView ? `${formatDayShort(weekStart)} – ${formatDayShort(weekEnd)}` : formatMonth(year, month)}
           </h1>
           <p className="text-xs text-[var(--color-muted)]">

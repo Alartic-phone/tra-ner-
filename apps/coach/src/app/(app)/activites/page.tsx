@@ -69,7 +69,7 @@ export default async function ActivitiesPage({
   return (
     <div className="mx-auto max-w-[1100px] p-4 md:p-6">
       <header>
-        <h1 className="text-lg font-semibold">Activités</h1>
+        <h1 className="font-display text-lg font-semibold">Activités</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           {total} activité{total > 1 ? "s" : ""} importée{total > 1 ? "s" : ""}.
         </p>

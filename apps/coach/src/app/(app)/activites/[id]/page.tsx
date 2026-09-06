@@ -121,7 +121,7 @@ export default async function ActivityPage({
         {streams?.latlng ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-gradient-to-t from-[rgba(8,11,18,0.85)] to-transparent p-4 pt-10">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold text-[var(--color-text)]">{displayName}</h1>
+              <h1 className="font-display text-lg font-semibold text-[var(--color-text)]">{displayName}</h1>
               {personalRecords.length > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--color-signal)]/40 bg-[var(--color-signal-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-signal)]">
                   <Trophy size={11} aria-hidden /> record
@@ -138,7 +138,7 @@ export default async function ActivityPage({
       <div className="space-y-4 p-4 md:space-y-6 md:p-6">
         {!streams?.latlng ? (
           <div>
-            <h1 className="text-lg font-semibold">{displayName}</h1>
+            <h1 className="font-display text-lg font-semibold">{displayName}</h1>
             <p className="mt-0.5 text-xs text-[var(--color-muted)]">
               {formatInstant(activity.startedAt)} · {activity.type} · poste du jour : {shiftLabel}
             </p>
