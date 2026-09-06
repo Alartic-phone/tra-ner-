@@ -1,35 +1,45 @@
 @import "tailwindcss";
 
 /*
- * Interface sobre et dense, orientée données. Mode sombre par défaut :
- * l'application se consulte surtout tôt le matin, la nuit et en poste.
- * Aucune ressource externe — pas de police Google, la pile système suffit et
- * s'affiche instantanément.
+ * Carnet d'entraînement, pas tableau de bord SaaS : dense, lisible, un peu
+ * imprimé. DEUX thèmes, jamais un seul — sombre (vert de nuit profond) de
+ * 20 h à 8 h, clair (papier) de 8 h à 20 h. La bascule automatique et le
+ * bouton de forçage sont résolus côté serveur (`lib/theme.ts`, cookie
+ * `theme`) et posés en attribut `data-theme` sur `<html>` avant le premier
+ * rendu — jamais de flash du mauvais thème, jamais `localStorage`.
+ * Aucune ressource externe — pas de police Google, next/font/local sert les
+ * fichiers depuis les paquets npm @fontsource-variable.
+ *
+ * Les tokens ci-dessous portent leurs valeurs CLAIRES par défaut ; le bloc
+ * `html[data-theme="dark"]` plus bas les réécrit pour le sombre. Seuls les
+ * tokens qui changent réellement de valeur entre les deux thèmes sont
+ * redéclarés là-bas — zones FC, couleurs de graphique, de poste et de sport
+ * sont des identités fixes, non liées au thème (cf. R5 et section 7 du
+ * cahier des charges : on n'y touche pas).
  */
 
 @theme {
-  --color-bg: #080b12;
-  --color-surface: #101623;
-  --color-surface-2: #18202f;
-  --color-border: #232d3f;
-  --color-border-strong: #303949;
+  --color-bg: #f4f1ea;
+  --color-surface: #ffffff;
+  --color-surface-2: #ebe7dd;
+  --color-border: #d9d3c6;
+  --color-border-strong: #c3bcab;
 
-  --color-text: #f2f5fa;
-  --color-muted: #8f9bb0;
-  /* 5,05:1 sur --color-surface, 4,56:1 sur --color-surface-2 (WCAG AA texte,
-     seuil 4,5:1) — remonté depuis #6b7789 (3,98:1 / 3,60:1) qui échouait :
-     --color-faint porte du texte réel (labels, hints) partout dans l'app,
-     pas seulement du décoratif, cf. globals-contrast.test.ts. */
-  --color-faint: #7d889b;
+  --color-text: #16241f;
+  --color-muted: #5e6b64;
+  /* Porte du texte réel (labels, hints) partout dans l'app, pas seulement du
+     décoratif — exige donc le seuil AA texte normal (4,5:1) sur les trois
+     fonds, vérifié par calcul dans globals-contrast.test.ts. */
+  --color-faint: #5e6a63;
 
-  --color-accent: #5b9cf6;
-  --color-accent-soft: #1d3a5f;
+  --color-accent: #1f7d6a;
+  --color-accent-soft: #dcefe9;
 
   /*
    * Ambre de lampe à sodium — la couleur d'un lampadaire à 5 h du matin.
    * RARE PAR CONSTRUCTION. Il ne sert QU'À CES CINQ CHOSES et nulle part
    * ailleurs :
-   *   1. le repère « aujourd'hui » sur le ruban de cycle,
+   *   1. le repère « aujourd'hui » sur l'agenda 7 jours,
    *   2. un record battu,
    *   3. la meilleure valeur d'un tableau (ex. le km le plus rapide),
    *   4. la séance du jour quand elle reste à faire,
@@ -39,24 +49,28 @@
    * décorative. Une sixième utilisation rate la direction artistique —
    * si tu hésites à l'ajouter ailleurs, ne l'ajoute pas.
    */
-  --color-signal: #f5a524;
-  --color-signal-bg: #3a2a10;
+  --color-signal: #99580f;
+  --color-signal-bg: #f6e8cf;
 
   /*
-   * Couleurs de statut. Jeu fixe, validé sur la surface sombre de
-   * l'application : bande de clarté, plancher de chroma, séparation pour les
-   * déficiences de vision des couleurs, contraste. Elles ne servent JAMAIS de
-   * couleur de série, et sont toujours accompagnées d'un libellé ou d'une
-   * icône — jamais porteuses de sens à elles seules.
+   * Couleurs de statut. Jeu fixe, vérifié PAR LE CALCUL sur les deux fonds
+   * (globals-contrast.test.ts) : bande de clarté, plancher de chroma,
+   * séparation pour les déficiences de vision des couleurs, contraste.
+   * Elles ne servent JAMAIS de couleur de série, et sont toujours
+   * accompagnées d'un libellé ou d'une icône — jamais porteuses de sens à
+   * elles seules.
    */
-  --color-ok: #0ca30c;
-  --color-warn: #fab219;
-  --color-serious: #ec835a;
-  --color-danger: #d03b3b;
-  --color-info: #6ba8d8;
+  --color-ok: #0b781e;
+  --color-warn: #8a5a05;
+  --color-serious: #a3441f;
+  --color-danger: #a61f1f;
+  --color-info: #1f5c8f;
 
   /*
-   * Couleurs de graphique.
+   * Couleurs de graphique — identité fixe, non liée au thème (traits de
+   * courbe et remplissages sur une surface de graphique dédiée, jamais du
+   * texte : le seuil pertinent est le contraste non-textuel WCAG 1.4.11,
+   * 3:1, que ces teintes tiennent sur les deux fonds).
    *
    * Catégorielles : ordre fixe, jamais recyclé. Un filtre qui réduit le
    * nombre de séries ne repeint pas les survivantes.
@@ -98,7 +112,9 @@
    * le magenta de la zone 5 plutôt qu'en tournant vers une teinte déjà prise
    * (le violet retomberait trop près du bleu de la zone 1) : mêmes teinte et
    * saturation que --zone-5, luminosité réduite pour rester lisible tout en
-   * signalant « au-delà du rouge ».
+   * signalant « au-delà du rouge ». Identité fixe, non liée au thème — ce
+   * sont des aplats pleins (blocs de l'instrument de zones, segments de
+   * ZoneBar), jamais du texte sur la couleur de fond de la page.
    */
   --zone-1: #4179c8; /* récupération */
   --zone-2: #29a37a; /* endurance fondamentale */
@@ -135,14 +151,19 @@
     Arial, sans-serif;
 
   /*
-   * Une seule famille variable (Archivo) pour le display, les titres ET le
-   * corps de texte — exploitée sur son axe de largeur (wdth) plutôt qu'
-   * appariée à une police sans rapport : plus discipliné, plus
-   * caractéristique. --font-mono sert aux tableaux de données (splits, laps,
-   * export). Fichiers réels chargés par next/font/local dans lib/fonts.ts,
-   * jamais par une URL.
+   * Trois signatures, trois rôles stricts (section 1.2 du cahier des
+   * charges) :
+   *   - --font-display : une serif de caractère (Newsreader), réservée aux
+   *     TITRES. C'est elle qui donne le ton carnet.
+   *   - --font-body : une sans neutre (Archivo) pour l'INTERFACE — libellés,
+   *     texte courant.
+   *   - --font-mono : JetBrains Mono pour TOUTES les données chiffrées —
+   *     distances, allures, dates, durées, y compris les chiffres héros
+   *     (.text-hero-number ci-dessous). Jamais Archivo pour un nombre.
+   * Fichiers réels chargés par next/font/local dans lib/fonts.ts, jamais par
+   * une URL.
    */
-  --font-display: "Archivo Variable", var(--font-archivo), var(--font-sans);
+  --font-display: "Newsreader Variable", var(--font-newsreader), serif;
   --font-body: "Archivo Variable", var(--font-archivo), var(--font-sans);
   --font-mono: "JetBrains Mono Variable", var(--font-jetbrains-mono), ui-monospace,
     SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -194,6 +215,38 @@
   --duration-slow: 400ms;
 }
 
+/*
+ * SOMBRE — vert de nuit profond, 20 h à 8 h. Seuls les tokens qui changent
+ * réellement entre les deux thèmes sont redéclarés ici ; tout le reste
+ * (zones FC, couleurs de graphique/poste/sport, rayons, polices, animation)
+ * est une identité fixe définie une seule fois ci-dessus.
+ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #0e1a17;
+  --color-surface: #14211d;
+  --color-surface-2: #1b2a25;
+  --color-border: #24352f;
+  --color-border-strong: #32463c;
+
+  --color-text: #e8f0ec;
+  --color-muted: #8fa39b;
+  --color-faint: #838ea1;
+
+  --color-accent: #7fd4c1;
+  --color-accent-soft: #173430;
+
+  --color-signal: #f5a524;
+  --color-signal-bg: #3a2a10;
+
+  --color-ok: #0ca30c;
+  --color-warn: #fab219;
+  --color-serious: #ec835a;
+  --color-danger: #d03b3b;
+  --color-info: #6ba8d8;
+}
+
 @keyframes ring-fill {
   from {
     stroke-dashoffset: var(--ring-circumference);
@@ -226,17 +279,18 @@
 }
 
 /*
- * Chiffres héros (distance, allure, FC…) : Archivo à son axe de largeur
- * ouvert (wdth ~112, sur 62-125) et graisse 600 — c'est cet axe, pas une
- * police différente, qui donne aux chiffres leur caractère. `font-stretch`
- * ne suffit pas à piloter l'axe de façon fiable sur toutes les
- * implémentations : on fixe l'axe directement via font-variation-settings.
+ * Chiffres héros (distance, allure, FC, compte à rebours…) : JetBrains Mono,
+ * jamais la police d'interface — R2/section 1.2 du cahier des charges, une
+ * mesure ou un modèle se lit toujours en chiffres tabulaires.
+ * `font-variant-numeric: tabular-nums` est déjà le défaut de tout `body`
+ * (règle globale plus bas) ; réaffirmé ici car ces chiffres changent souvent
+ * de valeur (CountUp) et ne doivent jamais sauter en largeur.
  */
 .text-hero-number {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-weight: 600;
-  font-variation-settings: "wdth" 112;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -270,7 +324,7 @@
   }
 
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
