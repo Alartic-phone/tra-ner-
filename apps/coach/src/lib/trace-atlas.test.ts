@@ -69,9 +69,10 @@ describe("buildAtlasSvg", () => {
     expect(result.svg).toContain("mix-blend-mode:screen");
   });
 
-  it("place un point ambre sur le départ le plus fréquent", () => {
+  it("place un point vert (départ, jamais l'ambre réservé à l'arrivée) sur le départ le plus fréquent", () => {
     const result = buildAtlasSvg([traceNearLyon(0), traceNearLyon(0), traceNearLyon(1)]);
-    expect(result.svg).toContain("var(--color-signal)");
+    expect(result.svg).toContain("var(--color-ok)");
+    expect(result.svg).not.toContain("var(--color-signal)");
     expect(result.svg).toContain("<circle");
   });
 
