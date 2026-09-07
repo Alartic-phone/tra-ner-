@@ -47,6 +47,11 @@ export function NextSession({ session }: { session: NextSessionData | null }) {
       {session.description ? (
         <p className="mt-1 text-sm text-[var(--color-muted)]">{session.description}</p>
       ) : null}
+      <p className="mt-2 text-xs text-[var(--color-muted)]">
+        <Link href="/plan" className="underline">
+          Voir le plan complet
+        </Link>
+      </p>
       {/* Pas de colonne "sur route" : aucun champ de PlannedWorkout ne porte
           cette information (indoor/outdoor) — l'afficher inventerait une
           donnée plutôt que de la lire. */}
