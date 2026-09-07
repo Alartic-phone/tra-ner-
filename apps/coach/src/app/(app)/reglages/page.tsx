@@ -215,7 +215,10 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
         <div className="text-[var(--color-text)]">{label}</div>
         {hint ? <div className="text-[var(--color-faint)]">{hint}</div> : null}
       </div>
-      <div className="shrink-0 text-right text-[var(--color-muted)]">{value}</div>
+      {/* Pas de `shrink-0` : une valeur longue ("manuel (COROS) · 3
+          activité(s) COROS avec flux") le forçait à garder toute sa largeur
+          de contenu et débordait la page de 2 px à 390 px. */}
+      <div className="text-right text-[var(--color-muted)]">{value}</div>
     </div>
   );
 }
