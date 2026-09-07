@@ -8,6 +8,7 @@ import { HeroStat } from "@/components/ui/hero-stat.tsx";
 import { ZoneBar } from "@/components/activities/zone-bar.tsx";
 import { ActivityMapAndCharts } from "@/components/activities/activity-map-and-charts.tsx";
 import { ActivityNotes } from "@/components/activities/activity-notes.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
 import { toggleLapManualForm } from "./actions.ts";
 import {
@@ -99,7 +100,7 @@ export default async function ActivityPage({
       : null;
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <PageContainer className="px-0 py-0 md:px-0">
       <div className="p-4 pb-0 md:p-6 md:pb-0">
         <Link
           href="/activites"
@@ -121,7 +122,7 @@ export default async function ActivityPage({
         {streams?.latlng ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-gradient-to-t from-[rgba(8,11,18,0.85)] to-transparent p-4 pt-10">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold text-[var(--color-text)]">{displayName}</h1>
+              <h1 className="font-display text-lg font-semibold text-[var(--color-text)]">{displayName}</h1>
               {personalRecords.length > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] border border-[var(--color-signal)]/40 bg-[var(--color-signal-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-signal)]">
                   <Trophy size={11} aria-hidden /> record
@@ -138,7 +139,7 @@ export default async function ActivityPage({
       <div className="space-y-4 p-4 md:space-y-6 md:p-6">
         {!streams?.latlng ? (
           <div>
-            <h1 className="text-lg font-semibold">{displayName}</h1>
+            <h1 className="font-display text-lg font-semibold">{displayName}</h1>
             <p className="mt-0.5 text-xs text-[var(--color-muted)]">
               {formatInstant(activity.startedAt)} · {activity.type} · poste du jour : {shiftLabel}
             </p>
@@ -225,7 +226,10 @@ export default async function ActivityPage({
 
         {manualLap ? (
           <div className="rounded-[var(--radius-card)] bg-[var(--color-surface)] p-4">
-            <p className="text-xs font-medium text-[var(--color-signal)]">Lap manuel</p>
+            {/* --color-info, pas --color-signal : l'ambre est réservé à cinq
+                usages précis (globals.css) qui n'incluent pas un simple
+                repère "entré à la main". */}
+            <p className="text-xs font-medium text-[var(--color-info)]">Lap manuel</p>
             <p className="tabular mt-1 font-[family-name:var(--font-mono)] text-sm">
               {formatClock(manualLap.movingTimeS)} · {formatDistance(manualLap.distanceM)} ·{" "}
               {isRunActivity ? formatPace(paceFromSpeed(manualLap.avgSpeedMps)) : formatSpeed(manualLap.avgSpeedMps)}
@@ -396,6 +400,6 @@ export default async function ActivityPage({
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

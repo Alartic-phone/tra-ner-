@@ -47,12 +47,6 @@ export async function saveProfile(input: unknown): Promise<ProfileResult> {
   }
 
   const data = parsed.data;
-  if (data.hrMax != null && data.hrRest != null && data.hrMax <= data.hrRest) {
-    return {
-      ok: false,
-      error: "La fréquence cardiaque maximale doit être supérieure à celle de repos.",
-    };
-  }
 
   const existing = await prisma.user.findFirst();
   const affectsLoad =

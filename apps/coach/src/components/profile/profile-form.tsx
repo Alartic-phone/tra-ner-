@@ -5,7 +5,7 @@ import { saveProfile } from "@/app/(app)/reglages/profil/actions.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader } from "@/components/ui/card.tsx";
 import { Hint, Input, Label, Select } from "@/components/ui/field.tsx";
-import { computeHeartRateZones, computePaceZones } from "@/lib/metrics/zones.ts";
+import { computeHeartRateZones, computePaceZones, formatZoneBpmRange } from "@/lib/metrics/zones.ts";
 import { formatPace } from "@/lib/utils.ts";
 
 export type ProfileValues = {
@@ -34,7 +34,7 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
 
   // Aperçu immédiat : voir les zones se déplacer en saisissant sa FC de seuil
   // évite de découvrir une valeur aberrante trois semaines plus tard. La FC
-  // maximale ne sert qu'à plafonner l'affichage du haut de la zone 5, qui est
+  // maximale ne sert qu'à plafonner l'affichage du haut de la zone 6, qui est
   // ouverte par nature.
   const hrZones = useMemo(
     () =>
@@ -106,7 +106,7 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
       <Card>
         <CardHeader
           title="Repères cardiaques"
-          hint="La charge d'entraînement et les cinq zones en dépendent directement."
+          hint="La charge d'entraînement et les six zones en dépendent directement."
         />
         <CardBody>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -140,7 +140,7 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
                 onChange={(e) => set("lactateThresholdHr", num(e.target.value))}
                 className="mt-1"
               />
-              <Hint>Seule entrée des cinq zones cardiaques ci-dessous.</Hint>
+              <Hint>Seule entrée des six zones cardiaques ci-dessous.</Hint>
             </div>
           </div>
 
@@ -155,9 +155,7 @@ export function ProfileForm({ initial }: { initial: ProfileValues }) {
                     <span className="text-[var(--color-muted)]">
                       Z{zone.index} · {zone.name}
                     </span>
-                    <span>
-                      {zone.fromBpm}–{zone.toBpm}
-                    </span>
+                    <span>{formatZoneBpmRange(zone)}</span>
                   </li>
                 ))}
               </ul>

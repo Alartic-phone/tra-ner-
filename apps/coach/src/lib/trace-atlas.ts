@@ -93,15 +93,21 @@ export function buildAtlasSvg(
     .map((pts) => {
       const svgPts = pts.map(toSvg);
       const d = svgPts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-      return `<path d="${d}" fill="none" stroke="var(--color-accent)" stroke-width="1" stroke-opacity="0.12" style="mix-blend-mode:screen" />`;
+      // Couleur fixe (teinte accent du thème sombre), pas `var(--color-accent)` :
+      // ce panneau (TraceAtlas) reste un fond sombre quel que soit le thème
+      // de la page, et c'est l'accent clair du thème sombre qui a été choisi
+      // pour bien "s'allumer" en mix-blend-mode:screen.
+      return `<path d="${d}" fill="none" stroke="#7fd4c1" stroke-width="1" stroke-opacity="0.12" style="mix-blend-mode:screen" />`;
     })
     .join("");
 
+  // --color-ok, pas --color-signal : la convention documentée (globals.css,
+  // route-map.tsx) réserve l'ambre à l'ARRIVÉE d'un tracé, jamais au départ.
   const start = mostFrequentStart(nonEmpty.map((t) => t[0]!));
   const startTag = start
     ? (() => {
         const p = toSvg(mercatorProject(start));
-        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--color-signal)" />`;
+        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--color-ok)" />`;
       })()
     : "";
 

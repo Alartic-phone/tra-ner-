@@ -1,7 +1,7 @@
 "use client";
 
 import { distributePercentages, formatDuration } from "@/lib/utils.ts";
-import { ZONE_RAMP } from "@/lib/metrics/zones.ts";
+import { ZONE_RAMP, formatZoneBpmRange } from "@/lib/metrics/zones.ts";
 
 export type ZoneRow = {
   index: number;
@@ -58,7 +58,7 @@ export function ZoneChart({
     ...zones.map((zone) => ({
       key: String(zone.index),
       label: `Z${zone.index} · ${zone.name}`,
-      range: `${zone.fromBpm}–${zone.toBpm}`,
+      range: formatZoneBpmRange(zone),
       seconds: zone.seconds,
       color: ZONE_RAMP[zone.index - 1]!,
     })),

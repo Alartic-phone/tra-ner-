@@ -17,6 +17,7 @@ import {
   predictDistance,
 } from "@/lib/metrics/repository.ts";
 import { fixed, formatClock, formatPace } from "@/lib/utils.ts";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -104,9 +105,9 @@ export default async function ProgressionPage() {
   const longestRun = longestRunProgression[longestRunProgression.length - 1] ?? null;
 
   return (
-    <div className="mx-auto max-w-[1100px] space-y-6 p-4 md:p-6">
+    <PageContainer className="space-y-6">
       <PhotoHero photo={photo} height={120}>
-        <h1 className="text-lg font-semibold text-[var(--color-text)]">Progression</h1>
+        <h1 className="font-display text-lg font-semibold text-[var(--color-text)]">Progression</h1>
         <p className="tabular mt-0.5 text-sm text-[var(--color-text)]">
           {fixed(yearTotalKm, 2)} km parcourus en {day.slice(0, 4)}
         </p>
@@ -202,6 +203,6 @@ export default async function ProgressionPage() {
           </ul>
         </section>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

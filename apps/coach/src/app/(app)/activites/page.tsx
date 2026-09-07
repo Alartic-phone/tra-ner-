@@ -15,6 +15,7 @@ import { isRun } from "@/lib/strava/mapping.ts";
 import { fixed, formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
 import { formatDayShort, formatInstant, toLocalHour } from "@/lib/time.ts";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +68,9 @@ export default async function ActivitiesPage({
   const weeks = groupByWeek(page);
 
   return (
-    <div className="mx-auto max-w-[1100px] p-4 md:p-6">
+    <PageContainer>
       <header>
-        <h1 className="text-lg font-semibold">Activités</h1>
+        <h1 className="font-display text-lg font-semibold">Activités</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           {total} activité{total > 1 ? "s" : ""} importée{total > 1 ? "s" : ""}.
         </p>
@@ -226,6 +227,6 @@ export default async function ActivitiesPage({
           </Link>
         </div>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

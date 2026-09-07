@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { buildZoneVerdict, fastestSplitIndex } from "./activity-verdict.ts";
+import { buildGenericZoneVerdict, buildZoneVerdict, fastestSplitIndex } from "./activity-verdict.ts";
+
+describe("buildGenericZoneVerdict", () => {
+  const zoneNames = [
+    "récupération",
+    "endurance fondamentale",
+    "endurance active",
+    "seuil",
+    "VO2max",
+    "anaérobie",
+  ];
+
+  it("identifie la zone dominante et son pourcentage réel", () => {
+    const text = buildGenericZoneVerdict([200, 2844, 400, 100, 56, 0], zoneNames);
+    expect(text).toBe("Majoritairement en zone 2 (endurance fondamentale), 79 % du temps mesuré.");
+  });
+
+  it("renvoie null sans cardio mesuré, jamais un verdict inventé", () => {
+    expect(buildGenericZoneVerdict(null, zoneNames)).toBeNull();
+    expect(buildGenericZoneVerdict([0, 0, 0, 0, 0, 0], zoneNames)).toBeNull();
+  });
+});
 
 describe("buildZoneVerdict", () => {
   it("calcule le pourcentage réel de temps dans la zone prescrite", () => {

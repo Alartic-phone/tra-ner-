@@ -1,6 +1,6 @@
 import { gzipSync } from "node:zlib";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SyncJob } from "@prisma/client";
 import { prisma } from "../db.ts";
 import {
   StravaAuthError,
@@ -307,6 +307,44 @@ export type WorkerReport = {
   retryAfterS?: number;
 };
 
+export type ClaimResult =
+  | { outcome: "empty" }
+  | { outcome: "lost" }
+  | { outcome: "claimed"; job: SyncJob };
+
+/**
+ * Réclame la tâche en tête de file de façon atomique.
+ *
+ * `findFirst` ne verrouille rien : deux exécutions concurrentes de
+ * `runSyncWorker` (webhook et bouton, deux clics rapprochés, cron et
+ * bouton…) peuvent lire la même tâche "pending" avant que l'une des deux
+ * ne l'ait marquée "running". Le `updateMany` qui suit est conditionné sur
+ * `status: "pending"` : il ne modifie la ligne que si elle l'est encore au
+ * moment de l'écriture, et `count` dit laquelle des deux exécutions a
+ * gagné cette tâche précise — c'est SQLite qui sérialise les écritures
+ * concurrentes sur la ligne, pas une logique applicative elle-même
+ * courable.
+ *
+ * `client` n'est injectable que pour le test verrou (base SQLite jetable) —
+ * le code applicatif ne le passe jamais et reçoit toujours le singleton
+ * partagé.
+ */
+export async function claimNextJob(
+  client: Pick<typeof prisma, "syncJob"> = prisma,
+): Promise<ClaimResult> {
+  const job = await client.syncJob.findFirst({
+    where: { status: "pending", runAfter: { lte: new Date() } },
+    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+  });
+  if (!job) return { outcome: "empty" };
+
+  const claim = await client.syncJob.updateMany({
+    where: { id: job.id, status: "pending" },
+    data: { status: "running", attempts: { increment: 1 } },
+  });
+  return claim.count === 1 ? { outcome: "claimed", job } : { outcome: "lost" };
+}
+
 /**
  * Traite la file jusqu'à épuisement, du budget de temps ou du quota.
  *
@@ -346,16 +384,16 @@ export async function runSyncWorker(
       };
     }
 
-    const job = await prisma.syncJob.findFirst({
-      where: { status: "pending", runAfter: { lte: new Date() } },
-      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
-    });
-    if (!job) return { processed, failed, stoppedBy: "empty" };
-
-    await prisma.syncJob.update({
-      where: { id: job.id },
-      data: { status: "running", attempts: { increment: 1 } },
-    });
+    const claim = await claimNextJob();
+    if (claim.outcome === "empty") return { processed, failed, stoppedBy: "empty" };
+    if (claim.outcome === "lost") {
+      // Perdu la course : une autre exécution a déjà pris cette tâche entre
+      // le findFirst et l'updateMany de claimNextJob. Ne pas la retraiter
+      // ici — la prochaine itération relance un findFirst frais, qui ne la
+      // reverra plus (elle n'est plus "pending").
+      continue;
+    }
+    const job = claim.job;
 
     try {
       const payload: unknown = JSON.parse(job.payloadJson);

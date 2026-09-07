@@ -1,0 +1,140 @@
+import { CountdownReveal } from "./countdown-reveal.tsx";
+import { formatDayAbbrev } from "@/lib/time.ts";
+import { formatDistance, formatPace, formatTimeRange } from "@/lib/utils.ts";
+import { diffDays, type Day } from "@/lib/shifts/day.ts";
+
+export type GoalHeaderData = {
+  name: string;
+  day: Day;
+  distanceM: number;
+  targetTimeMinS: number | null;
+  targetTimeMaxS: number | null;
+  /** Texte libre du profil parcours (départ, arrivée, contexte) — la seule
+   * donnée réelle disponible : aucun champ structuré départ/arrivée
+   * n'existe sur le modèle Goal. */
+  notes: string | null;
+};
+
+/**
+ * En-tête d'objectif — bloc dominant de l'accueil (section 3.1). Le chrono
+ * est TOUJOURS rendu via `formatTimeRange` : une fourchette, jamais un point
+ * unique, même quand les deux bornes stockées sont encore égales.
+ *
+ * Le profil de parcours en pointillés est décoratif et assumé (section 3.1
+ * du cahier des charges le dit explicitement) : sans donnée d'altitude
+ * réelle sur l'objectif, une silhouette générique en faux plat descendant
+ * illustre le ton sans prétendre mesurer quoi que ce soit.
+ */
+export function GoalHeader({ goal, today }: { goal: GoalHeaderData; today: Day }) {
+  const days = diffDays(today, goal.day);
+  const targetRange = formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS, (s) =>
+    s == null ? "—" : formatHms(s),
+  );
+  const paceMin =
+    goal.targetTimeMinS != null ? goal.targetTimeMinS / (goal.distanceM / 1000) : null;
+  const paceMax =
+    goal.targetTimeMaxS != null ? goal.targetTimeMaxS / (goal.distanceM / 1000) : null;
+  const paceRange = formatTimeRange(paceMin, paceMax, (s) => (s == null ? "—" : formatPace(s)));
+
+  return (
+    <section className="border-b border-[var(--color-border)] pb-6">
+      <div className="grid gap-6 sm:grid-cols-[auto_1fr] sm:items-start">
+        <div className="flex w-fit flex-col items-center rounded-[var(--radius-card)] border border-[var(--color-accent)] px-6 py-4">
+          <span className="text-hero-number text-hero-xl" style={{ color: "var(--color-accent)" }}>
+            <CountdownReveal value={days} />
+          </span>
+          <span className="mt-1 text-xs tracking-wide text-[var(--color-muted)]">
+            {days <= 0 ? "C'EST AUJOURD'HUI" : "JOURS AVANT"}
+          </span>
+        </div>
+
+        <div>
+          <h1 className="font-display text-xl text-[var(--color-text)] sm:text-2xl">{goal.name}</h1>
+          <dl className="tabular mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-[var(--color-muted)]">Date</dt>
+              <dd className="mt-0.5">{formatDayAbbrev(goal.day)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-muted)]">Distance</dt>
+              <dd className="mt-0.5">{formatDistance(goal.distanceM)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-muted)]">Chrono cible</dt>
+              <dd className="mt-0.5">{targetRange ?? <span className="text-[var(--color-faint)]">non disponible</span>}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-muted)]">Allure de course</dt>
+              <dd className="mt-0.5">{paceRange ?? <span className="text-[var(--color-faint)]">non disponible</span>}</dd>
+            </div>
+          </dl>
+          {goal.notes ? <p className="mt-3 max-w-2xl text-sm text-[var(--color-muted)]">{goal.notes}</p> : null}
+        </div>
+      </div>
+
+      {/* Pleine largeur de la section (même colonne que la page, jusqu'à
+          1200 px) — volontairement HORS de la grille auto/1fr ci-dessus,
+          qui ne couvrirait que la largeur de la colonne de texte. */}
+      <RouteProfileDecoration />
+    </section>
+  );
+}
+
+function formatHms(seconds: number): string {
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m} min`;
+}
+
+/**
+ * Silhouette décorative en faux plat descendant — jamais une mesure (aucun
+ * relevé d'altitude réel derrière ces points, choisis à la main). Une
+ * ondulation légère plutôt qu'une diagonale parfaite : une ancienne voie
+ * ferrée est réglementairement quasi plane, mais jamais mathématiquement
+ * droite — un peu de vie graphique sans prétendre à la précision. Repères
+ * de départ (vert) et d'arrivée (ambre) : même convention que le tracé GPS
+ * réel de la page activité (route-map.tsx).
+ */
+// Viewbox large (0-1200, même échelle horizontale que la colonne de page
+// jusqu'à 1200 px) pour que la silhouette occupe toute la largeur de la
+// section sans jamais déformer les repères circulaires de départ/arrivée —
+// le rapport largeur/hauteur du viewBox reste proche de celui du bloc
+// rendu (w-full, h-12), donc pas de mise à l'échelle non uniforme.
+const PROFILE_POINTS: ReadonlyArray<[number, number]> = [
+  [0, 10], [80, 12], [160, 9], [240, 15], [320, 13],
+  [400, 19], [480, 17], [560, 23], [640, 21], [720, 28],
+  [800, 26], [880, 33], [960, 31], [1040, 38], [1120, 41], [1200, 40],
+];
+
+function RouteProfileDecoration() {
+  const [firstX, firstY] = PROFILE_POINTS[0]!;
+  const [lastX, lastY] = PROFILE_POINTS[PROFILE_POINTS.length - 1]!;
+  const linePoints = PROFILE_POINTS.map(([x, y]) => `${x},${y}`).join(" ");
+  const areaPoints = `${firstX},50 ${linePoints} ${lastX},50`;
+
+  return (
+    <div className="mt-4 w-full">
+      <svg viewBox="0 0 1200 50" className="h-12 w-full" aria-hidden>
+        {/* Graduations de distance, décoratives — pas un axe mesuré. */}
+        {[0, 300, 600, 900, 1200].map((x) => (
+          <line key={x} x1={x} y1="44" x2={x} y2="50" stroke="var(--color-border)" strokeWidth="1" />
+        ))}
+        <polygon points={areaPoints} fill="var(--color-accent)" fillOpacity="0.08" stroke="none" />
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke="var(--color-border-strong)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle cx={firstX} cy={firstY} r="3.5" fill="var(--color-ok)" />
+        <circle cx={lastX} cy={lastY} r="3.5" fill="var(--color-signal)" />
+      </svg>
+      <p className="mt-0.5 text-[11px] text-[var(--color-faint)]">
+        faux plat descendant, ancienne voie ferrée
+      </p>
+    </div>
+  );
+}

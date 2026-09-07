@@ -76,14 +76,19 @@ function section1Profile(d: ExportData): string {
     `- Sexe : ${p.sex ?? NA} · Poids : ${fmtNum(p.weightKg, 1)} kg`,
     `- FC max : ${p.hrMax ?? NA} bpm · FC repos : ${p.hrRest ?? NA} bpm · VMA : ${fmtNum(p.vma, 1)} km/h`,
     "",
-    "### Zones de fréquence cardiaque (Karvonen, réserve cardiaque)",
+    "### Zones de fréquence cardiaque (% de la FC au seuil)",
     "",
   ];
   lines.push(
     p.hrZones
       ? table(
           ["Zone", "Nom", "De (bpm)", "À (bpm)"],
-          p.hrZones.map((z) => [`Z${z.index}`, z.name, String(z.fromBpm), String(z.toBpm)]),
+          p.hrZones.map((z) => [
+            `Z${z.index}`,
+            z.name,
+            z.index === 1 ? "—" : String(z.fromBpm),
+            z.index === 6 ? "—" : String(z.toBpm - 1),
+          ]),
         )
       : `${NA} — FC max et FC repos requises au profil.`,
   );

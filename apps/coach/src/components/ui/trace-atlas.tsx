@@ -16,7 +16,16 @@ export function TraceAtlas({ svg, className }: { svg: string | null; className?:
   return (
     <div
       className={className}
-      style={{ backgroundColor: "var(--color-bg)", borderRadius: "var(--radius-card)" }}
+      style={{
+        // Fond TOUJOURS sombre, indépendant du thème clair/sombre de l'app :
+        // les tracés sont superposés en `mix-blend-mode:screen`
+        // (lib/trace-atlas.ts), une technique qui n'éclaire que sur un fond
+        // proche du noir — sur le thème clair, les traits deviennent quasi
+        // invisibles si ce fond suit `--color-bg`. Valeur du thème sombre,
+        // en dur : ce panneau est une carte-radar, pas une surface d'appli.
+        backgroundColor: "#0e1a17",
+        borderRadius: "var(--radius-card)",
+      }}
       // Marqué de confiance : `svg` vient exclusivement de buildAtlasSvg
       // (lib/trace-atlas.ts), qui n'interpole aucune entrée utilisateur dans
       // le balisage — seules des coordonnées numériques calculées.

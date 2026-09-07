@@ -85,6 +85,16 @@ export function formatDayLong(day: Day): string {
   }).format(new Date(`${day}T00:00:00.000Z`));
 }
 
+/** "2026-10-25" -> "dim. 25/10" — en-tête d'objectif de l'accueil. */
+export function formatDayAbbrev(day: Day): string {
+  const date = new Date(`${day}T00:00:00.000Z`);
+  // "dim." porte déjà son point en fr-FR (Intl) — ne pas en ajouter un second.
+  const weekday = new Intl.DateTimeFormat("fr-FR", { timeZone: "UTC", weekday: "short" }).format(date);
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${weekday} ${dd}/${mm}`;
+}
+
 /** "2026-10-14" -> "14 oct." */
 export function formatDayShort(day: Day): string {
   return new Intl.DateTimeFormat("fr-FR", {

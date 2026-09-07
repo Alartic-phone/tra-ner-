@@ -7,12 +7,23 @@ import localFont from "next/font/local";
  * node_modules : c'est le paquet npm qui fait office de source, pas un
  * dossier de fichiers dupliqués dans le dépôt.
  *
- * Une seule famille pour le display et les titres — Archivo, exploitée sur
- * son axe de largeur (wdth, 62-125) en plus du poids — plutôt qu'une paire de
- * polices sans rapport : plus discipliné, et c'est l'axe de largeur qui donne
- * aux chiffres héros leur caractère (voir .text-hero-number, globals.css).
- * Le fichier "standard" du paquet combine wght ET wdth dans un seul woff2.
+ * Trois signatures distinctes, chacune sur un seul rôle (carnet
+ * d'entraînement, pas un tableau de bord SaaS) :
+ *   - Newsreader (serif) : les TITRES, et seulement eux — c'est elle qui
+ *     donne le ton carnet ;
+ *   - Archivo (sans) : l'INTERFACE — libellés, texte courant ;
+ *   - JetBrains Mono : TOUTES les données chiffrées (distances, allures,
+ *     dates, durées, y compris les gros chiffres héros — .text-hero-number
+ *     dans globals.css), jamais Archivo pour un nombre.
  */
+export const fontNewsreader = localFont({
+  src: "../../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-standard-normal.woff2",
+  variable: "--font-newsreader",
+  weight: "200 800",
+  style: "normal",
+  display: "swap",
+});
+
 export const fontArchivo = localFont({
   src: "../../node_modules/@fontsource-variable/archivo/files/archivo-latin-standard-normal.woff2",
   variable: "--font-archivo",
@@ -21,7 +32,7 @@ export const fontArchivo = localFont({
   display: "swap",
 });
 
-/** Tableaux de données : splits, laps, export. */
+/** Tableaux de données : splits, laps, export, et tous les chiffres héros. */
 export const fontJetBrainsMono = localFont({
   src: "../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2",
   variable: "--font-jetbrains-mono",

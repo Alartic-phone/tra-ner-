@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { Breadcrumb } from "@/components/breadcrumb.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
@@ -37,9 +39,11 @@ export default async function SettingsPage({
   const message = strava ? MESSAGES[strava] : undefined;
 
   return (
-    <div className="p-4 md:p-6">
+    <>
+      <Breadcrumb trail={[{ label: "Réglages" }]} />
+      <PageContainer>
       <header>
-        <h1 className="text-lg font-semibold">Réglages</h1>
+        <h1 className="font-display text-lg font-semibold">Réglages</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           Sources de données, cycle de postes et profil.
         </p>
@@ -200,7 +204,8 @@ export default async function SettingsPage({
           </CardBody>
         </Card>
       </div>
-    </div>
+      </PageContainer>
+    </>
   );
 }
 
@@ -211,7 +216,10 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
         <div className="text-[var(--color-text)]">{label}</div>
         {hint ? <div className="text-[var(--color-faint)]">{hint}</div> : null}
       </div>
-      <div className="shrink-0 text-right text-[var(--color-muted)]">{value}</div>
+      {/* Pas de `shrink-0` : une valeur longue ("manuel (COROS) · 3
+          activité(s) COROS avec flux") le forçait à garder toute sa largeur
+          de contenu et débordait la page de 2 px à 390 px. */}
+      <div className="text-right text-[var(--color-muted)]">{value}</div>
     </div>
   );
 }

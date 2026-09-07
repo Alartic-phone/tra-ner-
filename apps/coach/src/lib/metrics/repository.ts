@@ -8,6 +8,7 @@ import {
   DEFAULT_DURATIONS,
   bestDistanceForDurations,
   detectPersonalRecords,
+  isPlausibleRunningPace,
   mergeBestEfforts,
 } from "./best-efforts.ts";
 import { computeDecoupling } from "./decoupling.ts";
@@ -748,12 +749,24 @@ export async function loadBestKilometer(): Promise<
   { movingTimeS: number; distanceM: number; day: Day; activityId: string } | null
 > {
   const rows = await prisma.lap.findMany({
-    where: { splitIndex: { not: null }, distanceM: { gte: 950, lte: 1050 }, movingTimeS: { gt: 0 } },
+    where: {
+      splitIndex: { not: null },
+      distanceM: { gte: 950, lte: 1050 },
+      movingTimeS: { gt: 0 },
+      // Sans ce filtre, un tour de vélo d'environ 1 km (33 km/h plausible à
+      // vélo, jamais à pied) se glisse dans le record de course — bug réel
+      // observé (5.1).
+      activity: { type: { in: [...RUN_TYPES] } },
+    },
     select: { movingTimeS: true, distanceM: true, activityId: true, activity: { select: { startDay: true } } },
   });
-  if (rows.length === 0) return null;
+  // Même garde-fou de plausibilité que les meilleurs efforts (best-efforts.ts) :
+  // un split de tapis de course dont le capteur décroche peut être typé
+  // "Run" tout en étant physiologiquement impossible.
+  const plausible = rows.filter((r) => isPlausibleRunningPace(r.distanceM, r.movingTimeS));
+  if (plausible.length === 0) return null;
 
-  const best = rows.reduce((a, b) => (b.movingTimeS / b.distanceM < a.movingTimeS / a.distanceM ? b : a));
+  const best = plausible.reduce((a, b) => (b.movingTimeS / b.distanceM < a.movingTimeS / a.distanceM ? b : a));
   return {
     movingTimeS: best.movingTimeS,
     distanceM: best.distanceM,

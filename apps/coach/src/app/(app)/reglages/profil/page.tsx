@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db.ts";
 import { ProfileForm } from "@/components/profile/profile-form.tsx";
+import { Breadcrumb } from "@/components/breadcrumb.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +9,11 @@ export default async function ProfilePage() {
   const user = await prisma.user.findFirst();
 
   return (
-    <div className="p-4 md:p-6">
+    <>
+      <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Profil" }]} />
+      <PageContainer>
       <header>
-        <h1 className="text-lg font-semibold">Profil</h1>
+        <h1 className="font-display text-lg font-semibold">Profil</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           Repères physiologiques dont dépendent la charge d&apos;entraînement et
           les zones. Rien n&apos;est deviné : un champ vide reste vide, et les
@@ -34,6 +38,7 @@ export default async function ProfilePage() {
           }}
         />
       </div>
-    </div>
+      </PageContainer>
+    </>
   );
 }

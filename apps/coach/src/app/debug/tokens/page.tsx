@@ -44,13 +44,14 @@ const COLOR_GROUPS: Array<{ title: string; swatches: Array<{ name: string; varNa
     ],
   },
   {
-    title: "Zones FC (Karvonen, non modifiables)",
+    title: "Zones FC (% de la FC au seuil, non modifiables)",
     swatches: [
       { name: "zone 1 — récupération", varName: "--zone-1" },
       { name: "zone 2 — endurance fondamentale", varName: "--zone-2" },
       { name: "zone 3 — endurance active", varName: "--zone-3" },
       { name: "zone 4 — seuil", varName: "--zone-4" },
-      { name: "zone 5 — VMA", varName: "--zone-5" },
+      { name: "zone 5 — VO2max", varName: "--zone-5" },
+      { name: "zone 6 — anaérobie", varName: "--zone-6" },
     ],
   },
   {

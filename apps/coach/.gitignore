@@ -31,3 +31,4 @@ uploads/
 # racine pour ne pas avaler src/app/debug/, les pages de référence du système
 # de design qui, elles, sont versionnées.
 /debug/
+.tmp-audit/

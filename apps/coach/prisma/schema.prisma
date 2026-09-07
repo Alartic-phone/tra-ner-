@@ -496,6 +496,71 @@ model PlanRevision {
   @@index([planId, createdAt])
 }
 
+/// Séance de plan importée depuis un fichier CSV fourni par l'utilisateur —
+/// remplace la génération par l'API Claude comme mécanisme principal
+/// (celle-ci reste disponible dans le code, désactivée derrière l'import).
+/// Volontairement indépendante de Goal/TrainingPlan/PlannedWorkout : ces
+/// modèles portent des champs propres à une génération IA (phasesJson,
+/// model, contextJson…) qu'une ligne de CSV ne produit jamais — les forcer
+/// dans ce moule aurait signifié soit inventer ces champs, soit détourner
+/// `structureJson` de son usage. Une seule ligne par utilisateur, pas de
+/// notion de plan/objectif : le cahier des charges définit l'idempotence par
+/// (objectif, date), pas par objectif de course.
+///
+/// Un statut "FAIT" décrit une intention réalisée, jamais une activité :
+/// Strava reste l'unique source de vérité du réalisé (voir Activity plus
+/// haut). Aucune relation vers Activity ici — l'affichage les juxtapose,
+/// il ne les fusionne pas.
+model ImportedPlanSession {
+  id String @id @default(cuid())
+
+  /// "YYYY-MM-DD", Europe/Paris — jamais un DateTime, cf. conventions en
+  /// tête de fichier. Le jour de la semaine ("jour" dans le CSV) n'est pas
+  /// stocké : il se dérive de `day` (voir `weekdayLabel`) et le stocker en
+  /// plus créerait une seconde source pouvant diverger de la date.
+  day String
+
+  /// Texte libre du CSV (colonne `type`) : aucune liste fermée n'est
+  /// fournie par le cahier des charges pour cette colonne.
+  type String
+
+  /// "FAIT" | "A_FAIRE".
+  status String
+
+  distanceM Float?
+  durationS Int?
+
+  /// Fourchette FC CIBLE du fichier, en bpm. Purement déclaratif : à
+  /// l'affichage comme à l'import, les bornes qui font autorité restent
+  /// celles de `lib/metrics/zones.ts`, jamais celles-ci ni `zoneLabel`.
+  hrTargetMinBpm Int?
+  hrTargetMaxBpm Int?
+
+  /// Colonne `zone` du CSV : texte descriptif SANS AUTORITÉ (R5). Conservé
+  /// tel quel pour affichage ; jamais utilisé pour calculer une zone.
+  zoneLabel String?
+
+  /// Colonne `objectif_seance`. Seconde moitié de la clé d'idempotence.
+  objective String
+
+  /// Colonnes `muscu_details` / `fractionne_details` : texte brut conservé
+  /// intégralement (entrées séparées par « | » dans la source). Pour le
+  /// renforcement, c'est la SEULE trace de la séance — aucune autre source
+  /// ne la fournit, contrairement aux séances de course que Strava couvre.
+  muscuDetails      String?
+  fractionneDetails String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Clé d'idempotence du cahier des charges : réimporter le même fichier
+  /// met à jour, ne duplique pas.
+  @@unique([day, objective])
+  @@index([day])
+}
+
 // ---------------------------------------------------------------------------
 // Intégrations et plomberie
 // ---------------------------------------------------------------------------

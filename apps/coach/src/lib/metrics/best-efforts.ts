@@ -30,8 +30,27 @@ export const DEFAULT_DISTANCES = [400, 1000, 1609, 5000, 10000, 21097, 42195] as
  */
 export const MAX_PLAUSIBLE_PACE_S_PER_KM = 720; // 12 min/km
 
-function isPlausibleRunningPace(distanceM: number, durationS: number): boolean {
-  return distanceM > 0 && (durationS / distanceM) * 1000 <= MAX_PLAUSIBLE_PACE_S_PER_KM;
+/**
+ * Allure en-deçà de laquelle un segment n'est plus une course à pied
+ * plausible pour cet athlète — trois quarts de minute par kilomètre plus
+ * vite que sa FC seuil mesurée sur le terrain (4'55/km). Un « meilleur
+ * effort » plus rapide que ça n'est jamais un vrai sprint soutenu sur cette
+ * distance : c'est un capteur de distance qui décroche (typiquement un
+ * accéléromètre de tapis de course sur COROS PACE Pro en mode `trainer`, qui
+ * peut produire un pic de vitesse fictif de quelques secondes avant de se
+ * recaler). Confirmé sur une sortie réelle : "Night Run" du 12/07/2025
+ * (tapis, `trainer: true`) contenait plusieurs segments entre 109 et
+ * 182 s/km (33 à 20 km/h), qui polluaient silencieusement le meilleur
+ * kilomètre et la vitesse critique sur 20 minutes — le vrai record sur
+ * 20 minutes est la séance de seuil du 29/08 (4'55/km). Exclu à la source,
+ * symétrique à `MAX_PLAUSIBLE_PACE_S_PER_KM`.
+ */
+export const MIN_PLAUSIBLE_PACE_S_PER_KM = 210; // 3'30/km (~17,1 km/h)
+
+export function isPlausibleRunningPace(distanceM: number, durationS: number): boolean {
+  if (distanceM <= 0) return false;
+  const paceSPerKm = (durationS / distanceM) * 1000;
+  return paceSPerKm <= MAX_PLAUSIBLE_PACE_S_PER_KM && paceSPerKm >= MIN_PLAUSIBLE_PACE_S_PER_KM;
 }
 
 type Series = {

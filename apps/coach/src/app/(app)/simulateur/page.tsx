@@ -70,7 +70,7 @@ export default async function SimulatorPage() {
   return (
     <div className="p-4 md:p-6">
       <header>
-        <h1 className="text-lg font-semibold">Simulateur</h1>
+        <h1 className="font-display text-lg font-semibold">Simulateur</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
           Prédictions en fourchette, jamais en chiffre unique — trois modèles
           indépendants dont le désaccord est une information.
