@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -12,6 +12,22 @@ import { Prisma } from "@prisma/client";
  * déjà réussi quand `createMany` a échoué sur `isManual`, un champ que ce
  * client-là ne connaissait pas. La découverte doit avoir lieu ICI, avant
  * toute écriture, jamais au milieu d'une transaction de remplacement.
+ *
+ * Résolution du chemin de schema.prisma : PAS via `new URL(".", import.meta.url)`
+ * + `fileURLToPath`. Sous le bundle webpack de Next.js, `new URL(chaîne
+ * littérale, import.meta.url)` est spécialement reconnu par le parseur
+ * webpack comme une référence de module à empaqueter (son mécanisme
+ * « asset module », utilisé pour `new Worker(new URL(...))`) : la valeur
+ * produite au runtime n'est alors plus une vraie instance de l'`URL`
+ * native, et `fileURLToPath` (qui fait un `instanceof` strict côté
+ * `node:url`) rejette l'objet en le décrivant pourtant comme « une
+ * instance de URL ». Confirmé le 07/09/2026 par une route de diagnostic
+ * temporaire : le même littéral, dans le même fichier, fait échouer la
+ * résolution de module de Webpack avec « Module not found », preuve que
+ * Webpack intercepte l'expression avant même l'exécution. `process.cwd()`
+ * n'est pas concerné par cette interception : `next dev`, `next build` et
+ * `next start` sont tous les trois lancés depuis la racine du projet
+ * (`apps/coach`), tout comme `vitest`.
  */
 
 export type SchemaModels = Map<string, Set<string>>;
@@ -76,9 +92,33 @@ export function assertNoSchemaDrift(schemaText: string, clientModels: readonly D
   }
 }
 
-/** Câblage réel : lit schema.prisma sur disque, compare au client importé. */
-export function assertPrismaClientIsCurrent(): void {
-  const schemaPath = fileURLToPath(new URL("../../prisma/schema.prisma", import.meta.url));
-  const schemaText = readFileSync(schemaPath, "utf8");
+/** Câblage réel : lit schema.prisma sur disque, compare au client importé.
+ *
+ * @param projectRoot Racine du projet (dossier contenant `prisma/`).
+ *   Paramètre injectable uniquement pour le test verrou (schema.prisma
+ *   introuvable depuis un répertoire jetable) — le code applicatif ne le
+ *   passe jamais et reçoit donc toujours `process.cwd()`, qui vaut la
+ *   racine d'`apps/coach` aussi bien sous `next dev`, `next build` +
+ *   `next start` que sous `vitest` : les trois sont lancés depuis ce
+ *   répertoire (cf. les scripts de `package.json`).
+ */
+export function assertPrismaClientIsCurrent(projectRoot: string = process.cwd()): void {
+  const schemaPath = path.join(projectRoot, "prisma", "schema.prisma");
+
+  let schemaText: string;
+  try {
+    schemaText = readFileSync(schemaPath, "utf8");
+  } catch (cause) {
+    // Un garde-fou qui ne peut pas s'exécuter n'est pas un garde-fou : il ne
+    // doit jamais laisser passer en silence. Erreur explicite, pas de valeur
+    // par défaut, pas de `return` anticipé.
+    throw new Error(
+      `Garde-fou de schéma inopérant : impossible de lire "${schemaPath}". ` +
+        `Le contrôle de dérive Prisma ne peut pas s'exécuter sans ce fichier — ` +
+        `on ne continue pas sans lui.`,
+      { cause },
+    );
+  }
+
   assertNoSchemaDrift(schemaText, Prisma.dmmf.datamodel.models);
 }
