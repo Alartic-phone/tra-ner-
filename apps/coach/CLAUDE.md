@@ -170,3 +170,29 @@ semaines de correctifs dispersés, certains redécouverts en double, un
 incident de perte de données pendant le rattrapage. Rien de tout ça
 n'aurait existé si chaque session avait fusionné ou abandonné son worktree
 avant de se terminer.
+
+## Méthodologie : isoler la base pour un test destructif
+
+`DATABASE_URL` exporté en variable d'environnement shell avant `npm run
+dev` **ne suffit pas** : le process qui traite réellement les requêtes
+(`next dev` en webpack en démarre un séparé, distinct du process
+parent) peut ne pas hériter cette variable — silencieusement, sans
+erreur, l'app tourne alors sur `prisma/dev.db`, la vraie base. Pour
+travailler sur une copie (obligatoire avant tout test destructif — champ
+vidé, formulaire invalide, simulation d'erreur Strava…) :
+
+1. Copier `dev.db` (`npm run backup` puis copier le fichier produit).
+2. Écrire l'URL de la copie dans `.env.local` (gitignoré, prioritaire
+   sur `.env`, chargé indépendamment par chaque process Next.js) —
+   jamais en variable d'environnement shell.
+3. Vérifier avant le premier test : `lsof -p <pid> | grep '\.db'` sur le
+   process qui écoute réellement le port (pas seulement le process
+   `npm`/`next` parent) et confirmer que le chemin ouvert est bien la
+   copie.
+4. Supprimer `.env.local` en fin de session.
+
+Détecté le 07/09/2026 pendant un audit fonctionnel : plusieurs tests
+Strava réels ont tourné sur la vraie base avant que cette isolation ne
+soit vérifiée — sans dommage (opérations idempotentes), mais un test
+réellement destructif aurait frappé les 143+ activités réelles par
+surprise.
