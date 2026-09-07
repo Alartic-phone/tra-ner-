@@ -160,5 +160,75 @@ séparés. Les 3 P2 sont mineurs et peuvent attendre ou être traités à la
 marge si le temps le permet.
 
 **Total : 3 P1, 3 P2, 0 P0.** Sous le seuil de 15 — pas besoin de
-séquencer sur plusieurs passages, mais je m'arrête ici avant toute
-correction, comme demandé.
+séquencer sur plusieurs passages.
+
+## Phase 4 — corrections (2026-09-07, feu vert utilisateur)
+
+Toutes les manipulations de test refaites sur la copie isolée
+`/Users/thomas/.claude/jobs/2c0e8594/tmp/coach-test.db` (via `.env.local`,
+jamais commité, isolation vérifiée par `lsof` avant chaque test — voir
+mémoire `coach-isolate-test-db-env-local`). Base réelle `prisma/dev.db`
+revérifiée identique avant/après (`Activity` 145, `Lap` 224).
+
+### P1 corrigés (1 commit, 3 fichiers)
+
+1. **`/progression` et `/simulateur`** — deux icônes ajoutées dans
+   `AppHeader` (`TrendingUp`, `Calculator`, déjà dans `lucide-react`,
+   aucune nouvelle dépendance), à côté de l'icône Réglages existante.
+   Choix délibéré de rester dans l'esprit « en-tête minimal » de la
+   refonte plutôt que de recréer une barre de navigation complète
+   (périmètre : corriger, pas refondre).
+2. **`/plan`** — `NextSession` (accueil) affiche désormais un lien
+   permanent « Voir le plan complet » dans sa branche "session à venir",
+   en plus du lien déjà existant dans sa branche "aucun plan" : `/plan`
+   est maintenant atteignable quel que soit l'état.
+
+Vérifié en direct (clic réel depuis l'accueil, pas de saisie d'URL) :
+navigation correcte vers les trois pages, aucune erreur console, aucun
+overlay Next.js — en `next dev` ET en `next build` + `next start`.
+Pas de nouveau test Vitest (câblage d'interface pur, hors du périmètre
+testé par ce projet — même convention que celle actée dans
+`CONSOLIDATION.md` pour `nav.tsx`/`mobileLabel`) ; vérification "rouge
+avant / vert après" faite par Playwright (lien absent avant, présent et
+fonctionnel après, dans les deux modes de build).
+
+### P2 traités (2 sur 3)
+
+4. **Règle de validation morte** — le bloc `hrMax <= hrRest` dans
+   `reglages/profil/actions.ts` supprimé (il ne pouvait jamais se
+   déclencher, les bornes Zod individuelles `[120,230]`/`[25,100]` sont
+   déjà disjointes). Aucun changement de comportement observable —
+   revérifié en direct : `hrMax=50` est toujours rejeté, par la
+   validation de plage (`hrMax : Number must be greater than or equal to
+   120`) plutôt que par la règle métier disparue.
+5. **`error.tsx` et `not-found.tsx`** ajoutés sous `src/app/(app)/`, dans
+   le design de l'app (`Card`, `Button`/`buttonVariants` existants,
+   aucune nouvelle dépendance). Vérifiés en direct : `/activites/id-
+   inexistant` affiche la 404 stylée ; une page forcée à lever une
+   exception (fichier temporaire, jamais commité) affiche le nouvel
+   écran d'erreur avec « Réessayer » / « Retour à l'accueil ».
+
+**Non traité — 6. Effacement silencieux du profil sans confirmation** :
+laissé tel quel. L'audit initial le qualifiait déjà de « probablement
+voulu » et non confirmé comme un bug ; ajouter un dialogue de
+confirmation serait une décision produit, pas une correction, et sort du
+périmètre « corriger, pas refondre » sans un signal plus net que celui
+recueilli.
+
+### Vérification finale
+
+`tsc --noEmit` : propre. `next lint` : aucun avertissement. `vitest run` :
+**395/395 tests verts** (aucun test cassé ni ajouté — la règle métier
+supprimée n'avait pas de test dédié). `next build` : succès, les 20
+routes compilent (dont les nouveaux `/_not-found` et `error.tsx`).
+Balayage complet des 12 pages principales en `next start` (build de
+production, base isolée) : zéro erreur console, zéro overlay, zéro
+requête en échec.
+
+**Commits** : voir `git log` sur `worktree-coach-carnet-redesign` —
+un commit pour les 3 P1 (navigation), un commit pour les 2 P2 traités,
+un commit pour cette mise à jour de l'audit.
+
+Je m'arrête ici. Reste ouvert : le P2 n°6 (décision produit, pas un bug
+confirmé) — à trancher par l'utilisateur si besoin, pas par une
+correction de code.
