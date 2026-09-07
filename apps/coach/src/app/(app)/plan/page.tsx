@@ -4,6 +4,7 @@ import { GoalForm } from "@/components/plan/goal-form.tsx";
 import { PlanView } from "@/components/plan/plan-view.tsx";
 import { PlanImportForm } from "@/components/plan/plan-import-form.tsx";
 import { ImportedPlanView } from "@/components/plan/imported-plan-view.tsx";
+import { AddSessionCard } from "@/components/plan/add-session-card.tsx";
 import { Card, CardHeader } from "@/components/ui/card.tsx";
 import { PageContainer } from "@/components/page-container.tsx";
 import { loadImportedSessions } from "@/lib/plan-import/repository.ts";
@@ -66,6 +67,8 @@ export default async function PlanPage() {
           </Card>
 
           <PlanImportForm />
+
+          <AddSessionCard />
 
           <ImportedPlanView sessions={importedSessions} />
 

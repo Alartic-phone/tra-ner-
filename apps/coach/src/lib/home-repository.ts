@@ -114,21 +114,32 @@ export async function loadSuspiciousActivities(
 export async function loadWeeklyLoadInputs(
   today: Day,
 ): Promise<{ weeks: WeekLoadInput[]; hasPlan: boolean }> {
-  const plan = await prisma.trainingPlan.findFirst({
-    where: { status: "active" },
-    orderBy: { generatedAt: "desc" },
-    select: { startDay: true, endDay: true },
-  });
+  // Même règle que loadNextSession/loadAgendaDays : l'import CSV prime dès
+  // qu'il existe, le plan Claude ne sert plus qu'en repli.
+  const [plan, importedRange] = await Promise.all([
+    prisma.trainingPlan.findFirst({
+      where: { status: "active" },
+      orderBy: { generatedAt: "desc" },
+      select: { startDay: true, endDay: true },
+    }),
+    prisma.importedPlanSession.aggregate({ _min: { day: true }, _max: { day: true } }),
+  ]);
+  const hasImported = importedRange._min.day != null;
 
   // Toujours au moins huit semaines réelles jusqu'à la semaine en cours,
-  // ÉTENDU par le plan s'il en sort (avant comme après) — un plan qui ne
-  // couvre qu'une semaine (saisie manuelle ponctuelle, ex. génération IA
-  // indisponible) ne doit jamais faire disparaître l'historique récent, et
-  // un plan de plusieurs semaines à venir doit rester visible en entier.
+  // ÉTENDU par le plan (import ou Claude) s'il en sort (avant comme après) —
+  // un plan qui ne couvre qu'une semaine ne doit jamais faire disparaître
+  // l'historique récent, et un plan de plusieurs semaines à venir doit
+  // rester visible en entier.
   const currentWeekStart = mondayOf(today);
   let rangeStart = addDays(currentWeekStart, -7 * 8);
   let rangeEnd = currentWeekStart;
-  if (plan) {
+  if (hasImported) {
+    const importStart = mondayOf(importedRange._min.day!);
+    const importEnd = mondayOf(importedRange._max.day!);
+    if (importStart < rangeStart) rangeStart = importStart;
+    if (importEnd > rangeEnd) rangeEnd = importEnd;
+  } else if (plan) {
     const planStart = mondayOf(plan.startDay);
     const planEnd = mondayOf(plan.endDay);
     if (planStart < rangeStart) rangeStart = planStart;
@@ -140,17 +151,21 @@ export async function loadWeeklyLoadInputs(
   const from = weekStarts[0]!;
   const to = addDays(weekStarts[weekStarts.length - 1]!, 6);
 
-  const [activities, plannedWorkouts] = await Promise.all([
+  const [activities, plannedSource] = await Promise.all([
     prisma.activity.findMany({
       where: { startDay: { gte: from, lte: to }, type: { in: [...RUN_TYPES] } },
       select: { startDay: true, distanceM: true },
     }),
-    plan
-      ? prisma.plannedWorkout.findMany({
-          where: { day: { gte: from, lte: to }, plan: { status: "active" } },
-          select: { day: true, targetDistanceM: true },
-        })
-      : Promise.resolve([]),
+    hasImported
+      ? prisma.importedPlanSession
+          .findMany({ where: { day: { gte: from, lte: to } }, select: { day: true, distanceM: true } })
+          .then((rows) => rows.map((r) => ({ day: r.day, targetDistanceM: r.distanceM })))
+      : plan
+        ? prisma.plannedWorkout.findMany({
+            where: { day: { gte: from, lte: to }, plan: { status: "active" } },
+            select: { day: true, targetDistanceM: true },
+          })
+        : Promise.resolve([]),
   ]);
 
   const realizedByWeek = new Map<Day, number>();
@@ -160,7 +175,7 @@ export async function loadWeeklyLoadInputs(
   }
 
   const plannedByWeek = new Map<Day, { km: number; hasAny: boolean }>();
-  for (const w of plannedWorkouts) {
+  for (const w of plannedSource) {
     const week = mondayOf(w.day);
     const entry = plannedByWeek.get(week) ?? { km: 0, hasAny: false };
     entry.hasAny = true;
@@ -174,7 +189,7 @@ export async function loadWeeklyLoadInputs(
     plannedKm: plannedByWeek.get(weekStart)?.hasAny ? plannedByWeek.get(weekStart)!.km : null,
   }));
 
-  return { weeks, hasPlan: plan != null };
+  return { weeks, hasPlan: hasImported || plan != null };
 }
 
 export type NextSession = {
@@ -185,12 +200,41 @@ export type NextSession = {
   targetDistanceM: number | null;
   targetPaceMinSPerKm: number | null;
   targetPaceMaxSPerKm: number | null;
+  hrTargetMinBpm: number | null;
+  hrTargetMaxBpm: number | null;
   isProvisional: boolean;
 };
 
-/** Prochaine séance à venir (aujourd'hui ou après) — `null` sans plan actif. */
+/**
+ * Prochaine séance à venir (aujourd'hui ou après) — `null` sans plan actif.
+ *
+ * L'import CSV (lib/plan-import/) est le chemin principal désormais : une
+ * séance importée pour la période est TOUJOURS préférée à un plan généré
+ * par l'API Claude, sans les mélanger jour par jour — un plan Claude
+ * n'existe plus en pratique, mais le lire encore en repli évite qu'un
+ * ancien plan actif disparaisse silencieusement de l'accueil.
+ */
 export async function loadNextSession(today: Day): Promise<NextSession | null> {
-  return prisma.plannedWorkout.findFirst({
+  const imported = await prisma.importedPlanSession.findFirst({
+    where: { day: { gte: today }, status: "A_FAIRE" },
+    orderBy: { day: "asc" },
+  });
+  if (imported) {
+    return {
+      day: imported.day,
+      type: imported.type,
+      title: imported.type,
+      description: imported.objective || null,
+      targetDistanceM: imported.distanceM,
+      targetPaceMinSPerKm: null,
+      targetPaceMaxSPerKm: null,
+      hrTargetMinBpm: imported.hrTargetMinBpm,
+      hrTargetMaxBpm: imported.hrTargetMaxBpm,
+      isProvisional: false,
+    };
+  }
+
+  const legacy = await prisma.plannedWorkout.findFirst({
     where: { day: { gte: today }, status: "upcoming", plan: { status: "active" } },
     orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
     select: {
@@ -204,6 +248,7 @@ export async function loadNextSession(today: Day): Promise<NextSession | null> {
       isProvisional: true,
     },
   });
+  return legacy ? { ...legacy, hrTargetMinBpm: null, hrTargetMaxBpm: null } : null;
 }
 
 export type RecentActivity = {
@@ -264,13 +309,27 @@ export async function loadAgendaDays(
   }>,
 ): Promise<AgendaDay[]> {
   const to = addDays(today, 6);
-  const workouts = await prisma.plannedWorkout.findMany({
-    where: { day: { gte: today, lte: to }, plan: { status: "active" } },
-    orderBy: { orderInDay: "asc" },
-    select: { day: true, title: true, type: true },
+
+  // Même règle que loadNextSession : l'import CSV est préféré dès qu'il
+  // couvre la période, le plan Claude ne sert plus qu'en repli.
+  const imported = await prisma.importedPlanSession.findMany({
+    where: { day: { gte: today, lte: to } },
+    orderBy: { day: "asc" },
   });
+
   const workoutByDay = new Map<Day, { title: string; type: string }>();
-  for (const w of workouts) if (!workoutByDay.has(w.day)) workoutByDay.set(w.day, w);
+  if (imported.length > 0) {
+    for (const s of imported) {
+      if (!workoutByDay.has(s.day)) workoutByDay.set(s.day, { title: s.type, type: s.type });
+    }
+  } else {
+    const workouts = await prisma.plannedWorkout.findMany({
+      where: { day: { gte: today, lte: to }, plan: { status: "active" } },
+      orderBy: { orderInDay: "asc" },
+      select: { day: true, title: true, type: true },
+    });
+    for (const w of workouts) if (!workoutByDay.has(w.day)) workoutByDay.set(w.day, w);
+  }
 
   return eachDay(today, to).map((day) => {
     const ribbon = ribbonDays.find((r) => r.day === day);

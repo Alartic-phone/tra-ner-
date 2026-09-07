@@ -88,5 +88,6 @@ export async function confirmPlanImport(formData: FormData): Promise<PlanImportC
 
   const { created, updated } = await writeImportedSessions(result.valid);
   revalidatePath("/plan");
+  revalidatePath("/");
   return { ok: true, created, updated };
 }

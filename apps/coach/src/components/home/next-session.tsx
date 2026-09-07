@@ -26,7 +26,7 @@ export function NextSession({ session }: { session: NextSessionData | null }) {
         <p className="font-display mt-2 text-base text-[var(--color-text)]">Aucun plan généré</p>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
           <Link href="/plan" className="underline">
-            Générer un plan
+            Importer un plan
           </Link>{" "}
           pour voir apparaître les prochaines séances ici.
         </p>
@@ -37,6 +37,13 @@ export function NextSession({ session }: { session: NextSessionData | null }) {
   const paceRange = formatTimeRange(session.targetPaceMinSPerKm, session.targetPaceMaxSPerKm, (s) =>
     s == null ? "—" : formatPace(s),
   );
+  // Le CSV importé donne une fourchette FC, pas d'allure — jamais les deux
+  // à la fois pour une même séance dans ce modèle, donc pas de risque
+  // d'afficher l'une à la place de l'autre par erreur.
+  const hrRange =
+    session.hrTargetMinBpm != null && session.hrTargetMaxBpm != null
+      ? `${session.hrTargetMinBpm}–${session.hrTargetMaxBpm} bpm`
+      : null;
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] p-4">
@@ -67,8 +74,10 @@ export function NextSession({ session }: { session: NextSessionData | null }) {
           </dd>
         </div>
         <div>
-          <dt className="text-[var(--color-faint)]">Allure indicative</dt>
-          <dd className="mt-0.5">{paceRange ?? <span className="text-[var(--color-faint)]">—</span>}</dd>
+          <dt className="text-[var(--color-faint)]">{paceRange ? "Allure indicative" : "Fourchette FC"}</dt>
+          <dd className="mt-0.5">
+            {paceRange ?? hrRange ?? <span className="text-[var(--color-faint)]">—</span>}
+          </dd>
         </div>
       </dl>
     </div>

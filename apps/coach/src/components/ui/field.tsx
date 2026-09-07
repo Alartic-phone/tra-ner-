@@ -3,6 +3,7 @@ import type {
   LabelHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from "react";
 import { cn } from "@/lib/utils.ts";
 
@@ -24,6 +25,10 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={cn(control, "pr-8", className)} {...props} />;
+}
+
+export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={cn(control, "h-auto min-h-[4.5rem] py-2", className)} {...props} />;
 }
 
 export function Hint({ children }: { children: ReactNode }) {
