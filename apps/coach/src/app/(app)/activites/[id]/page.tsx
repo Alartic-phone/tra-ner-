@@ -8,6 +8,7 @@ import { HeroStat } from "@/components/ui/hero-stat.tsx";
 import { ZoneBar } from "@/components/activities/zone-bar.tsx";
 import { ActivityMapAndCharts } from "@/components/activities/activity-map-and-charts.tsx";
 import { ActivityNotes } from "@/components/activities/activity-notes.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { RecordCelebration } from "@/components/activities/record-celebration.tsx";
 import { toggleLapManualForm } from "./actions.ts";
 import {
@@ -99,7 +100,7 @@ export default async function ActivityPage({
       : null;
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <PageContainer className="px-0 py-0 md:px-0">
       <div className="p-4 pb-0 md:p-6 md:pb-0">
         <Link
           href="/activites"
@@ -399,6 +400,6 @@ export default async function ActivityPage({
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -5,6 +5,7 @@ import { GoalForm } from "@/components/plan/goal-form.tsx";
 import { GenerateButton } from "@/components/plan/generate-button.tsx";
 import { PlanView } from "@/components/plan/plan-view.tsx";
 import { Card, CardBody, CardHeader } from "@/components/ui/card.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { formatDayLong } from "@/lib/time.ts";
 import { formatDistance, formatTimeRange } from "@/lib/utils.ts";
 
@@ -28,7 +29,7 @@ export default async function PlanPage() {
   const goalTargetRange = goal ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS) : null;
 
   return (
-    <div className="p-4 md:p-6">
+    <PageContainer>
       <header>
         <h1 className="font-display text-lg font-semibold">Mon plan</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -80,6 +81,6 @@ export default async function PlanPage() {
           <PlanView goal={goal} plan={plan} />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

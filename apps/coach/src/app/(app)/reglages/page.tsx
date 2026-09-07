@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
@@ -40,7 +41,7 @@ export default async function SettingsPage({
   return (
     <>
       <Breadcrumb trail={[{ label: "Réglages" }]} />
-      <div className="mx-auto max-w-[1100px] p-4 md:p-6">
+      <PageContainer>
       <header>
         <h1 className="font-display text-lg font-semibold">Réglages</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -203,7 +204,7 @@ export default async function SettingsPage({
           </CardBody>
         </Card>
       </div>
-      </div>
+      </PageContainer>
     </>
   );
 }

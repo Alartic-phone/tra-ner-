@@ -8,6 +8,7 @@ import { formatDayShort, formatMonth, toLocalHour, today } from "@/lib/time.ts";
 import { MonthGrid, type CalendarDay } from "@/components/calendar/month-grid.tsx";
 import { WeekGrid } from "@/components/calendar/week-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
 
 export const dynamic = "force-dynamic";
@@ -138,7 +139,7 @@ export default async function CalendarPage({
   const nextWeek = addDays(weekStart, 7);
 
   return (
-    <div className="p-4 md:p-6">
+    <PageContainer>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-lg font-semibold capitalize">
@@ -236,6 +237,6 @@ export default async function CalendarPage({
           />
         </div>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

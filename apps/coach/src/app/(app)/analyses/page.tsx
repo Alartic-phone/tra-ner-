@@ -19,6 +19,7 @@ import type { InsufficientHistory } from "@/lib/metrics/load.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { today } from "@/lib/time.ts";
 import { fixed, formatDistance, formatDuration, formatPace } from "@/lib/utils.ts";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function AnalyticsPage({
     current == null ? "default" : current.tsb > 5 ? "ok" : current.tsb < -25 ? "danger" : "default";
 
   return (
-    <div className="p-4 md:p-6">
+    <PageContainer>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-lg font-semibold">Analyses</h1>
@@ -414,6 +415,6 @@ export default async function AnalyticsPage({
           </div>
         </Card>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

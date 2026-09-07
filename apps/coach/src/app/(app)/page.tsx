@@ -21,6 +21,7 @@ import {
   loadWeeklyLoadInputs,
 } from "@/lib/home-repository.ts";
 import { buildWeeklyLoadBars, daysLeftInWeek, detectVigilancePoints } from "@/lib/home.ts";
+import { PageContainer } from "@/components/page-container.tsx";
 import { GoalHeader } from "@/components/home/goal-header.tsx";
 import { ZoneInstrument } from "@/components/home/zone-instrument.tsx";
 import { WeeklyLoadChart } from "@/components/home/weekly-load-chart.tsx";
@@ -100,7 +101,7 @@ export default async function HomePage() {
   const agendaDays = await loadAgendaDays(day, ribbonDays);
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-8 px-6 py-6">
+    <PageContainer className="space-y-8">
       {nextGoal ? (
         <GoalHeader
           goal={{
@@ -162,6 +163,6 @@ export default async function HomePage() {
           <VigilancePoints entries={vigilanceEntries} />
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

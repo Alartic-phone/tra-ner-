@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db.ts";
 import { ProfileForm } from "@/components/profile/profile-form.tsx";
 import { Breadcrumb } from "@/components/breadcrumb.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function ProfilePage() {
   return (
     <>
       <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Profil" }]} />
-      <div className="mx-auto max-w-[1100px] p-4 md:p-6">
+      <PageContainer>
       <header>
         <h1 className="font-display text-lg font-semibold">Profil</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -37,7 +38,7 @@ export default async function ProfilePage() {
           }}
         />
       </div>
-      </div>
+      </PageContainer>
     </>
   );
 }
