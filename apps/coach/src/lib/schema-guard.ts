@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -77,7 +78,7 @@ export function assertNoSchemaDrift(schemaText: string, clientModels: readonly D
 
 /** Câblage réel : lit schema.prisma sur disque, compare au client importé. */
 export function assertPrismaClientIsCurrent(): void {
-  const schemaPath = new URL("../../prisma/schema.prisma", import.meta.url);
+  const schemaPath = fileURLToPath(new URL("../../prisma/schema.prisma", import.meta.url));
   const schemaText = readFileSync(schemaPath, "utf8");
   assertNoSchemaDrift(schemaText, Prisma.dmmf.datamodel.models);
 }

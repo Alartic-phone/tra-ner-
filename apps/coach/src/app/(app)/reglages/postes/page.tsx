@@ -15,7 +15,7 @@ export default async function ShiftSettingsPage() {
   return (
     <>
       <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Cycle de postes" }]} />
-      <div className="p-4 md:p-6">
+      <div className="mx-auto max-w-[1100px] p-4 md:p-6">
       <header>
         <h1 className="font-display text-lg font-semibold">Cycle de postes</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">

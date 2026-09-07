@@ -13,7 +13,7 @@ function FieldSkeleton() {
 /** Calque profile-form.tsx : quatre cartes de champs (identité, cardio, allure, blessures). */
 export default function ProfileLoading() {
   return (
-    <div className="p-4 md:p-6">
+    <div className="mx-auto max-w-[1100px] p-4 md:p-6">
       <header>
         <Skeleton className="h-5 w-16" />
         <Skeleton className="mt-1.5 h-3 w-full max-w-lg" />

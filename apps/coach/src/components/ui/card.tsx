@@ -41,7 +41,7 @@ export function CardHeader({
       <div>
         <h2 className="font-display text-sm font-medium">{title}</h2>
         {hint ? (
-          <p className="mt-0.5 text-xs text-[var(--color-muted)]">{hint}</p>
+          <div className="mt-0.5 text-xs text-[var(--color-muted)]">{hint}</div>
         ) : null}
       </div>
       {action}
