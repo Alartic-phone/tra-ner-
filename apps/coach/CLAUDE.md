@@ -16,9 +16,15 @@ pratique :
 - **pas d'inscription, pas de comptes multiples, pas de rôles, pas de partage** ;
 - une seule ligne dans `User`, créée à l'onboarding ;
 - aucune table ne porte de `userId` ;
-- protection d'accès minimale : mot de passe unique en variable
-  d'environnement + cookie de session signé HMAC. Pas de bibliothèque
-  d'authentification.
+- protection d'accès minimale : mot de passe unique (`APP_PASSWORD`) + cookie
+  de session signé HMAC (`SESSION_SECRET`), vérifiés par `src/middleware.ts`
+  sur toute route sauf `/login`, `/api/auth/login`, le webhook Strava et
+  `/api/strava/sync` (protégés autrement — voir Sécurité). Logique dans
+  `lib/auth.ts` (session) et `lib/password.ts` (mot de passe). Pas de
+  bibliothèque d'authentification. Les deux variables sont optionnelles en
+  développement local ; `APP_PASSWORD` devient obligatoire dès que
+  `PUBLIC_URL` est renseignée (l'application refuse alors de démarrer sans
+  elle — voir `env.ts`).
 
 Devant deux solutions, prendre systématiquement la plus simple et la plus
 lisible. Ne jamais ajouter d'abstraction « au cas où ».
@@ -141,9 +147,17 @@ base passe par un module `repository`.
 
 - Les jetons Strava sont chiffrés en AES-256-GCM (`lib/crypto.ts`) avec
   `ENCRYPTION_KEY`. **Jamais en clair en base.**
-- Aucune primitive cryptographique maison : uniquement `node:crypto`.
-- Le cookie de session est `httpOnly`, `sameSite=strict`, `secure` en
-  production.
+- Aucune primitive cryptographique maison : `node:crypto` partout sauf la
+  signature du cookie de session (`lib/auth.ts`), sur l'API Web Crypto
+  (`crypto.subtle`) — `src/middleware.ts` tourne en Edge runtime, où
+  `node:crypto` n'existe pas. Le mot de passe (`lib/password.ts`) reste sur
+  `node:crypto`, comparé en temps constant sur des digests SHA-256
+  (`timingSafeEqual`), jamais `===`.
+- Le cookie de session (`coach_session`) est `httpOnly`, `sameSite=lax`
+  (`strict` casserait le retour `/api/strava/callback`), `secure` dès que
+  `PUBLIC_URL` est en https, expire après 30 jours.
+- Connexion limitée à 5 échecs / 15 min par IP (`lib/rate-limit.ts`, en
+  mémoire, pas de nouvelle dépendance).
 - L'état OAuth est vérifié en temps constant (`safeEqual`).
 - Aucun secret dans le dépôt. `.env` est ignoré par git.
 

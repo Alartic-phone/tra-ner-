@@ -1,5 +1,14 @@
 # Audit fonctionnel — 2026-09-07
 
+> **⚠️ Contrôle d'accès absent le 07/09/2026, réintroduit depuis
+> (`src/middleware.ts`, `/login`, cf. CLAUDE.md §Sécurité).** Tout ce qui suit
+> a été testé sans authentification : aucun parcours de connexion, aucun cas
+> lié au cookie de session, au rate-limiting ou à une redirection vers
+> `/login` n'a été couvert. Les parcours audités restent valides pour le
+> reste (navigation, formulaires, synchronisation Strava…), mais un audit
+> couvrant explicitement l'authentification reste à faire avant un
+> déploiement exposé.
+
 Audit fonctionnel (pas visuel) de l'app coach : navigation réelle depuis
 l'accueil, clics, soumissions de formulaires, cas limites. Serveur de dev
 propre (`rm -rf .next` puis relance), Playwright, worktree
