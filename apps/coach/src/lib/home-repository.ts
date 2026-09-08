@@ -215,8 +215,10 @@ export type NextSession = {
  * ancien plan actif disparaisse silencieusement de l'accueil.
  */
 export async function loadNextSession(today: Day): Promise<NextSession | null> {
+  // Strictement APRÈS aujourd'hui : la séance du jour a son propre bloc
+  // (« Aujourd'hui », §2.2) juste au-dessus — la répéter ici ferait doublon.
   const imported = await prisma.importedPlanSession.findFirst({
-    where: { day: { gte: today }, status: "A_FAIRE" },
+    where: { day: { gt: today }, status: "A_FAIRE" },
     orderBy: { day: "asc" },
   });
   if (imported) {
@@ -235,7 +237,7 @@ export async function loadNextSession(today: Day): Promise<NextSession | null> {
   }
 
   const legacy = await prisma.plannedWorkout.findFirst({
-    where: { day: { gte: today }, status: "upcoming", plan: { status: "active" } },
+    where: { day: { gt: today }, status: "upcoming", plan: { status: "active" } },
     orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
     select: {
       day: true,
@@ -249,6 +251,72 @@ export async function loadNextSession(today: Day): Promise<NextSession | null> {
     },
   });
   return legacy ? { ...legacy, hrTargetMinBpm: null, hrTargetMaxBpm: null } : null;
+}
+
+export type TodaySession = {
+  id: string;
+  type: string;
+  objective: string | null;
+  status: "FAIT" | "A_FAIRE";
+  distanceM: number | null;
+  durationS: number | null;
+  hrTargetMinBpm: number | null;
+  hrTargetMaxBpm: number | null;
+};
+
+/**
+ * Séance(s) du jour même (bloc « Aujourd'hui », §2.2) — jamais confondu avec
+ * `loadNextSession`, qui montre la suivante strictement après. Même règle de
+ * priorité que le reste de l'accueil : import CSV d'abord, ancien plan
+ * Claude en repli.
+ */
+export async function loadTodaySessions(today: Day): Promise<TodaySession[]> {
+  const imported = await prisma.importedPlanSession.findMany({
+    where: { day: today },
+    orderBy: { createdAt: "asc" },
+  });
+  if (imported.length > 0) {
+    return imported.map((s) => ({
+      id: s.id,
+      type: s.type,
+      objective: s.objective || null,
+      status: s.status === "FAIT" ? "FAIT" : "A_FAIRE",
+      distanceM: s.distanceM,
+      durationS: s.durationS,
+      hrTargetMinBpm: s.hrTargetMinBpm,
+      hrTargetMaxBpm: s.hrTargetMaxBpm,
+    }));
+  }
+
+  const legacy = await prisma.plannedWorkout.findMany({
+    where: { day: today, plan: { status: "active" } },
+    orderBy: { orderInDay: "asc" },
+  });
+  return legacy.map((w) => ({
+    id: w.id,
+    type: w.type,
+    objective: w.description,
+    status: w.status === "done" ? "FAIT" : "A_FAIRE",
+    distanceM: w.targetDistanceM,
+    durationS: w.targetDurationS,
+    hrTargetMinBpm: null,
+    hrTargetMaxBpm: null,
+  }));
+}
+
+/**
+ * Vrai si un plan existe quelque part (import CSV à n'importe quelle date,
+ * ou ancien plan Claude actif) — sert à distinguer, dans le bloc
+ * « Aujourd'hui », « rien de prévu aujourd'hui » (un plan existe, pas pour
+ * aujourd'hui) de « aucun plan importé du tout » (renvoyer vers l'import,
+ * jamais dire « repos »).
+ */
+export async function loadHasAnyPlan(): Promise<boolean> {
+  const [importedCount, activePlan] = await Promise.all([
+    prisma.importedPlanSession.count(),
+    prisma.trainingPlan.findFirst({ where: { status: "active" }, select: { id: true } }),
+  ]);
+  return importedCount > 0 || activePlan != null;
 }
 
 export type RecentActivity = {

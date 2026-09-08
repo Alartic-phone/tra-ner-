@@ -14,9 +14,11 @@ import {
   loadAgendaDays,
   loadDaysSinceLastStrength,
   loadDaysSinceLastWeighing,
+  loadHasAnyPlan,
   loadNextSession,
   loadRecentActivities,
   loadSuspiciousActivities,
+  loadTodaySessions,
   loadWeekOutOfZone12Fraction,
   loadWeeklyLoadInputs,
 } from "@/lib/home-repository.ts";
@@ -25,6 +27,7 @@ import { PageContainer } from "@/components/page-container.tsx";
 import { GoalHeader } from "@/components/home/goal-header.tsx";
 import { ZoneInstrument } from "@/components/home/zone-instrument.tsx";
 import { WeeklyLoadChart } from "@/components/home/weekly-load-chart.tsx";
+import { TodayCard } from "@/components/home/today-card.tsx";
 import { NextSession } from "@/components/home/next-session.tsx";
 import { Agenda } from "@/components/home/agenda.tsx";
 import { TrainingLog } from "@/components/home/training-log.tsx";
@@ -52,6 +55,8 @@ export default async function HomePage() {
     bestEfforts,
     weeklyVolumeTargetKm,
     user,
+    todaySessions,
+    hasAnyPlan,
   ] = await Promise.all([
     loadNextGoal(),
     getProfileStatus(),
@@ -66,6 +71,8 @@ export default async function HomePage() {
     loadBestEfforts("1970-01-01", day),
     loadWeeklyVolumeTargetKm(day),
     prisma.user.findFirst({ select: { weeklyVolumeKm: true } }),
+    loadTodaySessions(day),
+    loadHasAnyPlan(),
   ]);
 
   const hrZones =
@@ -153,6 +160,14 @@ export default async function HomePage() {
           <TrainingLog activities={recentActivities} zones={hrZones} />
         </div>
         <div className="min-w-0 space-y-8">
+          <TodayCard
+            sessions={todaySessions}
+            hasAnyPlan={hasAnyPlan}
+            shiftLabel={ribbonDays[0]?.label ?? "Repos"}
+            shiftCode={ribbonDays[0]?.code ?? null}
+            startTime={ribbonDays[0]?.startTime ?? null}
+            endTime={ribbonDays[0]?.endTime ?? null}
+          />
           <div>
             <p className="mb-2 text-xs font-medium tracking-wide text-[var(--color-muted)]">
               PROCHAINE SÉANCE

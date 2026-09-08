@@ -125,3 +125,23 @@ export async function deleteSession(id: string): Promise<SessionActionResult> {
   revalidatePath("/");
   return { ok: true };
 }
+
+/**
+ * Bascule le statut d'une séance entre A_FAIRE et FAIT — l'action la plus
+ * fréquente de l'application (cahier des charges §2.3), en un seul appui
+ * réversible : un appui de plus annule. Volontairement plus simple que
+ * `updateSessionManually` (pas de repassage par `validateRow` : seul le
+ * statut change, jamais les autres champs).
+ */
+export async function toggleSessionStatus(id: string): Promise<SessionActionResult> {
+  const session = await prisma.importedPlanSession.findUnique({ where: { id }, select: { status: true } });
+  if (!session) return { ok: false, error: "Séance introuvable." };
+
+  await prisma.importedPlanSession.update({
+    where: { id },
+    data: { status: session.status === "FAIT" ? "A_FAIRE" : "FAIT" },
+  });
+  revalidatePath("/plan");
+  revalidatePath("/");
+  return { ok: true };
+}

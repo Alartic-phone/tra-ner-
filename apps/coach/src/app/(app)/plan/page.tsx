@@ -8,6 +8,9 @@ import { AddSessionCard } from "@/components/plan/add-session-card.tsx";
 import { Card, CardHeader } from "@/components/ui/card.tsx";
 import { PageContainer } from "@/components/page-container.tsx";
 import { loadImportedSessions } from "@/lib/plan-import/repository.ts";
+import { getAvailabilityRules } from "@/lib/settings.ts";
+import { loadShiftRange } from "@/lib/shifts/repository.ts";
+import type { Day } from "@/lib/shifts/day.ts";
 import { formatDayLong } from "@/lib/time.ts";
 import { formatDistance, formatTimeRange } from "@/lib/utils.ts";
 
@@ -36,6 +39,19 @@ export default async function PlanPage() {
   // l'affichage du plan (R1.2 — sans lui, les séances importées restaient
   // invisibles).
   const importedSessions = await loadImportedSessions();
+
+  // Poste réel par jour (session-row.tsx, §2.5) — via lib/shifts/, jamais
+  // via la colonne poste_F6 du CSV (cf. parse.ts, qui ne la stocke pas).
+  const shiftLabelByDay = new Map<Day, string>();
+  if (importedSessions.length > 0) {
+    const days = importedSessions.map((s) => s.day).sort();
+    const rules = await getAvailabilityRules();
+    const range = await loadShiftRange(days[0]!, days[days.length - 1]!, rules);
+    for (const [day, entry] of range.byDay) {
+      const code = entry.resolved.code;
+      shiftLabelByDay.set(day, code ? (range.timings.find((t) => t.code === code)?.label ?? code) : "Repos");
+    }
+  }
 
   const goalTargetRange = goal ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS) : null;
 
@@ -83,7 +99,7 @@ export default async function PlanPage() {
             <h2 className="font-display text-base font-semibold">Séances importées</h2>
           ) : null}
           <div className={plan ? "mt-2" : undefined}>
-            <ImportedPlanView sessions={importedSessions} />
+            <ImportedPlanView sessions={importedSessions} shiftLabelByDay={shiftLabelByDay} />
           </div>
         </div>
       ) : null}

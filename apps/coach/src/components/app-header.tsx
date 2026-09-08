@@ -1,27 +1,23 @@
 import Link from "next/link";
-import { Calculator, Settings, TrendingUp } from "lucide-react";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { loadCycleRibbonDays } from "@/lib/shifts/repository.ts";
 import { today, formatDayLong } from "@/lib/time.ts";
 import { ThemeToggle } from "@/components/theme-toggle.tsx";
+import { AppNav } from "@/components/app-nav.tsx";
 import { getThemePreference } from "@/lib/theme.ts";
 
 /**
  * En-tête fin et collant, sur toute la largeur — remplace le menu latéral et
  * la barre du bas retirés par la refonte (section 2 du cahier des charges).
- * Le monogramme + le titre ramènent à l'accueil ; les icônes Progression,
- * Simulateur et Réglages sont les seuls autres liens de navigation portés
- * par l'en-tête (aucun accès à ces pages n'existait ailleurs depuis
- * l'accueil).
+ * Le monogramme + le titre ramènent à l'accueil ; `<AppNav>` porte les liens
+ * Plan, Activités, Calendrier, Progression, Simulateur et Réglages (aucun
+ * accès à ces pages n'existait ailleurs depuis l'accueil pour la plupart) —
+ * en composant client séparé, seul moyen de connaître la page courante
+ * (`usePathname`) pour marquer le lien actif.
  *
  * L'état du cycle affiché est le poste RÉEL du jour (`loadCycleRibbonDays`,
  * déjà utilisé par le ruban) — jamais un « Bloc F/6 » inventé : rien dans le
  * moteur de postes n'expose une telle numérotation de bloc.
- *
- * Progression et Simulateur : aucune autre page de l'app ne pointe vers
- * elles une fois l'état initial dépassé (audit fonctionnel du 07/09/2026) —
- * icônes ajoutées ici plutôt qu'une nouvelle section d'accueil, pour rester
- * dans l'esprit « en-tête minimal » de la refonte.
  */
 export async function AppHeader() {
   const day = today();
@@ -51,31 +47,11 @@ export async function AppHeader() {
           </span>
         </Link>
 
-        <div className="flex shrink-0 items-center gap-3 text-xs text-[var(--color-muted)] sm:gap-4 sm:text-sm">
+        <div className="flex shrink-0 items-center gap-2 text-xs text-[var(--color-muted)] sm:gap-4 sm:text-sm">
           <span className="tabular hidden sm:inline">{formatDayLong(day)}</span>
           <span className="tabular">{shiftPhrase}</span>
           <ThemeToggle preference={preference} />
-          <Link
-            href="/progression"
-            aria-label="Progression"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors duration-[var(--duration-fast)] hover:text-[var(--color-text)]"
-          >
-            <TrendingUp size={16} aria-hidden />
-          </Link>
-          <Link
-            href="/simulateur"
-            aria-label="Simulateur"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors duration-[var(--duration-fast)] hover:text-[var(--color-text)]"
-          >
-            <Calculator size={16} aria-hidden />
-          </Link>
-          <Link
-            href="/reglages"
-            aria-label="Réglages"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--color-muted)] transition-colors duration-[var(--duration-fast)] hover:text-[var(--color-text)]"
-          >
-            <Settings size={16} aria-hidden />
-          </Link>
+          <AppNav />
         </div>
       </div>
     </header>
