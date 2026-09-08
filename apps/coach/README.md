@@ -450,6 +450,39 @@ dans le volume `coach-data`.
 Le service `sync` déclenche la synchronisation Strava une fois par jour ; il
 est inutile si un webhook est configuré.
 
+### Fly.io (test pas cher, SQLite conservé)
+
+Réutilise le `Dockerfile` existant tel quel — aucun changement de code, pas de
+base distante à payer. `fly.toml` déclare un volume persistant sur
+`/app/data` (équivalent du volume `coach-data` de Docker Compose) et une VM
+`shared-cpu-1x` / 512 Mo qui s'arrête automatiquement à l'inactivité
+(`auto_stop_machines`) : le coût reste proche de zéro pour un usage de test.
+
+```bash
+curl -L https://fly.io/install.sh | sh   # installe flyctl
+flyctl auth login
+
+flyctl apps create coach-entrainement     # ou laisser flyctl proposer un nom
+flyctl volumes create coach_data --region cdg --size 1
+
+flyctl secrets set \
+  ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  APP_PASSWORD=$(openssl rand -base64 18) \
+  SESSION_SECRET=$(openssl rand -hex 32)
+
+flyctl deploy
+```
+
+Une fois l'app en ligne, `PUBLIC_URL` (dans `fly.toml`, section `[env]`) doit
+pointer vers l'URL Fly attribuée (`https://<nom-app>.fly.dev`) — sans quoi le
+webhook Strava reste inutilisable et la synchro passe par le bouton manuel ou
+un cron externe. `APP_PASSWORD`/`SESSION_SECRET` sont déjà obligatoires ici,
+pour la même raison que sur Vercel : l'app est joignable par n'importe qui.
+
+Sauvegarde/restauration : `flyctl ssh console -C './docker-backup.sh'`, puis
+`flyctl ssh sftp get /app/data/backups/<fichier>.db` pour la rapatrier — mêmes
+scripts que Docker Compose, le volume Fly jouant le rôle du volume Docker.
+
 ### Vercel + base distante
 
 > **⚠️ `APP_PASSWORD`/`SESSION_SECRET` obligatoires ici.** Une fois déployée,

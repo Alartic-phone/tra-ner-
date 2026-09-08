@@ -1,0 +1,48 @@
+# Déploiement Fly.io — voir README.md, §Déploiement Fly.io.
+#
+# Réutilise le Dockerfile existant tel quel. La base SQLite vit dans un
+# volume persistant monté sur /app/data (même volume que docker-compose.yml
+# en local, adapté au modèle de volumes de Fly).
+#
+# Après le premier `flyctl launch`/`flyctl apps create`, définir les secrets
+# obligatoires avant le premier déploiement :
+#   flyctl secrets set ENCRYPTION_KEY=$(openssl rand -hex 32)
+#   flyctl secrets set APP_PASSWORD=$(openssl rand -base64 18) SESSION_SECRET=$(openssl rand -hex 32)
+# PUBLIC_URL est renseignée ci-dessous une fois le nom d'app connu — sans
+# APP_PASSWORD, l'application refuse de démarrer dès que PUBLIC_URL est
+# présente (voir env.ts).
+
+app = "coach-entrainement"
+primary_region = "cdg"
+
+[build]
+
+[env]
+  DATABASE_URL = "file:/app/data/coach.db"
+  TZ = "Europe/Paris"
+  PORT = "3000"
+  # PUBLIC_URL = "https://coach-entrainement.fly.dev"
+
+[[mounts]]
+  source = "coach_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
