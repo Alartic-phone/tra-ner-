@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { STATE_COOKIE, exchangeCode, verifyOAuthState } from "@/lib/strava/oauth.ts";
+import { getStravaCredentials } from "@/lib/strava/credentials.ts";
 import { startBackfill } from "@/lib/strava/sync.ts";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +35,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const credentials = await getStravaCredentials();
+  if (!credentials) {
+    return NextResponse.redirect(new URL("/reglages?strava=non_configure", request.url));
+  }
+
   try {
-    await exchangeCode(code);
+    await exchangeCode(credentials, code);
     // Lance l'import de l'historique en tâche de fond : la file est persistée,
     // elle sera dépilée par le bouton de synchronisation et par le cron.
     await startBackfill();

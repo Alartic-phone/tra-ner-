@@ -118,12 +118,6 @@ export function isAuthConfigured(): boolean {
   return Boolean(env.APP_PASSWORD && env.SESSION_SECRET);
 }
 
-/** Strava est utilisable si l'application est déclarée sur le portail dev. */
-export function isStravaConfigured(): boolean {
-  const env = getEnv();
-  return Boolean(env.STRAVA_CLIENT_ID && env.STRAVA_CLIENT_SECRET);
-}
-
 /**
  * Le webhook Strava exige une URL publique joignable par Strava. Sans elle, la
  * synchronisation se fait par bouton et par tâche planifiée.

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../db.ts";
 import { decrypt, encrypt } from "../crypto.ts";
-import { getEnv } from "../env.ts";
+import { getStravaCredentials } from "./credentials.ts";
 import { streamSetSchema, tokenResponseSchema, STREAM_KEYS } from "./schemas.ts";
 
 const API = "https://www.strava.com/api/v3";
@@ -106,13 +106,18 @@ export function quotaExhausted(): { exhausted: boolean; retryAfterS: number } {
 }
 
 async function refreshAccessToken(refreshToken: string) {
-  const env = getEnv();
+  const credentials = await getStravaCredentials();
+  if (!credentials) {
+    throw new StravaAuthError(
+      "Strava non configuré (Client ID/Secret manquants) : impossible de rafraîchir le jeton.",
+    );
+  }
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: env.STRAVA_CLIENT_ID,
-      client_secret: env.STRAVA_CLIENT_SECRET,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     }),

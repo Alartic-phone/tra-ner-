@@ -5,10 +5,12 @@ import { PageContainer } from "@/components/page-container.tsx";
 import { Badge, Unavailable } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/components/ui/card.tsx";
-import { getEnv, isCoachConfigured, isStravaConfigured, isWebhookCapable } from "@/lib/env.ts";
+import { getEnv, isCoachConfigured, isWebhookCapable } from "@/lib/env.ts";
+import { isStravaConfigured } from "@/lib/strava/credentials.ts";
 import { getSyncStatus } from "@/lib/strava/sync.ts";
 import { formatInstant } from "@/lib/time.ts";
 import { SyncPanel } from "@/components/strava/sync-panel.tsx";
+import { StravaCredentialsForm } from "@/components/strava/credentials-form.tsx";
 import { connectStrava, disconnectStrava } from "./actions.ts";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ const MESSAGES: Record<string, { tone: "ok" | "warn" | "danger"; text: string }>
   echec: { tone: "danger", text: "Échec de l'échange du code avec Strava." },
   non_configure: {
     tone: "warn",
-    text: "STRAVA_CLIENT_ID et STRAVA_CLIENT_SECRET ne sont pas renseignés dans .env.",
+    text: "Client ID / Client Secret Strava manquants ou invalides — à renseigner ci-dessous.",
   },
 };
 
@@ -36,6 +38,7 @@ export default async function SettingsPage({
   const { strava, detail } = await searchParams;
   const env = getEnv();
   const status = await getSyncStatus();
+  const configured = await isStravaConfigured();
   const message = strava ? MESSAGES[strava] : undefined;
 
   return (
@@ -78,12 +81,8 @@ export default async function SettingsPage({
             }
           />
           <CardBody>
-            {!isStravaConfigured() ? (
-              <p className="text-xs text-[var(--color-warn)]">
-                Renseigner STRAVA_CLIENT_ID et STRAVA_CLIENT_SECRET dans le fichier
-                .env, puis redémarrer. La procédure de création de l&apos;application
-                sur le portail développeur Strava est décrite dans le README.
-              </p>
+            {!configured ? (
+              <StravaCredentialsForm />
             ) : status.account ? (
               <>
                 <dl className="grid grid-cols-2 gap-3 text-xs">

@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "../db.ts";
 import { decrypt, encrypt, safeEqual } from "../crypto.ts";
-import { getEnv } from "../env.ts";
 import { tokenResponseSchema } from "./schemas.ts";
+import type { StravaCredentials } from "./credentials.ts";
 
 /**
  * OAuth 2.0 Strava.
@@ -47,10 +47,9 @@ export function verifyOAuthState(cookieValue: string | undefined, returnedState:
   return safeEqual(returnedState, expected);
 }
 
-export function buildAuthorizeUrl(state: string, redirectUri: string): string {
-  const env = getEnv();
+export function buildAuthorizeUrl(clientId: string, state: string, redirectUri: string): string {
   const url = new URL("https://www.strava.com/oauth/authorize");
-  url.searchParams.set("client_id", env.STRAVA_CLIENT_ID ?? "");
+  url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   // `force` garantit que Strava réaffiche l'écran de consentement si les
@@ -61,14 +60,13 @@ export function buildAuthorizeUrl(state: string, redirectUri: string): string {
   return url.toString();
 }
 
-export async function exchangeCode(code: string): Promise<void> {
-  const env = getEnv();
+export async function exchangeCode(credentials: StravaCredentials, code: string): Promise<void> {
   const response = await fetch("https://www.strava.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: env.STRAVA_CLIENT_ID,
-      client_secret: env.STRAVA_CLIENT_SECRET,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
       code,
       grant_type: "authorization_code",
     }),
