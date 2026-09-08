@@ -52,11 +52,15 @@ function blankToNull(raw: string): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/** `null` = champ vide (non fourni), `"invalid"` = présent mais pas un nombre. */
+/**
+ * `null` = champ vide (non fourni), `"invalid"` = présent mais pas un nombre.
+ * Accepte la virgule ET le point comme séparateur décimal : Excel en
+ * français produit des virgules ("8,5"), le cahier des charges l'exige.
+ */
 function parseOptionalNumber(raw: string): number | null | "invalid" {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
-  const n = Number(trimmed);
+  const n = Number(trimmed.replace(",", "."));
   return Number.isFinite(n) ? n : "invalid";
 }
 

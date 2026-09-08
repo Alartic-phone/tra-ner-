@@ -49,6 +49,15 @@ describe("parsePlanImportCsv — fichier valide", () => {
     expect(course.hrTargetMinBpm).toBe(143);
     expect(course.hrTargetMaxBpm).toBe(152);
   });
+
+  it("accepte la virgule comme séparateur décimal (Excel français)", () => {
+    const buf = csv("2026-09-08;Mardi;Course;A_FAIRE;7,5;45;;;;Objectif;;;");
+    const result = parsePlanImportCsv(buf, ZONES);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rejected).toEqual([]);
+    expect(result.valid[0]!.distanceM).toBe(7500);
+  });
 });
 
 describe("parsePlanImportCsv — encodage CP1252", () => {
