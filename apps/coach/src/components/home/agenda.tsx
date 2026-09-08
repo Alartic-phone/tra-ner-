@@ -31,7 +31,14 @@ export function Agenda({ days }: { days: readonly AgendaDay[] }) {
                 : "Repos"}
             </span>
             <span className="min-w-0 flex-1 truncate text-xs">
-              {d.workout ? d.workout.title : <span className="text-[var(--color-faint)]">—</span>}
+              {d.workout ? (
+                <>
+                  {d.workout.title}
+                  {d.workout.extraCount > 0 ? ` +${d.workout.extraCount}` : ""}
+                </>
+              ) : (
+                <span className="text-[var(--color-faint)]">—</span>
+              )}
             </span>
           </li>
         ))}

@@ -520,6 +520,13 @@ model ImportedPlanSession {
   /// plus créerait une seconde source pouvant diverger de la date.
   day String
 
+  /// Rang de la séance dans sa journée, à partir de 0, dans l'ordre du
+  /// fichier CSV source — base de la clé d'idempotence (day, orderInDay).
+  /// Remplace (day, objective) : deux séances du même jour partageant le
+  /// même objectif — ou, cas courant, toutes deux sans objectif (musculation
+  /// + course le même jour) — s'écrasaient silencieusement l'une l'autre.
+  orderInDay Int
+
   /// Texte libre du CSV (colonne `type`) : aucune liste fermée n'est
   /// fournie par le cahier des charges pour cette colonne.
   type String
@@ -540,7 +547,9 @@ model ImportedPlanSession {
   /// tel quel pour affichage ; jamais utilisé pour calculer une zone.
   zoneLabel String?
 
-  /// Colonne `objectif_seance`. Seconde moitié de la clé d'idempotence.
+  /// Colonne `objectif_seance`. N'entre plus dans la clé d'idempotence
+  /// (voir `orderInDay`) — reste affiché, mais deux séances peuvent
+  /// désormais partager le même objectif le même jour.
   objective String
 
   /// Colonnes `muscu_details` / `fractionne_details` : texte brut conservé
@@ -556,8 +565,9 @@ model ImportedPlanSession {
   updatedAt DateTime @updatedAt
 
   /// Clé d'idempotence du cahier des charges : réimporter le même fichier
-  /// met à jour, ne duplique pas.
-  @@unique([day, objective])
+  /// met à jour, ne duplique pas. Sur (day, orderInDay) plutôt que
+  /// (day, objective) depuis la correction du 08/09/2026 — voir `orderInDay`.
+  @@unique([day, orderInDay])
   @@index([day])
 }
 

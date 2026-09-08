@@ -215,8 +215,10 @@ export type NextSession = {
  * ancien plan actif disparaisse silencieusement de l'accueil.
  */
 export async function loadNextSession(today: Day): Promise<NextSession | null> {
+  // Strictement APRÈS aujourd'hui : la séance du jour a son propre bloc
+  // (« Aujourd'hui », §2.2) juste au-dessus — la répéter ici ferait doublon.
   const imported = await prisma.importedPlanSession.findFirst({
-    where: { day: { gte: today }, status: "A_FAIRE" },
+    where: { day: { gt: today }, status: "A_FAIRE" },
     orderBy: { day: "asc" },
   });
   if (imported) {
@@ -235,7 +237,7 @@ export async function loadNextSession(today: Day): Promise<NextSession | null> {
   }
 
   const legacy = await prisma.plannedWorkout.findFirst({
-    where: { day: { gte: today }, status: "upcoming", plan: { status: "active" } },
+    where: { day: { gt: today }, status: "upcoming", plan: { status: "active" } },
     orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
     select: {
       day: true,
@@ -249,6 +251,78 @@ export async function loadNextSession(today: Day): Promise<NextSession | null> {
     },
   });
   return legacy ? { ...legacy, hrTargetMinBpm: null, hrTargetMaxBpm: null } : null;
+}
+
+export type TodaySession = {
+  id: string;
+  type: string;
+  objective: string | null;
+  status: "FAIT" | "A_FAIRE";
+  distanceM: number | null;
+  durationS: number | null;
+  hrTargetMinBpm: number | null;
+  hrTargetMaxBpm: number | null;
+  /** `toggleSessionStatus` (§2.3) ne connaît QUE `ImportedPlanSession` — le
+   *  bouton Fait doit rester caché pour une séance `legacy` (§3.3.b), sous
+   *  peine d'un contrôle qui échoue silencieusement à l'appui. */
+  source: "imported" | "legacy";
+};
+
+/**
+ * Séance(s) du jour même (bloc « Aujourd'hui », §2.2) — jamais confondu avec
+ * `loadNextSession`, qui montre la suivante strictement après. Même règle de
+ * priorité que le reste de l'accueil : import CSV d'abord, ancien plan
+ * Claude en repli.
+ */
+export async function loadTodaySessions(today: Day): Promise<TodaySession[]> {
+  const imported = await prisma.importedPlanSession.findMany({
+    where: { day: today },
+    orderBy: { orderInDay: "asc" },
+  });
+  if (imported.length > 0) {
+    return imported.map((s) => ({
+      id: s.id,
+      type: s.type,
+      objective: s.objective || null,
+      status: s.status === "FAIT" ? "FAIT" : "A_FAIRE",
+      distanceM: s.distanceM,
+      durationS: s.durationS,
+      hrTargetMinBpm: s.hrTargetMinBpm,
+      hrTargetMaxBpm: s.hrTargetMaxBpm,
+      source: "imported",
+    }));
+  }
+
+  const legacy = await prisma.plannedWorkout.findMany({
+    where: { day: today, plan: { status: "active" } },
+    orderBy: { orderInDay: "asc" },
+  });
+  return legacy.map((w) => ({
+    id: w.id,
+    type: w.type,
+    objective: w.description,
+    status: w.status === "done" ? "FAIT" : "A_FAIRE",
+    distanceM: w.targetDistanceM,
+    durationS: w.targetDurationS,
+    hrTargetMinBpm: null,
+    hrTargetMaxBpm: null,
+    source: "legacy",
+  }));
+}
+
+/**
+ * Vrai si un plan existe quelque part (import CSV à n'importe quelle date,
+ * ou ancien plan Claude actif) — sert à distinguer, dans le bloc
+ * « Aujourd'hui », « rien de prévu aujourd'hui » (un plan existe, pas pour
+ * aujourd'hui) de « aucun plan importé du tout » (renvoyer vers l'import,
+ * jamais dire « repos »).
+ */
+export async function loadHasAnyPlan(): Promise<boolean> {
+  const [importedCount, activePlan] = await Promise.all([
+    prisma.importedPlanSession.count(),
+    prisma.trainingPlan.findFirst({ where: { status: "active" }, select: { id: true } }),
+  ]);
+  return importedCount > 0 || activePlan != null;
 }
 
 export type RecentActivity = {
@@ -294,10 +368,12 @@ export type AgendaDay = {
   shiftCode: string | null;
   startTime: string | null;
   endTime: string | null;
-  workout: { title: string; type: string } | null;
+  /** `extraCount` = nombre de séances du jour AU-DELÀ de la première —
+   *  jamais masquées sans le dire (§3.2), juste résumées en un décompte. */
+  workout: { title: string; type: string; extraCount: number } | null;
 };
 
-/** Sept prochains jours (section 3.5) : poste réel + séance prévue si un plan existe. */
+/** Sept prochains jours (section 3.5) : poste réel + séance(s) prévue(s) si un plan existe. */
 export async function loadAgendaDays(
   today: Day,
   ribbonDays: ReadonlyArray<{
@@ -314,25 +390,30 @@ export async function loadAgendaDays(
   // couvre la période, le plan Claude ne sert plus qu'en repli.
   const imported = await prisma.importedPlanSession.findMany({
     where: { day: { gte: today, lte: to } },
-    orderBy: { day: "asc" },
+    orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
   });
 
-  const workoutByDay = new Map<Day, { title: string; type: string }>();
+  const sessionsByDay = new Map<Day, Array<{ title: string; type: string }>>();
+  function push(day: Day, session: { title: string; type: string }): void {
+    const list = sessionsByDay.get(day);
+    if (list) list.push(session);
+    else sessionsByDay.set(day, [session]);
+  }
+
   if (imported.length > 0) {
-    for (const s of imported) {
-      if (!workoutByDay.has(s.day)) workoutByDay.set(s.day, { title: s.type, type: s.type });
-    }
+    for (const s of imported) push(s.day, { title: s.type, type: s.type });
   } else {
     const workouts = await prisma.plannedWorkout.findMany({
       where: { day: { gte: today, lte: to }, plan: { status: "active" } },
       orderBy: { orderInDay: "asc" },
       select: { day: true, title: true, type: true },
     });
-    for (const w of workouts) if (!workoutByDay.has(w.day)) workoutByDay.set(w.day, w);
+    for (const w of workouts) push(w.day, w);
   }
 
   return eachDay(today, to).map((day) => {
     const ribbon = ribbonDays.find((r) => r.day === day);
+    const sessions = sessionsByDay.get(day);
     return {
       day,
       isToday: day === today,
@@ -340,7 +421,10 @@ export async function loadAgendaDays(
       shiftCode: ribbon?.code ?? null,
       startTime: ribbon?.startTime ?? null,
       endTime: ribbon?.endTime ?? null,
-      workout: workoutByDay.get(day) ?? null,
+      workout:
+        sessions && sessions.length > 0
+          ? { title: sessions[0]!.title, type: sessions[0]!.type, extraCount: sessions.length - 1 }
+          : null,
     };
   });
 }

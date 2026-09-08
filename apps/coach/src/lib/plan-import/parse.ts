@@ -5,6 +5,7 @@ import { decodeCsvBuffer, tokenizeCsv } from "./csv.ts";
 export const EXPECTED_HEADER = [
   "date",
   "jour",
+  "poste_F6",
   "type",
   "statut",
   "distance_km",
@@ -105,8 +106,13 @@ export function validateRow(
   // — `?? ""` documente que ces valeurs sont sûres à ce stade, pas qu'un
   // champ vide est traité comme "0" nulle part (`blankToNull`/`parseOptional*`
   // traitent déjà "" comme vide).
+  // `jour` et `poste_F6` sont présentes dans l'en-tête mais jamais stockées :
+  // le poste réel d'une journée est calculé par lib/shifts/ (cycle +
+  // exceptions), seule autorité en la matière. Stocker la valeur du CSV
+  // créerait une seconde source pouvant diverger de la vraie.
   const [
     dateRaw = "",
+    ,
     ,
     typeRaw = "",
     statutRaw = "",
@@ -212,10 +218,15 @@ export function validateRow(
 }
 
 /**
- * Analyse un fichier CSV complet : détection d'encodage, tokenisation,
- * validation ligne à ligne, puis détection des dates en double dans le
- * fichier (qui déclasse a posteriori une ligne par ailleurs valide). Ne lit
- * ni n'écrit jamais la base — `zones` est fourni par l'appelant.
+ * Analyse un fichier CSV complet : détection d'encodage, tokenisation, puis
+ * validation ligne à ligne. Ne lit ni n'écrit jamais la base — `zones` est
+ * fourni par l'appelant.
+ *
+ * Deux lignes du même jour ne sont PAS rejetées : une journée type comporte
+ * régulièrement plusieurs séances (renforcement + course). L'idempotence de
+ * l'import se fait sur (jour, rang dans la journée), pas sur le jour seul —
+ * voir `orderInDay` (schema.prisma) et `writeImportedSessions`
+ * (plan-import/repository.ts), correction du 08/09/2026.
  */
 export function parsePlanImportCsv(
   buffer: Buffer,
@@ -250,33 +261,5 @@ export function parsePlanImportCsv(
     else rejected.push(result.row);
   }
 
-  // Dates en double dans le fichier : toutes les occurrences (parmi les
-  // lignes par ailleurs valides) sont rejetées, pas seulement la seconde —
-  // rien ne dit laquelle des deux est la bonne.
-  const linesByDay = new Map<string, ValidImportRow[]>();
-  for (const row of valid) {
-    const list = linesByDay.get(row.day);
-    if (list) list.push(row);
-    else linesByDay.set(row.day, [row]);
-  }
-  const stillValid: ValidImportRow[] = [];
-  for (const [day, rowsForDay] of linesByDay) {
-    if (rowsForDay.length > 1) {
-      const lines = rowsForDay.map((r) => r.line).sort((a, b) => a - b);
-      for (const row of rowsForDay) {
-        rejected.push({
-          line: row.line,
-          reason: `date en double dans le fichier : ${day} (lignes ${lines.join(", ")})`,
-        });
-      }
-    } else {
-      const only = rowsForDay[0];
-      if (only) stillValid.push(only);
-    }
-  }
-
-  rejected.sort((a, b) => a.line - b.line);
-  stillValid.sort((a, b) => a.line - b.line);
-
-  return { ok: true, encoding, valid: stillValid, rejected };
+  return { ok: true, encoding, valid, rejected };
 }

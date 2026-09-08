@@ -121,6 +121,30 @@ export function formatZoneBpmRange(zone: { index: number; fromBpm: number; toBpm
 }
 
 /**
+ * Zone unique dont la fourchette affichable (cf. `formatZoneBpmRange`)
+ * contient entièrement `[minBpm, maxBpm]`, ou `null` si aucune zone ne
+ * correspond exactement (fourchette ambiguë à cheval sur deux zones, ou hors
+ * bornes connues). Sert à dériver l'index de zone d'une prescription
+ * `ImportedPlanSession` (qui ne stocke que `hrTargetMinBpm`/`hrTargetMaxBpm`,
+ * jamais un index de zone) sans jamais deviner à partir du texte libre
+ * `zoneLabel`, sans autorité (R5, apps/coach/CLAUDE.md) — l'appelant affiche
+ * « non disponible » quand cette fonction renvoie `null`, jamais une
+ * estimation silencieuse.
+ */
+export function zoneContainingBpmRange(
+  minBpm: number,
+  maxBpm: number,
+  zones: readonly HeartRateZone[],
+): HeartRateZone | null {
+  for (const zone of zones) {
+    const rangeMin = zone.index === 1 ? 0 : zone.fromBpm;
+    const rangeMax = zone.index === 6 ? null : zone.toBpm - 1;
+    if (minBpm >= rangeMin && (rangeMax == null || maxBpm <= rangeMax)) return zone;
+  }
+  return null;
+}
+
+/**
  * Répartition du temps passé par zone, à partir du flux cardiaque.
  * Retourne des secondes par zone, plus le temps hors zone et le temps non mesuré.
  */

@@ -8,6 +8,9 @@ import { AddSessionCard } from "@/components/plan/add-session-card.tsx";
 import { Card, CardHeader } from "@/components/ui/card.tsx";
 import { PageContainer } from "@/components/page-container.tsx";
 import { loadImportedSessions } from "@/lib/plan-import/repository.ts";
+import { getAvailabilityRules } from "@/lib/settings.ts";
+import { loadShiftRange } from "@/lib/shifts/repository.ts";
+import type { Day } from "@/lib/shifts/day.ts";
 import { formatDayLong } from "@/lib/time.ts";
 import { formatDistance, formatTimeRange } from "@/lib/utils.ts";
 
@@ -31,7 +34,24 @@ export default async function PlanPage() {
       })
     : null;
 
-  const importedSessions = goal && !plan ? await loadImportedSessions() : [];
+  // Chargées inconditionnellement : l'objectif alimente le compte à rebours
+  // de l'accueil et la trajectoire du simulateur, mais ne conditionne plus
+  // l'affichage du plan (R1.2 — sans lui, les séances importées restaient
+  // invisibles).
+  const importedSessions = await loadImportedSessions();
+
+  // Poste réel par jour (session-row.tsx, §2.5) — via lib/shifts/, jamais
+  // via la colonne poste_F6 du CSV (cf. parse.ts, qui ne la stocke pas).
+  const shiftLabelByDay = new Map<Day, string>();
+  if (importedSessions.length > 0) {
+    const days = importedSessions.map((s) => s.day).sort();
+    const rules = await getAvailabilityRules();
+    const range = await loadShiftRange(days[0]!, days[days.length - 1]!, rules);
+    for (const [day, entry] of range.byDay) {
+      const code = entry.resolved.code;
+      shiftLabelByDay.set(day, code ? (range.timings.find((t) => t.code === code)?.label ?? code) : "Repos");
+    }
+  }
 
   const goalTargetRange = goal ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS) : null;
 
@@ -45,46 +65,56 @@ export default async function PlanPage() {
         </p>
       </header>
 
-      {!goal ? (
-        <div className="mt-5 max-w-3xl">
+      <div className="mt-5 max-w-3xl space-y-5">
+        {!goal ? (
           <GoalForm />
-        </div>
-      ) : null}
-
-      {goal && plan ? (
-        <div className="mt-5">
-          <PlanView goal={goal} plan={plan} />
-        </div>
-      ) : null}
-
-      {goal && !plan ? (
-        <div className="mt-5 max-w-3xl space-y-5">
+        ) : (
           <Card>
             <CardHeader
               title="Objectif enregistré"
               hint={`${goal.name} — ${formatDistance(goal.distanceM)} le ${formatDayLong(goal.day)}${goalTargetRange ? `, chrono visé ${goalTargetRange}` : ""}`}
             />
           </Card>
+        )}
 
-          <PlanImportForm />
+        <PlanImportForm />
 
-          <AddSessionCard />
+        <AddSessionCard />
+      </div>
 
-          <ImportedPlanView sessions={importedSessions} />
-
-          {/*
-           * Génération abandonnée comme mécanisme PRINCIPAL : le code
-           * (lib/coach/, GenerateButton, actions generate/regenerate) reste
-           * en place, simplement plus appelé depuis cette page — signalé
-           * ici plutôt que supprimé, comme demandé.
-           */}
-          <p className="text-[11px] text-[var(--color-faint)]">
-            Génération automatique par l&apos;API Claude : conservée dans le code,
-            désactivée au profit de l&apos;import de fichier ci-dessus.
-            {!isCoachConfigured() ? " (clé ANTHROPIC_API_KEY non configurée par ailleurs.)" : ""}
-          </p>
+      {plan ? (
+        <div className="mt-5">
+          {importedSessions.length > 0 ? (
+            <h2 className="font-display text-base font-semibold">Plan généré</h2>
+          ) : null}
+          <div className={importedSessions.length > 0 ? "mt-2" : undefined}>
+            <PlanView goal={goal!} plan={plan} />
+          </div>
         </div>
       ) : null}
+
+      {importedSessions.length > 0 ? (
+        <div className="mt-5">
+          {plan ? (
+            <h2 className="font-display text-base font-semibold">Séances importées</h2>
+          ) : null}
+          <div className={plan ? "mt-2" : undefined}>
+            <ImportedPlanView sessions={importedSessions} shiftLabelByDay={shiftLabelByDay} />
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+       * Génération abandonnée comme mécanisme PRINCIPAL : le code
+       * (lib/coach/, GenerateButton, actions generate/regenerate) reste
+       * en place, simplement plus appelé depuis cette page — signalé
+       * ici plutôt que supprimé, comme demandé.
+       */}
+      <p className="mt-5 max-w-3xl text-[11px] text-[var(--color-faint)]">
+        Génération automatique par l&apos;API Claude : conservée dans le code,
+        désactivée au profit de l&apos;import de fichier ci-dessus.
+        {!isCoachConfigured() ? " (clé ANTHROPIC_API_KEY non configurée par ailleurs.)" : ""}
+      </p>
     </PageContainer>
   );
 }

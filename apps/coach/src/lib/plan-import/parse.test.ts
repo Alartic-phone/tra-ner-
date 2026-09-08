@@ -8,7 +8,7 @@ import { parsePlanImportCsv, validateRow } from "./parse.ts";
 const ZONES = computeHeartRateZones(175);
 
 const HEADER =
-  "date;jour;type;statut;distance_km;duree_estimee_min;fc_cible_min;fc_cible_max;zone;objectif_seance;muscu_details;fractionne_details;notes";
+  "date;jour;poste_F6;type;statut;distance_km;duree_estimee_min;fc_cible_min;fc_cible_max;zone;objectif_seance;muscu_details;fractionne_details;notes";
 
 function csv(...lines: string[]): Buffer {
   return Buffer.from([HEADER, ...lines].join("\n"), "utf-8");
@@ -17,10 +17,10 @@ function csv(...lines: string[]): Buffer {
 describe("parsePlanImportCsv — fichier valide", () => {
   it("accepte toutes les lignes de l'exemple fourni (plan_S5_07-13-09.csv)", () => {
     const buf = csv(
-      '2026-09-06;Dimanche;Renforcement;FAIT;;35;;;;Dernière séance salle;"Développé machine pecs 39kg 3x12 | Tirage vertical 32kg 3x12";;Gainage fait',
-      "2026-09-07;Lundi;Repos;A_FAIRE;0;0;;;;Repos complet.;;;",
-      "2026-09-08;Mardi;Course - reprise;A_FAIRE;7.5;45;143;152;Zone 2;Reprise en douceur.;;;Prescrit 7-8km",
-      "2026-09-12;Samedi;Course facile;A_FAIRE;6;42;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur Miami",
+      '2026-09-06;Dimanche;Repos;Renforcement;FAIT;;35;;;;Dernière séance salle;"Développé machine pecs 39kg 3x12 | Tirage vertical 32kg 3x12";;Gainage fait',
+      "2026-09-07;Lundi;Repos;Repos;A_FAIRE;0;0;;;;Repos complet.;;;",
+      "2026-09-08;Mardi;Matin;Course - reprise;A_FAIRE;7.5;45;143;152;Zone 2;Reprise en douceur.;;;Prescrit 7-8km",
+      "2026-09-12;Samedi;Nuit;Course facile;A_FAIRE;6;42;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur Miami",
     );
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
@@ -49,12 +49,25 @@ describe("parsePlanImportCsv — fichier valide", () => {
     expect(course.hrTargetMinBpm).toBe(143);
     expect(course.hrTargetMaxBpm).toBe(152);
   });
+
+  it("accepte l'en-tête à 14 colonnes (poste_F6) et ignore sa valeur — le poste réel vient de lib/shifts/", () => {
+    const buf = csv(
+      "2026-09-08;Mardi;Nuit;Course - reprise;A_FAIRE;7.5;45;143;152;Zone 2;Reprise en douceur.;;;",
+    );
+    const result = parsePlanImportCsv(buf, ZONES);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rejected).toEqual([]);
+    expect(result.valid).toHaveLength(1);
+    // `poste_F6` ("Nuit") n'apparaît dans aucun champ de la ligne validée.
+    expect(Object.values(result.valid[0]!)).not.toContain("Nuit");
+  });
 });
 
 describe("parsePlanImportCsv — encodage CP1252", () => {
   it("décode correctement les accents d'un fichier exporté par Excel français", () => {
     const cp1252Bytes = Buffer.from(
-      [HEADER, '2026-09-08;Mardi;S\xe9ance;A_FAIRE;;;;;;Reprise apr\xe8s la nuit isol\xe9e;;;'].join(
+      [HEADER, '2026-09-08;Mardi;Matin;S\xe9ance;A_FAIRE;;;;;;Reprise apr\xe8s la nuit isol\xe9e;;;'].join(
         "\n",
       ),
       "latin1", // les octets 0xE9/0xE8 ci-dessus SONT du CP1252 (identique à latin1 pour les lettres accentuées communes)
@@ -71,7 +84,7 @@ describe("parsePlanImportCsv — encodage CP1252", () => {
 
 describe("parsePlanImportCsv — ligne invalide", () => {
   it("rejette une date invalide en nommant la ligne et le motif", () => {
-    const buf = csv("2026-13-40;Mardi;Course;A_FAIRE;5;30;;;;Objectif;;;");
+    const buf = csv("2026-13-40;Mardi;Matin;Course;A_FAIRE;5;30;;;;Objectif;;;");
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -82,7 +95,7 @@ describe("parsePlanImportCsv — ligne invalide", () => {
   });
 
   it("rejette un statut inconnu", () => {
-    const buf = csv("2026-09-08;Mardi;Course;PEUT_ETRE;5;30;;;;Objectif;;;");
+    const buf = csv("2026-09-08;Mardi;Matin;Course;PEUT_ETRE;5;30;;;;Objectif;;;");
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -90,7 +103,7 @@ describe("parsePlanImportCsv — ligne invalide", () => {
   });
 
   it("rejette une distance négative", () => {
-    const buf = csv("2026-09-08;Mardi;Course;A_FAIRE;-5;30;;;;Objectif;;;");
+    const buf = csv("2026-09-08;Mardi;Matin;Course;A_FAIRE;-5;30;;;;Objectif;;;");
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -98,7 +111,7 @@ describe("parsePlanImportCsv — ligne invalide", () => {
   });
 
   it("rejette une FC hors 30-220", () => {
-    const buf = csv("2026-09-08;Mardi;Course;A_FAIRE;5;30;250;260;;Objectif;;;");
+    const buf = csv("2026-09-08;Mardi;Matin;Course;A_FAIRE;5;30;250;260;;Objectif;;;");
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -106,7 +119,7 @@ describe("parsePlanImportCsv — ligne invalide", () => {
   });
 
   it("rejette fc_cible_min > fc_cible_max", () => {
-    const buf = csv("2026-09-08;Mardi;Course;A_FAIRE;5;30;160;150;;Objectif;;;");
+    const buf = csv("2026-09-08;Mardi;Matin;Course;A_FAIRE;5;30;160;150;;Objectif;;;");
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -129,18 +142,18 @@ describe("parsePlanImportCsv — ligne invalide", () => {
     expect(result.fileError).toMatch(/en-tête invalide/);
   });
 
-  it("rejette les dates en double dans le fichier (les deux occurrences)", () => {
+  it("accepte deux lignes du même jour (renforcement + course, cas courant) — corrigé le 08/09/2026", () => {
     const buf = csv(
-      "2026-09-08;Mardi;Course;A_FAIRE;5;30;;;;Objectif A;;;",
-      "2026-09-08;Mardi;Course;A_FAIRE;6;35;;;;Objectif B;;;",
+      "2026-09-08;Mardi;Matin;Renforcement;A_FAIRE;;35;;;;Objectif A;;;",
+      "2026-09-08;Mardi;Nuit;Course;A_FAIRE;6;35;;;;Objectif B;;;",
     );
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.valid).toEqual([]);
-    expect(result.rejected).toHaveLength(2);
-    expect(result.rejected[0]!.reason).toMatch(/date en double/);
-    expect(result.rejected[1]!.reason).toMatch(/date en double/);
+    expect(result.rejected).toEqual([]);
+    expect(result.valid).toHaveLength(2);
+    expect(result.valid[0]!.day).toBe("2026-09-08");
+    expect(result.valid[1]!.day).toBe("2026-09-08");
   });
 });
 
@@ -148,7 +161,7 @@ describe("validateRow — R5 : contradiction zone / fc_cible", () => {
   it("rejette quand fc_cible tombe dans une autre zone que celle nommée", () => {
     // "Zone 2" (140-158 à seuil 175) mais fc_cible 159-166 = Z3.
     const result = validateRow(
-      ["2026-09-08", "Mardi", "Course", "A_FAIRE", "5", "30", "159", "166", "Zone 2", "Objectif", "", "", ""],
+      ["2026-09-08", "Mardi", "Matin", "Course", "A_FAIRE", "5", "30", "159", "166", "Zone 2", "Objectif", "", "", ""],
       2,
       ZONES,
     );
@@ -159,7 +172,7 @@ describe("validateRow — R5 : contradiction zone / fc_cible", () => {
 
   it("accepte quand fc_cible est cohérent avec la zone nommée (y compris un sous-libellé comme 'Zone 2 basse')", () => {
     const result = validateRow(
-      ["2026-09-12", "Samedi", "Course facile", "A_FAIRE", "6", "42", "140", "148", "Zone 2 basse", "Objectif", "", "", ""],
+      ["2026-09-12", "Samedi", "Matin", "Course facile", "A_FAIRE", "6", "42", "140", "148", "Zone 2 basse", "Objectif", "", "", ""],
       2,
       ZONES,
     );
@@ -168,7 +181,7 @@ describe("validateRow — R5 : contradiction zone / fc_cible", () => {
 
   it("n'essaie pas de valider la zone si les deux bornes fc_cible ne sont pas fournies", () => {
     const result = validateRow(
-      ["2026-09-08", "Mardi", "Course", "A_FAIRE", "5", "30", "159", "", "Zone 2", "Objectif", "", "", ""],
+      ["2026-09-08", "Mardi", "Matin", "Course", "A_FAIRE", "5", "30", "159", "", "Zone 2", "Objectif", "", "", ""],
       2,
       ZONES,
     );
@@ -177,7 +190,7 @@ describe("validateRow — R5 : contradiction zone / fc_cible", () => {
 
   it("n'invente pas de zone sans FC seuil connue (zones = [])", () => {
     const result = validateRow(
-      ["2026-09-08", "Mardi", "Course", "A_FAIRE", "5", "30", "159", "166", "Zone 2", "Objectif", "", "", ""],
+      ["2026-09-08", "Mardi", "Matin", "Course", "A_FAIRE", "5", "30", "159", "166", "Zone 2", "Objectif", "", "", ""],
       2,
       [],
     );
