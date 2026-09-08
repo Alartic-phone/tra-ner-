@@ -33,9 +33,15 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-RUN mkdir -p /app/data && chown coach:coach /app/data
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh && \
+    mkdir -p /app/data && chown coach:coach /app/data
 USER coach
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
 
+# L'entrypoint applique les migrations avant de lancer la commande (voir
+# docker-entrypoint.sh) — un échec de migration arrête le conteneur au lieu
+# de démarrer sur une base incomplète.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

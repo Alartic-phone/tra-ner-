@@ -15,6 +15,11 @@ services:
       DATABASE_URL: "file:/app/data/coach.db"
       TZ: "Europe/Paris"
       ENCRYPTION_KEY: "${ENCRYPTION_KEY:?ENCRYPTION_KEY est requis}"
+      # Optionnels ici comme dans env.ts : absents, l'application démarre
+      # sans authentification, mais refuse de démarrer si PUBLIC_URL est
+      # renseignée sans APP_PASSWORD (exposition sans mot de passe).
+      APP_PASSWORD: "${APP_PASSWORD:-}"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
       PUBLIC_URL: "${PUBLIC_URL:-}"
       STRAVA_CLIENT_ID: "${STRAVA_CLIENT_ID:-}"
       STRAVA_CLIENT_SECRET: "${STRAVA_CLIENT_SECRET:-}"

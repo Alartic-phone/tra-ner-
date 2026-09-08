@@ -392,12 +392,21 @@ Automatiser, par exemple chaque nuit :
 ### Docker Compose (par défaut)
 
 ```bash
-cp .env.example .env   # compléter ENCRYPTION_KEY, CRON_SECRET
+cp .env.example .env   # compléter ENCRYPTION_KEY, CRON_SECRET, APP_PASSWORD, SESSION_SECRET
 docker compose up -d
 ```
 
+Au démarrage, le conteneur applique automatiquement les migrations Prisma
+(`prisma migrate deploy`, voir `docker-entrypoint.sh`) avant de lancer le
+serveur : un volume neuf se retrouve avec les tables à jour sans étape
+manuelle. Un échec de migration arrête le conteneur au lieu de démarrer sur
+une base incomplète — `docker compose logs app` en montre la cause.
+
 L'application écoute sur `127.0.0.1:3000` uniquement. Pour l'exposer, passer
-par un reverse proxy terminant TLS. La base vit dans le volume `coach-data`.
+par un reverse proxy terminant TLS — dans ce cas, `APP_PASSWORD` et
+`SESSION_SECRET` deviennent obligatoires : sans eux, `PUBLIC_URL` renseignée
+fait refuser le démarrage (voir [Installation](#installation)). La base vit
+dans le volume `coach-data`.
 
 Le service `sync` déclenche la synchronisation Strava une fois par jour ; il
 est inutile si un webhook est configuré.
