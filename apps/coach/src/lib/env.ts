@@ -53,6 +53,42 @@ const schema = z.object({
   MAPTILER_API_KEY: z.string().optional(),
 
   TZ: z.string().default("Europe/Paris"),
+
+  /**
+   * Mot de passe unique de l'application (mono-utilisateur, pas de compte).
+   * Absent = pas d'authentification, mode développement local uniquement
+   * (refusé au démarrage si PUBLIC_URL est renseignée, cf. superRefine
+   * ci-dessous).
+   */
+  APP_PASSWORD: z.string().min(12, "APP_PASSWORD doit faire au moins 12 caractères").optional(),
+
+  /**
+   * Clé de signature HMAC du cookie de session. Distincte d'ENCRYPTION_KEY :
+   * une clé par usage. 32 octets en hexadécimal : `openssl rand -hex 32`.
+   */
+  SESSION_SECRET: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "SESSION_SECRET doit faire 64 caractères hexadécimaux")
+    .optional(),
+});
+
+const refined = schema.superRefine((env, ctx) => {
+  if (env.PUBLIC_URL && !env.APP_PASSWORD) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["APP_PASSWORD"],
+      message:
+        "APP_PASSWORD est requis dès que PUBLIC_URL est renseignée : une application " +
+        "exposée sans mot de passe est une erreur fatale, pas un avertissement.",
+    });
+  }
+  if (env.APP_PASSWORD && !env.SESSION_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["SESSION_SECRET"],
+      message: "SESSION_SECRET est requis dès qu'APP_PASSWORD est renseigné (signature du cookie de session).",
+    });
+  }
 });
 
 export type Env = z.infer<typeof schema>;
@@ -61,7 +97,7 @@ let cached: Env | null = null;
 
 export function getEnv(): Env {
   if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
+  const parsed = refined.safeParse(process.env);
   if (!parsed.success) {
     const details = parsed.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
@@ -74,6 +110,12 @@ export function getEnv(): Env {
   }
   cached = parsed.data;
   return cached;
+}
+
+/** Authentification active : mot de passe et clé de session tous deux configurés. */
+export function isAuthConfigured(): boolean {
+  const env = getEnv();
+  return Boolean(env.APP_PASSWORD && env.SESSION_SECRET);
 }
 
 /** Strava est utilisable si l'application est déclarée sur le portail dev. */
