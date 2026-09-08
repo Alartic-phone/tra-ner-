@@ -1,0 +1,40 @@
+# Configuration Fly.io — reconstruite depuis `flyctl config show` le
+# 2026-09-08 : ce fichier n'existait auparavant nulle part dans le dépôt (le
+# déploiement Fly avait été fait sans jamais committer sa configuration).
+#
+# Une seule machine : SQLite ne supporte pas plusieurs writers concurrents.
+# La base vit dans le volume `coach_data`, monté sur /app/data — elle
+# survit aux redéploiements et aux redémarrages (auto_stop_machines).
+app = "coach-entrainement"
+primary_region = "cdg"
+
+[build]
+
+[env]
+  DATABASE_URL = "file:/app/data/coach.db"
+  PORT = "3000"
+  TZ = "Europe/Paris"
+
+[[mounts]]
+  source = "coach_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/login"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
