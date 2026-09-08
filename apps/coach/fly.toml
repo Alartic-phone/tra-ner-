@@ -40,7 +40,11 @@ primary_region = "cdg"
     timeout = "5s"
     grace_period = "20s"
     method = "GET"
-    path = "/"
+    # "/" redirige vers "/login" dès qu'APP_PASSWORD est renseignée (voir
+    # src/middleware.ts) : Fly considère une redirection comme un échec de
+    # contrôle et refuse alors de router le trafic vers la machine. "/login"
+    # est justement exclue de l'authentification et répond 200 directement.
+    path = "/login"
     protocol = "http"
 
 [[vm]]
