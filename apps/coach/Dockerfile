@@ -33,8 +33,8 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh && \
+COPY docker-entrypoint.sh docker-backup.sh docker-restore.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh /app/docker-backup.sh /app/docker-restore.sh && \
     mkdir -p /app/data && chown coach:coach /app/data
 USER coach
 EXPOSE 3000

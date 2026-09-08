@@ -369,6 +369,8 @@ ci-dessus. Les `Bytes` (flux compressés) deviennent des `bytea`.
 
 ## Sauvegarde et restauration
 
+### En local (sans Docker)
+
 ```bash
 npm run backup                              # -> backups/coach-<horodatage>.db
 npm run backup -- /media/disque/coach.db    # destination choisie
@@ -385,6 +387,30 @@ Automatiser, par exemple chaque nuit :
 
 ```cron
 30 3 * * * cd /chemin/apps/coach && /usr/bin/npm run backup >> /var/log/coach-backup.log 2>&1
+```
+
+### Avec Docker Compose
+
+`npm run backup`/`restore` ne fonctionnent pas dans le conteneur : l'image ne
+contient ni `scripts/` ni `tsx` (uniquement le strict nécessaire à l'exécution
+de l'application, cf. Dockerfile). `docker-backup.sh` et `docker-restore.sh`
+sont une réimplémentation en shell des mêmes scripts, sur `sqlite3` — déjà
+présent dans l'image pour cette raison — plutôt qu'une dépendance de plus.
+Mêmes garanties : `VACUUM INTO`, contrôle d'intégrité avant restauration, base
+actuelle mise de côté plutôt qu'écrasée.
+
+```bash
+# Sauvegarde (écrit dans le volume, sous /app/data/backups/)
+docker compose exec app ./docker-backup.sh
+# -> Sauvegarde écrite : /app/data/backups/coach-2026-09-08T18-00-00.db
+
+# La sortir du volume, sur l'hôte :
+docker compose cp app:/app/data/backups/coach-2026-09-08T18-00-00.db ./coach-2026-09-08T18-00-00.db
+
+# Restauration : copier la sauvegarde DANS le conteneur, puis restaurer
+docker compose cp ./coach-2026-09-08T18-00-00.db app:/app/data/restore-source.db
+docker compose exec app ./docker-restore.sh /app/data/restore-source.db
+docker compose restart app
 ```
 
 ## Déploiement

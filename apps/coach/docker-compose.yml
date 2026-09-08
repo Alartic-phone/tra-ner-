@@ -1,7 +1,9 @@
 # Déploiement local : `docker compose up`.
 #
 # La base SQLite vit dans un volume nommé : elle survit à la reconstruction de
-# l'image. La sauvegarder régulièrement avec `npm run backup`.
+# l'image. La sauvegarder régulièrement avec `docker compose exec app
+# ./docker-backup.sh` (npm run backup ne fonctionne pas ici : scripts/ et tsx
+# ne sont pas dans l'image — voir README, §Sauvegarde et restauration).
 
 services:
   app:
