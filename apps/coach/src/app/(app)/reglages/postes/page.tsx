@@ -2,6 +2,7 @@ import { getActiveCycle, getTimings } from "@/lib/shifts/repository.ts";
 import { getAvailabilityRules } from "@/lib/settings.ts";
 import { ShiftSettingsForm } from "@/components/calendar/shift-settings-form.tsx";
 import { Breadcrumb } from "@/components/breadcrumb.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function ShiftSettingsPage() {
   return (
     <>
       <Breadcrumb trail={[{ label: "Réglages", href: "/reglages" }, { label: "Cycle de postes" }]} />
-      <div className="mx-auto max-w-[1100px] p-4 md:p-6">
+      <PageContainer>
       <header>
         <h1 className="font-display text-lg font-semibold">Cycle de postes</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -27,7 +28,7 @@ export default async function ShiftSettingsPage() {
       <div className="mt-5 max-w-2xl">
         <ShiftSettingsForm cycle={cycle} timings={timings} rules={rules} />
       </div>
-      </div>
+      </PageContainer>
     </>
   );
 }

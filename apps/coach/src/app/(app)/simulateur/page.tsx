@@ -15,6 +15,7 @@ import {
 } from "@/lib/metrics/prediction.ts";
 import { addDays } from "@/lib/shifts/day.ts";
 import { formatDayLong, today } from "@/lib/time.ts";
+import { PageContainer } from "@/components/page-container.tsx";
 import {
   fixed,
   formatClock,
@@ -68,7 +69,7 @@ export default async function SimulatorPage() {
     : null;
 
   return (
-    <div className="p-4 md:p-6">
+    <PageContainer>
       <header>
         <h1 className="font-display text-lg font-semibold">Simulateur</h1>
         <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -252,6 +253,6 @@ export default async function SimulatorPage() {
           initialTimeS={efforts.length > 0 ? efforts.reduce((b, e) => (e.durationS > b.durationS ? e : b)).durationS : undefined}
         />
       </div>
-    </div>
+    </PageContainer>
   );
 }

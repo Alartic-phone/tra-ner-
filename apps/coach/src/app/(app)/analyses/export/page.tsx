@@ -1,11 +1,12 @@
 import { AnalysesTabs } from "@/components/analytics/analyses-tabs.tsx";
 import { ExportControls } from "@/components/analytics/export-controls.tsx";
+import { PageContainer } from "@/components/page-container.tsx";
 
 export const dynamic = "force-dynamic";
 
 export default function ExportPage() {
   return (
-    <div className="mx-auto max-w-[640px] p-4 md:p-6">
+    <PageContainer>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-lg font-semibold">Export</h1>
@@ -17,14 +18,14 @@ export default function ExportPage() {
         <AnalysesTabs active="export" />
       </header>
 
-      <div className="mt-6">
+      <div className="mt-6 max-w-2xl">
         <ExportControls />
       </div>
 
-      <p className="mt-6 border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-faint)]">
+      <p className="mt-6 max-w-2xl border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-faint)]">
         Équivalent en ligne de commande : <code>npm run export -- --format md --since AAAA-MM-JJ --out ./export.md</code>
         {" "}— produit exactement le même fichier.
       </p>
-    </div>
+    </PageContainer>
   );
 }
