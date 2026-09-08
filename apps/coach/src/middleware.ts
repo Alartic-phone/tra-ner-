@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthConfigured } from "@/lib/env.ts";
+import { isAuthConfigured, publicOrigin } from "@/lib/env.ts";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth.ts";
 
 /**
@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  const loginUrl = new URL("/login", request.url);
+  const loginUrl = new URL("/login", publicOrigin(request));
   loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
   return NextResponse.redirect(loginUrl);
 }
