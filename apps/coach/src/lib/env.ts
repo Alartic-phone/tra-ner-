@@ -112,6 +112,18 @@ export function getEnv(): Env {
   return cached;
 }
 
+/**
+ * Origine à utiliser pour construire une URL absolue (redirection, callback…).
+ * PUBLIC_URL fait autorité si renseignée : derrière le proxy Fly (et tout
+ * reverse proxy équivalent), `request.url` reflète l'adresse interne
+ * d'écoute du conteneur (HOSTNAME/PORT, ex. 0.0.0.0:3000) plutôt que le
+ * domaine public — une redirection construite dessus pointe alors vers une
+ * adresse injoignable depuis l'extérieur.
+ */
+export function publicOrigin(request: { url: string }): string {
+  return getEnv().PUBLIC_URL ?? request.url;
+}
+
 /** Authentification active : mot de passe et clé de session tous deux configurés. */
 export function isAuthConfigured(): boolean {
   const env = getEnv();

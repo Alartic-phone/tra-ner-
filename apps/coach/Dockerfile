@@ -24,14 +24,27 @@ RUN apk add --no-cache sqlite tzdata && \
     addgroup -S coach && adduser -S coach -G coach
 
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/prisma ./prisma
 # Sortie autonome : n'embarque que les modules réellement utilisés.
 COPY --from=builder --chown=coach:coach /app/.next/standalone ./
 COPY --from=builder --chown=coach:coach /app/.next/static ./.next/static
-# Le moteur Prisma et le schéma sont nécessaires aux migrations au démarrage.
+# `prisma` (CLI, devDependency) tire depuis peu `@prisma/config`, dont les
+# dépendances transitives (effect, c12…) ne sont pas tracées par la sortie
+# standalone de Next. Réinstallation isolée plutôt qu'une copie sélective de
+# node_modules — fragile face aux futures montées de version de Prisma — et
+# épinglée sur la version verrouillée par package-lock.json pour rester
+# strictement compatible avec le client généré ci-dessous. Faite avant la
+# copie du schéma, pour que le postinstall de @prisma/client ne trouve rien
+# à régénérer.
+COPY --from=builder /app/package-lock.json ./package-lock.json
+RUN PRISMA_VERSION="$(node -e "console.log(require('./package-lock.json').packages['node_modules/prisma'].version)")" && \
+    npm install --omit=dev --no-audit --no-fund --no-save \
+      "prisma@$PRISMA_VERSION" "@prisma/client@$PRISMA_VERSION" && \
+    rm package-lock.json
+# Le schéma est nécessaire aux migrations au démarrage ; le client généré
+# (.prisma/client) est celui produit par `prisma generate` dans l'étage
+# builder, à partir du schéma réel de l'app — pas un client générique.
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 COPY docker-entrypoint.sh docker-backup.sh docker-restore.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh /app/docker-backup.sh /app/docker-restore.sh && \

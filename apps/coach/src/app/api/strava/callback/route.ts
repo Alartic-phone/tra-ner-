@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { publicOrigin } from "@/lib/env.ts";
 import { STATE_COOKIE, exchangeCode, verifyOAuthState } from "@/lib/strava/oauth.ts";
 import { startBackfill } from "@/lib/strava/sync.ts";
 
@@ -8,10 +9,11 @@ export const dynamic = "force-dynamic";
 /** Retour d'autorisation Strava. */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
+  const origin = publicOrigin(request);
   const error = searchParams.get("error");
   if (error) {
     return NextResponse.redirect(
-      new URL(`/reglages?strava=refus&detail=${encodeURIComponent(error)}`, request.url),
+      new URL(`/reglages?strava=refus&detail=${encodeURIComponent(error)}`, origin),
     );
   }
 
@@ -23,14 +25,14 @@ export async function GET(request: NextRequest) {
   // Protection CSRF : l'état renvoyé par Strava doit correspondre à celui
   // déposé (chiffré) au moment de la redirection.
   if (!code || !verifyOAuthState(cookieValue, state)) {
-    return NextResponse.redirect(new URL("/reglages?strava=etat_invalide", request.url));
+    return NextResponse.redirect(new URL("/reglages?strava=etat_invalide", origin));
   }
   store.delete(STATE_COOKIE);
 
   const scope = searchParams.get("scope") ?? "";
   if (!scope.includes("activity:read_all")) {
     return NextResponse.redirect(
-      new URL("/reglages?strava=portee_insuffisante", request.url),
+      new URL("/reglages?strava=portee_insuffisante", origin),
     );
   }
 
@@ -42,9 +44,9 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     const detail = e instanceof Error ? e.message : "inconnue";
     return NextResponse.redirect(
-      new URL(`/reglages?strava=echec&detail=${encodeURIComponent(detail)}`, request.url),
+      new URL(`/reglages?strava=echec&detail=${encodeURIComponent(detail)}`, origin),
     );
   }
 
-  return NextResponse.redirect(new URL("/reglages?strava=connecte", request.url));
+  return NextResponse.redirect(new URL("/reglages?strava=connecte", origin));
 }
