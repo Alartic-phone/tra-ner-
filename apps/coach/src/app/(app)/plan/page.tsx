@@ -31,7 +31,11 @@ export default async function PlanPage() {
       })
     : null;
 
-  const importedSessions = goal && !plan ? await loadImportedSessions() : [];
+  // Chargées inconditionnellement : l'objectif alimente le compte à rebours
+  // de l'accueil et la trajectoire du simulateur, mais ne conditionne plus
+  // l'affichage du plan (R1.2 — sans lui, les séances importées restaient
+  // invisibles).
+  const importedSessions = await loadImportedSessions();
 
   const goalTargetRange = goal ? formatTimeRange(goal.targetTimeMinS, goal.targetTimeMaxS) : null;
 
@@ -45,46 +49,56 @@ export default async function PlanPage() {
         </p>
       </header>
 
-      {!goal ? (
-        <div className="mt-5 max-w-3xl">
+      <div className="mt-5 max-w-3xl space-y-5">
+        {!goal ? (
           <GoalForm />
-        </div>
-      ) : null}
-
-      {goal && plan ? (
-        <div className="mt-5">
-          <PlanView goal={goal} plan={plan} />
-        </div>
-      ) : null}
-
-      {goal && !plan ? (
-        <div className="mt-5 max-w-3xl space-y-5">
+        ) : (
           <Card>
             <CardHeader
               title="Objectif enregistré"
               hint={`${goal.name} — ${formatDistance(goal.distanceM)} le ${formatDayLong(goal.day)}${goalTargetRange ? `, chrono visé ${goalTargetRange}` : ""}`}
             />
           </Card>
+        )}
 
-          <PlanImportForm />
+        <PlanImportForm />
 
-          <AddSessionCard />
+        <AddSessionCard />
+      </div>
 
-          <ImportedPlanView sessions={importedSessions} />
-
-          {/*
-           * Génération abandonnée comme mécanisme PRINCIPAL : le code
-           * (lib/coach/, GenerateButton, actions generate/regenerate) reste
-           * en place, simplement plus appelé depuis cette page — signalé
-           * ici plutôt que supprimé, comme demandé.
-           */}
-          <p className="text-[11px] text-[var(--color-faint)]">
-            Génération automatique par l&apos;API Claude : conservée dans le code,
-            désactivée au profit de l&apos;import de fichier ci-dessus.
-            {!isCoachConfigured() ? " (clé ANTHROPIC_API_KEY non configurée par ailleurs.)" : ""}
-          </p>
+      {plan ? (
+        <div className="mt-5">
+          {importedSessions.length > 0 ? (
+            <h2 className="font-display text-base font-semibold">Plan généré</h2>
+          ) : null}
+          <div className={importedSessions.length > 0 ? "mt-2" : undefined}>
+            <PlanView goal={goal!} plan={plan} />
+          </div>
         </div>
       ) : null}
+
+      {importedSessions.length > 0 ? (
+        <div className="mt-5">
+          {plan ? (
+            <h2 className="font-display text-base font-semibold">Séances importées</h2>
+          ) : null}
+          <div className={plan ? "mt-2" : undefined}>
+            <ImportedPlanView sessions={importedSessions} />
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+       * Génération abandonnée comme mécanisme PRINCIPAL : le code
+       * (lib/coach/, GenerateButton, actions generate/regenerate) reste
+       * en place, simplement plus appelé depuis cette page — signalé
+       * ici plutôt que supprimé, comme demandé.
+       */}
+      <p className="mt-5 max-w-3xl text-[11px] text-[var(--color-faint)]">
+        Génération automatique par l&apos;API Claude : conservée dans le code,
+        désactivée au profit de l&apos;import de fichier ci-dessus.
+        {!isCoachConfigured() ? " (clé ANTHROPIC_API_KEY non configurée par ailleurs.)" : ""}
+      </p>
     </PageContainer>
   );
 }

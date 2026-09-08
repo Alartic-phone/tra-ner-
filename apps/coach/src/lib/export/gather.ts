@@ -15,6 +15,7 @@ import {
   loadZoneSecondsByActivity,
 } from "../metrics/repository.ts";
 import { computeHeartRateZones } from "../metrics/zones.ts";
+import { importedPlanCoversRange } from "../plan-import/repository.ts";
 import { today } from "../time.ts";
 import { EXPORT_SCHEMA_VERSION, type ExportData } from "./schema.ts";
 
@@ -38,6 +39,12 @@ export async function gatherExportData(options: ExportOptions): Promise<ExportDa
   const { from, to } = options;
   const rules = await getAvailabilityRules();
 
+  // Même règle de priorité qu'ailleurs dans l'application (voir
+  // plan-import/repository.ts) : l'import CSV prime dès qu'il couvre la
+  // période exportée, l'ancien plan Claude (PlannedWorkout) ne sert plus
+  // qu'en repli.
+  const useImported = await importedPlanCoversRange(from, to);
+
   const [user, shiftRange, activities, healthRows, nextGoal, plannedWorkouts, profileStatus, paceZones] =
     await Promise.all([
       prisma.user.findFirst(),
@@ -49,10 +56,24 @@ export async function gatherExportData(options: ExportOptions): Promise<ExportDa
       }),
       prisma.healthMetric.findMany({ where: { day: { gte: from, lte: to } } }),
       loadNextGoal(),
-      prisma.plannedWorkout.findMany({
-        where: { day: { gte: from, lte: to } },
-        include: { activity: { select: { id: true } } },
-      }),
+      useImported
+        ? prisma.importedPlanSession
+            .findMany({ where: { day: { gte: from, lte: to } } })
+            .then((rows) =>
+              rows.map((s) => ({
+                day: s.day,
+                title: s.type,
+                type: s.type,
+                status: s.status === "FAIT" ? "done" : "upcoming",
+                targetDistanceM: s.distanceM,
+                targetDurationS: s.durationS,
+                activity: null as { id: string } | null,
+              })),
+            )
+        : prisma.plannedWorkout.findMany({
+            where: { day: { gte: from, lte: to } },
+            include: { activity: { select: { id: true } } },
+          }),
       getProfileStatus(),
       loadPaceZones(),
     ]);

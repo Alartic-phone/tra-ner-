@@ -10,6 +10,7 @@ import { WeekGrid } from "@/components/calendar/week-grid.tsx";
 import { Card, CardHeader, Stat } from "@/components/ui/card.tsx";
 import { PageContainer } from "@/components/page-container.tsx";
 import { normalizeActivityName } from "@/lib/activity-names.ts";
+import { importedPlanCoversRange } from "@/lib/plan-import/repository.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,10 @@ export default async function CalendarPage({
   const gridTo = isWeekView ? weekEnd : addDays(mondayOf(addDays(last, 7)), -1);
 
   const rules = await getAvailabilityRules();
+  // Même règle de priorité que l'accueil (home-repository.ts) : l'import CSV
+  // prime dès qu'il couvre la période affichée, l'ancien plan Claude
+  // (PlannedWorkout) ne sert plus qu'en repli.
+  const useImported = await importedPlanCoversRange(gridFrom, gridTo);
   const [range, stats, activities, planned, raceGoals, activePlans] = await Promise.all([
     loadShiftRange(gridFrom, gridTo, rules),
     loadReplacementStats(addDays(now, -90), now),
@@ -59,19 +64,36 @@ export default async function CalendarPage({
       },
       orderBy: { startedAt: "asc" },
     }),
-    prisma.plannedWorkout.findMany({
-      where: { day: { gte: gridFrom, lte: gridTo } },
-      select: {
-        id: true,
-        day: true,
-        type: true,
-        title: true,
-        status: true,
-        isProvisional: true,
-        isKeySession: true,
-      },
-      orderBy: { orderInDay: "asc" },
-    }),
+    useImported
+      ? prisma.importedPlanSession
+          .findMany({
+            where: { day: { gte: gridFrom, lte: gridTo } },
+            orderBy: { day: "asc" },
+          })
+          .then((rows) =>
+            rows.map((s) => ({
+              id: s.id,
+              day: s.day,
+              type: s.type,
+              title: s.type,
+              status: s.status === "FAIT" ? "done" : "upcoming",
+              isProvisional: false,
+              isKeySession: false,
+            })),
+          )
+      : prisma.plannedWorkout.findMany({
+          where: { day: { gte: gridFrom, lte: gridTo } },
+          select: {
+            id: true,
+            day: true,
+            type: true,
+            title: true,
+            status: true,
+            isProvisional: true,
+            isKeySession: true,
+          },
+          orderBy: { orderInDay: "asc" },
+        }),
     prisma.goal.findMany({
       where: { isActive: true, day: { gte: gridFrom, lte: gridTo } },
       select: { day: true },

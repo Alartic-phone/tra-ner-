@@ -10,7 +10,8 @@ import {
   getTracePathsByActivity,
   loadZoneSecondsByActivity,
 } from "@/lib/metrics/repository.ts";
-import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
+import { computeHeartRateZones, zoneContainingBpmRange } from "@/lib/metrics/zones.ts";
+import { loadImportedSessionsByDay } from "@/lib/plan-import/repository.ts";
 import { isRun } from "@/lib/strava/mapping.ts";
 import { fixed, formatClock, formatDistance, formatPace, paceFromSpeed } from "@/lib/utils.ts";
 import { formatDayShort, formatInstant, toLocalHour } from "@/lib/time.ts";
@@ -56,14 +57,30 @@ export default async function ActivitiesPage({
   const page = activities.slice(0, limit);
 
   const activityIds = page.map((a) => a.id);
-  const [zonesByActivity, tracePathByActivity] = await Promise.all([
+  const [zonesByActivity, tracePathByActivity, importedByDay] = await Promise.all([
     loadZoneSecondsByActivity(activityIds),
     getTracePathsByActivity(activityIds),
+    loadImportedSessionsByDay(page.map((a) => a.startDay)),
   ]);
   const hrZones =
     profileStatus.thresholdHr != null
       ? computeHeartRateZones(profileStatus.thresholdHr, profileStatus.profile?.hrMax ?? null)
       : undefined;
+
+  // Même règle de priorité que l'accueil et le calendrier : une séance
+  // importée pour le jour de l'activité prime sur l'ancien plan Claude
+  // (relation `plannedWorkout`). `ImportedPlanSession` n'a pas d'index de
+  // zone stocké, seulement une fourchette bpm cible — dérivée via
+  // lib/metrics/zones.ts (seule autorité), jamais devinée depuis
+  // `zoneLabel`, sans autorité (R5).
+  function targetHrZoneOf(a: (typeof page)[number]): number | null {
+    const imported = importedByDay.get(a.startDay);
+    if (imported) {
+      if (imported.hrTargetMinBpm == null || imported.hrTargetMaxBpm == null || !hrZones) return null;
+      return zoneContainingBpmRange(imported.hrTargetMinBpm, imported.hrTargetMaxBpm, hrZones)?.index ?? null;
+    }
+    return a.plannedWorkout?.targetHrZone ?? null;
+  }
 
   const weeks = groupByWeek(page);
 
@@ -161,7 +178,7 @@ export default async function ActivitiesPage({
                   {week.items.map((a) => {
                     const running = isRun(a.type);
                     const secondsByZone = zonesByActivity.get(a.id) ?? null;
-                    const match = planMatchStatus(a.plannedWorkout?.targetHrZone, secondsByZone);
+                    const match = planMatchStatus(targetHrZoneOf(a), secondsByZone);
                     return (
                       <Link
                         key={a.id}

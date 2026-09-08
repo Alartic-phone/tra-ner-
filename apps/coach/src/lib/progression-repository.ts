@@ -4,6 +4,7 @@ import { today } from "./time.ts";
 import { isRun, RUN_TYPES } from "./strava/mapping.ts";
 import { fixed } from "./utils.ts";
 import { detectMilestones } from "./metrics/milestones.ts";
+import { importedPlanCoversRange } from "./plan-import/repository.ts";
 
 /** Requêtes propres à /progression : nuage allure×FC, volume hebdomadaire, jalons. */
 
@@ -87,15 +88,23 @@ export type Milestone = { day: Day; label: string };
  * l'ordre où elles ont eu lieu (le fil narratif se lit du début vers la fin).
  */
 export async function loadMilestones(): Promise<Milestone[]> {
+  // Même règle de priorité qu'ailleurs dans l'application (voir
+  // plan-import/repository.ts) : l'import CSV prime dès qu'il existe,
+  // l'ancien plan Claude (PlannedWorkout) ne sert plus qu'en repli.
+  const useImported = await importedPlanCoversRange();
   const [runs, plannedWorkouts] = await Promise.all([
     prisma.activity.findMany({
       where: { type: { in: [...RUN_TYPES] } },
       orderBy: { startDay: "asc" },
       select: { startDay: true, distanceM: true, type: true },
     }),
-    prisma.plannedWorkout.findMany({
-      select: { day: true, type: true, status: true },
-    }),
+    useImported
+      ? prisma.importedPlanSession
+          .findMany({ select: { day: true, type: true, status: true } })
+          .then((rows) => rows.map((s) => ({ day: s.day, type: s.type, status: s.status === "FAIT" ? "done" : "upcoming" })))
+      : prisma.plannedWorkout.findMany({
+          select: { day: true, type: true, status: true },
+        }),
   ]);
 
   const firstTimeMilestones = detectMilestones(

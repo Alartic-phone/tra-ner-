@@ -26,7 +26,8 @@ import {
   loadPersonalRecords,
   loadZoneSecondsByActivity,
 } from "@/lib/metrics/repository.ts";
-import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
+import { computeHeartRateZones, zoneContainingBpmRange } from "@/lib/metrics/zones.ts";
+import { loadImportedSessionsByDay } from "@/lib/plan-import/repository.ts";
 import { buildZoneVerdict, fastestSplitIndex } from "@/lib/activity-verdict.ts";
 import { formatInstant, toLocalHour } from "@/lib/time.ts";
 import { loadShiftRange } from "@/lib/shifts/repository.ts";
@@ -51,12 +52,13 @@ export default async function ActivityPage({
   if (!activity) notFound();
 
   const rules = await getAvailabilityRules();
-  const [streams, shifts, personalRecords, profileStatus, zonesByActivity] = await Promise.all([
+  const [streams, shifts, personalRecords, profileStatus, zonesByActivity, importedByDay] = await Promise.all([
     loadStreams(activity.id),
     loadShiftRange(activity.startDay, activity.startDay, rules),
     loadPersonalRecords(activity.id),
     getProfileStatus(),
     loadZoneSecondsByActivity([activity.id]),
+    loadImportedSessionsByDay([activity.startDay]),
   ]);
 
   const points = streams ? toChartPoints(streams) : [];
@@ -94,10 +96,24 @@ export default async function ActivityPage({
   );
   const maxSplitDuration = Math.max(1, ...splits.map((s) => s.movingTimeS));
 
-  const verdict =
-    activity.plannedWorkout?.targetHrZone != null
-      ? buildZoneVerdict(activity.plannedWorkout.targetHrZone, secondsByZone)
-      : null;
+  // Même règle de priorité que l'accueil, le calendrier et /activites :
+  // une séance importée pour ce jour prime sur l'ancien plan Claude
+  // (relation `plannedWorkout`). `ImportedPlanSession` n'a qu'une fourchette
+  // bpm cible, jamais un index de zone — dérivé via lib/metrics/zones.ts
+  // (seule autorité), jamais deviné depuis `zoneLabel`, sans autorité (R5).
+  const importedSession = importedByDay.get(activity.startDay);
+  const targetHrZoneIndex = importedSession
+    ? (importedSession.hrTargetMinBpm != null && importedSession.hrTargetMaxBpm != null && hrZones
+        ? (zoneContainingBpmRange(importedSession.hrTargetMinBpm, importedSession.hrTargetMaxBpm, hrZones)
+            ?.index ?? null)
+        : null)
+    : (activity.plannedWorkout?.targetHrZone ?? null);
+  const verdict = targetHrZoneIndex != null ? buildZoneVerdict(targetHrZoneIndex, secondsByZone) : null;
+  // Il existe une prescription (import CSV) pour ce jour, mais sa fourchette
+  // bpm ne correspond à aucune zone unique connue : on l'affiche comme non
+  // disponible plutôt que de ne rien dire (ce qui laisserait croire qu'il
+  // n'y a pas de prescription du tout).
+  const zoneVerdictUnavailable = importedSession != null && targetHrZoneIndex == null;
 
   return (
     <PageContainer className="px-0 py-0 md:px-0">
@@ -221,6 +237,10 @@ export default async function ActivityPage({
         {verdict ? (
           <p className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm">
             {verdict}
+          </p>
+        ) : zoneVerdictUnavailable ? (
+          <p className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-muted)]">
+            Séance prescrite ce jour-là, mais <Unavailable reason="fourchette FC cible hors zones connues, ou à cheval sur plusieurs zones" /> pour la comparer.
           </p>
         ) : null}
 

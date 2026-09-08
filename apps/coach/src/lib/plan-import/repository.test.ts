@@ -37,7 +37,7 @@ afterAll(async () => {
 
 const ZONES = computeHeartRateZones(175);
 const HEADER =
-  "date;jour;type;statut;distance_km;duree_estimee_min;fc_cible_min;fc_cible_max;zone;objectif_seance;muscu_details;fractionne_details;notes";
+  "date;jour;poste_F6;type;statut;distance_km;duree_estimee_min;fc_cible_min;fc_cible_max;zone;objectif_seance;muscu_details;fractionne_details;notes";
 
 function parseValid(...lines: string[]) {
   const buf = Buffer.from([HEADER, ...lines].join("\n"), "utf-8");
@@ -52,8 +52,8 @@ function parseValid(...lines: string[]) {
 describe("writeImportedSessions — idempotence par (objectif, date)", () => {
   it("un premier import crée, un réimport du même fichier met à jour sans dupliquer", async () => {
     const rows = parseValid(
-      "2026-09-08;Mardi;Course - reprise;A_FAIRE;7.5;45;143;152;Zone 2;Reprise en douceur.;;;Prescrit 7-8km",
-      "2026-09-10;Jeudi;Sortie longue;A_FAIRE;9;55;143;152;Zone 2;Dernière sortie avant coupure.;;;",
+      "2026-09-08;Mardi;Matin;Course - reprise;A_FAIRE;7.5;45;143;152;Zone 2;Reprise en douceur.;;;Prescrit 7-8km",
+      "2026-09-10;Jeudi;Repos;Sortie longue;A_FAIRE;9;55;143;152;Zone 2;Dernière sortie avant coupure.;;;",
     );
 
     const first = await writeImportedSessions(rows, client);
@@ -72,12 +72,12 @@ describe("writeImportedSessions — idempotence par (objectif, date)", () => {
 
   it("une ligne modifiée sur la même clé (objectif, date) met à jour le contenu en place", async () => {
     const original = parseValid(
-      "2026-09-12;Samedi;Course facile;A_FAIRE;6;42;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur",
+      "2026-09-12;Samedi;Matin;Course facile;A_FAIRE;6;42;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur",
     );
     await writeImportedSessions(original, client);
 
     const revised = parseValid(
-      "2026-09-12;Samedi;Course facile;A_FAIRE;6.5;44;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur, distance ajustée",
+      "2026-09-12;Samedi;Matin;Course facile;A_FAIRE;6.5;44;140;148;Zone 2 basse;Resynchronisation.;;;Chaleur, distance ajustée",
     );
     const result = await writeImportedSessions(revised, client);
     expect(result).toEqual({ created: 0, updated: 1 });

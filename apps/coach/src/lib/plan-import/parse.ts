@@ -5,6 +5,7 @@ import { decodeCsvBuffer, tokenizeCsv } from "./csv.ts";
 export const EXPECTED_HEADER = [
   "date",
   "jour",
+  "poste_F6",
   "type",
   "statut",
   "distance_km",
@@ -105,8 +106,13 @@ export function validateRow(
   // — `?? ""` documente que ces valeurs sont sûres à ce stade, pas qu'un
   // champ vide est traité comme "0" nulle part (`blankToNull`/`parseOptional*`
   // traitent déjà "" comme vide).
+  // `jour` et `poste_F6` sont présentes dans l'en-tête mais jamais stockées :
+  // le poste réel d'une journée est calculé par lib/shifts/ (cycle +
+  // exceptions), seule autorité en la matière. Stocker la valeur du CSV
+  // créerait une seconde source pouvant diverger de la vraie.
   const [
     dateRaw = "",
+    ,
     ,
     typeRaw = "",
     statutRaw = "",
