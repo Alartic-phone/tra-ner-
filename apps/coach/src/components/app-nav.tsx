@@ -8,6 +8,7 @@ import {
   Calculator,
   CalendarDays,
   ClipboardList,
+  Gauge,
   MoreHorizontal,
   Settings,
   TrendingUp,
@@ -28,6 +29,7 @@ const DIRECT_ITEMS: NavItem[] = [
 ];
 
 const OVERFLOW_ITEMS: NavItem[] = [
+  { href: "/analyses", label: "Analyses", icon: Gauge },
   { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/simulateur", label: "Simulateur", icon: Calculator },
   { href: "/reglages", label: "Réglages", icon: Settings },
@@ -58,10 +60,10 @@ function NavIconLink({ item, active }: { item: NavItem; active: boolean }) {
 
 /**
  * Icônes de navigation de l'en-tête : Plan, Activités et Calendrier restent
- * toujours visibles en direct ; Progression, Simulateur et Réglages passent
- * dans un menu « Plus » (`<details>` natif — pas de dépendance Radix,
- * cf. apps/coach/CLAUDE.md) pour que l'en-tête reste lisible à 390 px sans
- * jamais reléguer Plan dans ce menu.
+ * toujours visibles en direct ; Analyses, Progression, Simulateur et
+ * Réglages passent dans un menu « Plus » (`<details>` natif — pas de
+ * dépendance Radix, cf. apps/coach/CLAUDE.md) pour que l'en-tête reste
+ * lisible à 390 px sans jamais reléguer Plan dans ce menu.
  */
 export function AppNav() {
   const pathname = usePathname();

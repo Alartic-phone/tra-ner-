@@ -262,6 +262,10 @@ export type TodaySession = {
   durationS: number | null;
   hrTargetMinBpm: number | null;
   hrTargetMaxBpm: number | null;
+  /** `toggleSessionStatus` (§2.3) ne connaît QUE `ImportedPlanSession` — le
+   *  bouton Fait doit rester caché pour une séance `legacy` (§3.3.b), sous
+   *  peine d'un contrôle qui échoue silencieusement à l'appui. */
+  source: "imported" | "legacy";
 };
 
 /**
@@ -273,7 +277,7 @@ export type TodaySession = {
 export async function loadTodaySessions(today: Day): Promise<TodaySession[]> {
   const imported = await prisma.importedPlanSession.findMany({
     where: { day: today },
-    orderBy: { createdAt: "asc" },
+    orderBy: { orderInDay: "asc" },
   });
   if (imported.length > 0) {
     return imported.map((s) => ({
@@ -285,6 +289,7 @@ export async function loadTodaySessions(today: Day): Promise<TodaySession[]> {
       durationS: s.durationS,
       hrTargetMinBpm: s.hrTargetMinBpm,
       hrTargetMaxBpm: s.hrTargetMaxBpm,
+      source: "imported",
     }));
   }
 
@@ -301,6 +306,7 @@ export async function loadTodaySessions(today: Day): Promise<TodaySession[]> {
     durationS: w.targetDurationS,
     hrTargetMinBpm: null,
     hrTargetMaxBpm: null,
+    source: "legacy",
   }));
 }
 
@@ -362,10 +368,12 @@ export type AgendaDay = {
   shiftCode: string | null;
   startTime: string | null;
   endTime: string | null;
-  workout: { title: string; type: string } | null;
+  /** `extraCount` = nombre de séances du jour AU-DELÀ de la première —
+   *  jamais masquées sans le dire (§3.2), juste résumées en un décompte. */
+  workout: { title: string; type: string; extraCount: number } | null;
 };
 
-/** Sept prochains jours (section 3.5) : poste réel + séance prévue si un plan existe. */
+/** Sept prochains jours (section 3.5) : poste réel + séance(s) prévue(s) si un plan existe. */
 export async function loadAgendaDays(
   today: Day,
   ribbonDays: ReadonlyArray<{
@@ -382,25 +390,30 @@ export async function loadAgendaDays(
   // couvre la période, le plan Claude ne sert plus qu'en repli.
   const imported = await prisma.importedPlanSession.findMany({
     where: { day: { gte: today, lte: to } },
-    orderBy: { day: "asc" },
+    orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
   });
 
-  const workoutByDay = new Map<Day, { title: string; type: string }>();
+  const sessionsByDay = new Map<Day, Array<{ title: string; type: string }>>();
+  function push(day: Day, session: { title: string; type: string }): void {
+    const list = sessionsByDay.get(day);
+    if (list) list.push(session);
+    else sessionsByDay.set(day, [session]);
+  }
+
   if (imported.length > 0) {
-    for (const s of imported) {
-      if (!workoutByDay.has(s.day)) workoutByDay.set(s.day, { title: s.type, type: s.type });
-    }
+    for (const s of imported) push(s.day, { title: s.type, type: s.type });
   } else {
     const workouts = await prisma.plannedWorkout.findMany({
       where: { day: { gte: today, lte: to }, plan: { status: "active" } },
       orderBy: { orderInDay: "asc" },
       select: { day: true, title: true, type: true },
     });
-    for (const w of workouts) if (!workoutByDay.has(w.day)) workoutByDay.set(w.day, w);
+    for (const w of workouts) push(w.day, w);
   }
 
   return eachDay(today, to).map((day) => {
     const ribbon = ribbonDays.find((r) => r.day === day);
+    const sessions = sessionsByDay.get(day);
     return {
       day,
       isToday: day === today,
@@ -408,7 +421,10 @@ export async function loadAgendaDays(
       shiftCode: ribbon?.code ?? null,
       startTime: ribbon?.startTime ?? null,
       endTime: ribbon?.endTime ?? null,
-      workout: workoutByDay.get(day) ?? null,
+      workout:
+        sessions && sessions.length > 0
+          ? { title: sessions[0]!.title, type: sessions[0]!.type, extraCount: sessions.length - 1 }
+          : null,
     };
   });
 }

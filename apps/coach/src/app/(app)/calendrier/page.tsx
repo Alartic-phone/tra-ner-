@@ -68,7 +68,7 @@ export default async function CalendarPage({
       ? prisma.importedPlanSession
           .findMany({
             where: { day: { gte: gridFrom, lte: gridTo } },
-            orderBy: { day: "asc" },
+            orderBy: [{ day: "asc" }, { orderInDay: "asc" }],
           })
           .then((rows) =>
             rows.map((s) => ({

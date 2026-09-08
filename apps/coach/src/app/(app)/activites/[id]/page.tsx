@@ -101,19 +101,39 @@ export default async function ActivityPage({
   // (relation `plannedWorkout`). `ImportedPlanSession` n'a qu'une fourchette
   // bpm cible, jamais un index de zone — dérivé via lib/metrics/zones.ts
   // (seule autorité), jamais deviné depuis `zoneLabel`, sans autorité (R5).
-  const importedSession = importedByDay.get(activity.startDay);
-  const targetHrZoneIndex = importedSession
-    ? (importedSession.hrTargetMinBpm != null && importedSession.hrTargetMaxBpm != null && hrZones
-        ? (zoneContainingBpmRange(importedSession.hrTargetMinBpm, importedSession.hrTargetMaxBpm, hrZones)
-            ?.index ?? null)
-        : null)
-    : (activity.plannedWorkout?.targetHrZone ?? null);
+  // Un jour peut porter plusieurs séances (§3.1/§3.2) : on ne retient que
+  // celles avec une fourchette FC, et seulement s'il y en a EXACTEMENT une —
+  // zéro ou plusieurs, aucun rapprochement automatique (jamais deviné
+  // laquelle correspond, ni par le type ni par `zoneLabel`).
+  const importedSessions = importedByDay.get(activity.startDay) ?? [];
+  const withHrTarget = importedSessions.filter(
+    (s) => s.hrTargetMinBpm != null && s.hrTargetMaxBpm != null,
+  );
+
+  let targetHrZoneIndex: number | null = null;
+  // Raison pour laquelle aucun verdict n'a pu être calculé alors qu'une
+  // prescription existe ce jour-là — affichée explicitement plutôt que de
+  // laisser croire qu'il n'y a pas de prescription du tout.
+  let zoneUnavailableReason: string | null = null;
+
+  if (importedSessions.length > 0) {
+    if (withHrTarget.length > 1) {
+      zoneUnavailableReason = "plusieurs séances prévues ce jour, rapprochement impossible automatiquement";
+    } else if (withHrTarget.length === 1 && hrZones) {
+      const s = withHrTarget[0]!;
+      targetHrZoneIndex = zoneContainingBpmRange(s.hrTargetMinBpm!, s.hrTargetMaxBpm!, hrZones)?.index ?? null;
+      if (targetHrZoneIndex == null) {
+        zoneUnavailableReason = "fourchette FC cible hors zones connues, ou à cheval sur plusieurs zones";
+      }
+    }
+    // withHrTarget.length === 0 : aucune des séances du jour ne porte de
+    // fourchette FC (ex. renforcement seul) — pas une prescription
+    // ambiguë, simplement pas de comparaison possible, comme sans plan.
+  } else {
+    targetHrZoneIndex = activity.plannedWorkout?.targetHrZone ?? null;
+  }
+
   const verdict = targetHrZoneIndex != null ? buildZoneVerdict(targetHrZoneIndex, secondsByZone) : null;
-  // Il existe une prescription (import CSV) pour ce jour, mais sa fourchette
-  // bpm ne correspond à aucune zone unique connue : on l'affiche comme non
-  // disponible plutôt que de ne rien dire (ce qui laisserait croire qu'il
-  // n'y a pas de prescription du tout).
-  const zoneVerdictUnavailable = importedSession != null && targetHrZoneIndex == null;
 
   return (
     <PageContainer className="px-0 py-0 md:px-0">
@@ -238,9 +258,9 @@ export default async function ActivityPage({
           <p className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm">
             {verdict}
           </p>
-        ) : zoneVerdictUnavailable ? (
+        ) : zoneUnavailableReason ? (
           <p className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-muted)]">
-            Séance prescrite ce jour-là, mais <Unavailable reason="fourchette FC cible hors zones connues, ou à cheval sur plusieurs zones" /> pour la comparer.
+            Séance prescrite ce jour-là, mais <Unavailable reason={zoneUnavailableReason} /> pour la comparer.
           </p>
         ) : null}
 

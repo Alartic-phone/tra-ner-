@@ -72,12 +72,19 @@ export default async function ActivitiesPage({
   // (relation `plannedWorkout`). `ImportedPlanSession` n'a pas d'index de
   // zone stocké, seulement une fourchette bpm cible — dérivée via
   // lib/metrics/zones.ts (seule autorité), jamais devinée depuis
-  // `zoneLabel`, sans autorité (R5).
+  // `zoneLabel`, sans autorité (R5). Un jour peut porter plusieurs séances
+  // (§3.1/§3.2) : on ne retient que celles qui portent une fourchette FC, et
+  // seulement s'il y en a EXACTEMENT une — zéro ou plusieurs, aucun
+  // rapprochement automatique, jamais deviné laquelle correspond.
   function targetHrZoneOf(a: (typeof page)[number]): number | null {
-    const imported = importedByDay.get(a.startDay);
-    if (imported) {
-      if (imported.hrTargetMinBpm == null || imported.hrTargetMaxBpm == null || !hrZones) return null;
-      return zoneContainingBpmRange(imported.hrTargetMinBpm, imported.hrTargetMaxBpm, hrZones)?.index ?? null;
+    const importedSessions = importedByDay.get(a.startDay) ?? [];
+    if (importedSessions.length > 0) {
+      const withHrTarget = importedSessions.filter(
+        (s) => s.hrTargetMinBpm != null && s.hrTargetMaxBpm != null,
+      );
+      if (withHrTarget.length !== 1 || !hrZones) return null;
+      const s = withHrTarget[0]!;
+      return zoneContainingBpmRange(s.hrTargetMinBpm!, s.hrTargetMaxBpm!, hrZones)?.index ?? null;
     }
     return a.plannedWorkout?.targetHrZone ?? null;
   }

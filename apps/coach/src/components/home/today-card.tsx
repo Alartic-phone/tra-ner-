@@ -54,11 +54,20 @@ export function TodayCard({
         <ul className="mt-3 space-y-3">
           {sessions.map((session) => (
             <li key={session.id} className="flex items-start gap-3">
-              <SessionDoneToggle
-                sessionId={session.id}
-                done={session.status === "FAIT"}
-                className="mt-0.5"
-              />
+              {session.source === "imported" ? (
+                <SessionDoneToggle
+                  sessionId={session.id}
+                  done={session.status === "FAIT"}
+                  className="mt-0.5"
+                />
+              ) : (
+                // Ancien plan Claude (repli d'affichage, §3.3.b) :
+                // `toggleSessionStatus` ne connaît que les séances
+                // importées — un bouton ici échouerait à l'appui.
+                // Réservé pour garder l'alignement avec les lignes qui
+                // portent le contrôle.
+                <span className="mt-0.5 h-11 w-11 shrink-0" aria-hidden />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="font-display text-base text-[var(--color-text)]">{session.type}</p>
                 {session.objective ? (
