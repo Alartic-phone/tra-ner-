@@ -62,7 +62,8 @@ export function PlanImportForm() {
         return;
       }
       setConfirmedMessage(
-        `Import terminé : ${result.created} séance(s) créée(s), ${result.updated} mise(s) à jour.`,
+        `Import terminé : ${result.created} séance(s) créée(s), ${result.updated} mise(s) à jour` +
+          (result.deleted > 0 ? `, ${result.deleted} supprimée(s).` : "."),
       );
       setPreview(null);
       setFile(null);
@@ -115,7 +116,25 @@ export function PlanImportForm() {
             <p className="text-xs text-[var(--color-muted)]">
               Encodage détecté : {preview.encoding === "utf-8" ? "UTF-8" : "CP1252 (Excel français)"} ·{" "}
               {preview.valid.length} ligne(s) valide(s) · {preview.rejected.length} rejetée(s)
+              {preview.deletions.length > 0 ? ` · ${preview.deletions.length} suppression(s)` : ""}
             </p>
+
+            {preview.deletions.length > 0 ? (
+              <div className="rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 p-3">
+                <p className="text-xs font-medium text-[var(--color-warn)]">
+                  {preview.deletions.length} séance(s) vont disparaître — absentes du fichier pour un
+                  jour qu&apos;il couvre par ailleurs. Vérifier avant de confirmer :
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-[var(--color-warn)]">
+                  {preview.deletions.map((d) => (
+                    <li key={d.id}>
+                      {formatDayShort(d.day)} — {d.type}
+                      {d.objective ? ` (${d.objective})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {preview.valid.length > 0 ? (
               <div className="overflow-x-auto">

@@ -142,18 +142,18 @@ describe("parsePlanImportCsv — ligne invalide", () => {
     expect(result.fileError).toMatch(/en-tête invalide/);
   });
 
-  it("rejette les dates en double dans le fichier (les deux occurrences)", () => {
+  it("accepte deux lignes du même jour (renforcement + course, cas courant) — corrigé le 08/09/2026", () => {
     const buf = csv(
-      "2026-09-08;Mardi;Matin;Course;A_FAIRE;5;30;;;;Objectif A;;;",
+      "2026-09-08;Mardi;Matin;Renforcement;A_FAIRE;;35;;;;Objectif A;;;",
       "2026-09-08;Mardi;Nuit;Course;A_FAIRE;6;35;;;;Objectif B;;;",
     );
     const result = parsePlanImportCsv(buf, ZONES);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.valid).toEqual([]);
-    expect(result.rejected).toHaveLength(2);
-    expect(result.rejected[0]!.reason).toMatch(/date en double/);
-    expect(result.rejected[1]!.reason).toMatch(/date en double/);
+    expect(result.rejected).toEqual([]);
+    expect(result.valid).toHaveLength(2);
+    expect(result.valid[0]!.day).toBe("2026-09-08");
+    expect(result.valid[1]!.day).toBe("2026-09-08");
   });
 });
 

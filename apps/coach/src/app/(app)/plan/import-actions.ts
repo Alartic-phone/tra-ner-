@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { getProfileStatus } from "@/lib/metrics/repository.ts";
 import { computeHeartRateZones } from "@/lib/metrics/zones.ts";
 import { parsePlanImportCsv, type RejectedImportRow, type ValidImportRow } from "@/lib/plan-import/parse.ts";
-import { classifyImportRows, writeImportedSessions } from "@/lib/plan-import/repository.ts";
+import {
+  classifyImportRows,
+  writeImportedSessions,
+  type PlannedDeletion,
+} from "@/lib/plan-import/repository.ts";
 
 export type PlanImportPreviewRow = ValidImportRow & { action: "create" | "update" };
 
@@ -15,6 +19,8 @@ export type PlanImportPreview =
       encoding: "utf-8" | "windows-1252";
       valid: PlanImportPreviewRow[];
       rejected: RejectedImportRow[];
+      /** Séances qui disparaîtront à la confirmation (§3.1) — jamais silencieux. */
+      deletions: PlannedDeletion[];
     };
 
 async function readCsvBuffer(formData: FormData): Promise<Buffer | { error: string }> {
@@ -49,17 +55,17 @@ export async function analyzePlanImport(formData: FormData): Promise<PlanImportP
   const result = parsePlanImportCsv(buffer, zones);
   if (!result.ok) return result;
 
-  const actions = await classifyImportRows(result.valid);
+  const { byLine, deletions } = await classifyImportRows(result.valid);
   const valid: PlanImportPreviewRow[] = result.valid.map((row) => ({
     ...row,
-    action: actions.get(row.line) ?? "create",
+    action: byLine.get(row.line) ?? "create",
   }));
 
-  return { ok: true, encoding: result.encoding, valid, rejected: result.rejected };
+  return { ok: true, encoding: result.encoding, valid, rejected: result.rejected, deletions };
 }
 
 export type PlanImportConfirmResult =
-  | { ok: true; created: number; updated: number }
+  | { ok: true; created: number; updated: number; deleted: number }
   | { ok: false; error: string };
 
 /**
@@ -86,8 +92,8 @@ export async function confirmPlanImport(formData: FormData): Promise<PlanImportC
     return { ok: false, error: "Aucune ligne à importer." };
   }
 
-  const { created, updated } = await writeImportedSessions(result.valid);
+  const { created, updated, deleted } = await writeImportedSessions(result.valid);
   revalidatePath("/plan");
   revalidatePath("/");
-  return { ok: true, created, updated };
+  return { ok: true, created, updated, deleted };
 }

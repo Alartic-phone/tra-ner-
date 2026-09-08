@@ -45,6 +45,7 @@ async function validateInput(
   const cells = [
     input.date,
     "", // "jour" : dérivé de la date, jamais saisi (cf. schema.prisma).
+    "", // "poste_F6" : dérivé de lib/shifts/, jamais saisi non plus (cf. parse.ts).
     input.type,
     input.statut,
     input.distanceKm,
@@ -82,15 +83,44 @@ function isUniqueConstraintError(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
+/**
+ * Renumérote les séances d'une journée pour que `orderInDay` reste contigu
+ * à partir de 0 — appelée après tout ce qui vide un rang (suppression, ou
+ * changement de jour d'une séance) pour ne jamais laisser de trou. Toujours
+ * dans la transaction de l'appelant.
+ */
+async function recompactDay(day: string, tx: Prisma.TransactionClient): Promise<void> {
+  const rows = await tx.importedPlanSession.findMany({
+    where: { day },
+    orderBy: { orderInDay: "asc" },
+    select: { id: true, orderInDay: true },
+  });
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    if (row.orderInDay !== i) {
+      await tx.importedPlanSession.update({ where: { id: row.id }, data: { orderInDay: i } });
+    }
+  }
+}
+
+/**
+ * Création manuelle : la séance rejoint la fin de sa journée
+ * (`orderInDay` = nombre de séances déjà présentes ce jour-là), calculé et
+ * écrit dans la même transaction pour éviter toute collision de rang.
+ */
 export async function createSessionManually(input: SessionFormInput): Promise<SessionActionResult> {
   const validated = await validateInput(input);
   if (!validated.ok) return validated;
+  const row = validated.row;
 
   try {
-    await prisma.importedPlanSession.create({ data: toData(validated.row) });
+    await prisma.$transaction(async (tx) => {
+      const orderInDay = await tx.importedPlanSession.count({ where: { day: row.day } });
+      await tx.importedPlanSession.create({ data: { ...toData(row), orderInDay } });
+    });
   } catch (e) {
     if (isUniqueConstraintError(e)) {
-      return { ok: false, error: "Une séance existe déjà à cette date avec cet objectif." };
+      return { ok: false, error: "Une séance existe déjà à ce rang pour cette date — réessayer." };
     }
     throw e;
   }
@@ -99,18 +129,46 @@ export async function createSessionManually(input: SessionFormInput): Promise<Se
   return { ok: true };
 }
 
+/**
+ * Édition manuelle : si le jour ne change pas, le rang (`orderInDay`) reste
+ * intact. S'il change, la séance prend le rang de fin de sa NOUVELLE
+ * journée et l'ANCIENNE journée est recompactée pour ne jamais laisser de
+ * trou — jamais deux séances de même rang le même jour.
+ */
 export async function updateSessionManually(
   id: string,
   input: SessionFormInput,
 ): Promise<SessionActionResult> {
   const validated = await validateInput(input);
   if (!validated.ok) return validated;
+  const row = validated.row;
 
   try {
-    await prisma.importedPlanSession.update({ where: { id }, data: toData(validated.row) });
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.importedPlanSession.findUnique({
+        where: { id },
+        select: { day: true },
+      });
+      if (!existing) throw new Error("SESSION_NOT_FOUND");
+
+      if (existing.day === row.day) {
+        await tx.importedPlanSession.update({ where: { id }, data: toData(row) });
+        return;
+      }
+
+      const newOrderInDay = await tx.importedPlanSession.count({ where: { day: row.day } });
+      await tx.importedPlanSession.update({
+        where: { id },
+        data: { ...toData(row), orderInDay: newOrderInDay },
+      });
+      await recompactDay(existing.day, tx);
+    });
   } catch (e) {
+    if (e instanceof Error && e.message === "SESSION_NOT_FOUND") {
+      return { ok: false, error: "Séance introuvable." };
+    }
     if (isUniqueConstraintError(e)) {
-      return { ok: false, error: "Une autre séance existe déjà à cette date avec cet objectif." };
+      return { ok: false, error: "Une séance existe déjà à ce rang pour cette date — réessayer." };
     }
     throw e;
   }
@@ -119,8 +177,17 @@ export async function updateSessionManually(
   return { ok: true };
 }
 
+/**
+ * Suppression manuelle : la journée est recompactée dans la même
+ * transaction pour que les rangs restent contigus à partir de 0.
+ */
 export async function deleteSession(id: string): Promise<SessionActionResult> {
-  await prisma.importedPlanSession.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.importedPlanSession.findUnique({ where: { id }, select: { day: true } });
+    if (!existing) return; // déjà supprimée — idempotent, rien à faire.
+    await tx.importedPlanSession.delete({ where: { id } });
+    await recompactDay(existing.day, tx);
+  });
   revalidatePath("/plan");
   revalidatePath("/");
   return { ok: true };
