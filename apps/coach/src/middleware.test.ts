@@ -43,6 +43,17 @@ describe("middleware (authentification configurée)", () => {
     expect(new URL(response.headers.get("location")!).pathname).toBe("/login");
   });
 
+  it("laisse passer un fichier .webp du dossier photos sans cookie (utilisé par la requête interne de /_next/image)", async () => {
+    // /_next/image ne lit pas le fichier local directement : il refait une
+    // requête interne à travers ce même middleware (fetchInternalImage,
+    // node_modules/next/dist/server/image-optimizer.js). Sans .webp dans
+    // PUBLIC_FILE, cette requête interne — sans cookie — était redirigée
+    // vers /login, et Next recevait du HTML au lieu de l'image ("The
+    // requested resource isn't a valid image").
+    const response = await middleware(requestFor("/photos/nuit/unsplash-3s85IxVDyXE-1600.webp"));
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("laisse passer une route protégée avec un cookie de session valide", async () => {
     const token = await signSession(Date.now());
     const response = await middleware(requestFor("/reglages", token));

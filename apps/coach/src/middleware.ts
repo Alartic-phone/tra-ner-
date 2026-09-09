@@ -13,7 +13,13 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth.ts";
 const PUBLIC_PATHS = ["/api/strava/webhook", "/api/strava/sync", "/login", "/api/auth/login"];
 
 // Fichiers statiques et manifeste PWA : aucune donnée personnelle dedans.
-const PUBLIC_FILE = /\.(?:svg|png|jpg|jpeg|ico|webmanifest|json|txt|xml|woff2?)$/;
+// `.webp` inclus : /_next/image ne lit jamais un fichier local directement,
+// il refait une requête interne à travers CE MÊME middleware
+// (fetchInternalImage, node_modules/next/dist/server/image-optimizer.js) —
+// sans cookie de session. Sans lui ici, cette requête interne pour les
+// photos d'ambiance (public/photos/**/*.webp) était redirigée vers /login,
+// et Next recevait du HTML au lieu de l'image.
+const PUBLIC_FILE = /\.(?:svg|png|jpg|jpeg|webp|ico|webmanifest|json|txt|xml|woff2?)$/;
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_FILE.test(pathname)) return true;
