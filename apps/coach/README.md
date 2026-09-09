@@ -450,6 +450,69 @@ dans le volume `coach-data`.
 Le service `sync` déclenche la synchronisation Strava une fois par jour ; il
 est inutile si un webhook est configuré.
 
+### Fly.io
+
+Déploiement réel de ce projet (`coach-entrainement.fly.dev`) : même
+`Dockerfile` que Docker Compose, mais orchestré par `fly.toml` (à la racine
+de `apps/coach/`) plutôt que `docker-compose.yml`.
+
+```bash
+# Une seule fois : créer l'app et le volume (déjà fait pour ce déploiement,
+# fly.toml existant suffit ensuite)
+flyctl volumes create coach_data --size 1 -a coach-entrainement
+
+# Secrets — jamais dans fly.toml (en clair dans le dépôt), toujours via secrets
+flyctl secrets set \
+  ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  APP_PASSWORD=$(openssl rand -base64 18) \
+  SESSION_SECRET=$(openssl rand -hex 32) \
+  PUBLIC_URL=https://coach-entrainement.fly.dev \
+  CRON_SECRET=$(openssl rand -hex 16) \
+  -a coach-entrainement
+
+# Déploiement
+flyctl deploy -a coach-entrainement
+```
+
+Points spécifiques à Fly, absents du chemin Docker Compose :
+
+- **Une seule machine** (`fly.toml`, pas de section `[[vm]]` avec plusieurs
+  instances) : SQLite ne supporte pas plusieurs writers concurrents.
+- **`DATABASE_URL` et `TZ` sont dans `[env]`** de `fly.toml` (non sensibles),
+  pas dans les secrets — `file:/app/data/coach.db`, où `/app/data` est le
+  point de montage du volume `coach_data` (`[[mounts]]`). La base survit aux
+  redéploiements et aux redémarrages.
+- **`STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET`** : plutôt que les passer en
+  secret puis redéployer, ils peuvent être saisis directement dans
+  **Réglages → Strava** une fois l'app en ligne (stockés chiffrés en base,
+  voir `lib/strava/credentials.ts`) — plus pratique que d'éditer `.env` sur
+  un environnement sans accès filesystem direct. `STRAVA_WEBHOOK_VERIFY_TOKEN`
+  reste à passer en secret si le webhook temps réel est utilisé.
+- **`auto_stop_machines`/`auto_start_machines`** (`http_service` de
+  `fly.toml`) : la machine s'arrête proprement (SIGINT, pas de kill brutal)
+  après une période d'inactivité et redémarre à la requête suivante
+  (~1 seconde) — pas un souci pour un usage personnel, mais explique un
+  éventuel premier chargement plus lent après une pause.
+- **Migrations** : appliquées par le même `docker-entrypoint.sh` que Docker
+  Compose (`prisma migrate deploy` avant `node server.js`), un échec
+  empêchant le démarrage.
+- **Sauvegarde/restauration** : mêmes scripts que Docker Compose
+  (`docker-backup.sh`/`docker-restore.sh`), mais via `flyctl ssh console`
+  au lieu de `docker compose exec` :
+
+  ```bash
+  flyctl ssh console -a coach-entrainement -C "/app/docker-backup.sh"
+  flyctl ssh sftp get /app/data/backups/<fichier>.db ./<fichier>.db -a coach-entrainement
+  ```
+
+- **Retour en arrière** : `flyctl releases -a coach-entrainement` liste
+  l'historique des versions déployées ; `flyctl releases rollback <version>
+  -a coach-entrainement` revient à l'une d'elles (n'affecte que l'image et
+  la configuration, jamais la base — le volume est partagé entre toutes les
+  releases).
+- **Logs** : `flyctl logs -a coach-entrainement` (streaming continu — Ctrl-C
+  pour arrêter, ne s'arrête pas de lui-même).
+
 ### Vercel + base distante
 
 > **⚠️ `APP_PASSWORD`/`SESSION_SECRET` obligatoires ici.** Une fois déployée,
